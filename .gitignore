@@ -1,61 +1,34 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-dist/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-*.manifest
-*.spec
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-.nox/
-venv/
-.venv
-
-# Node
+# Dependencies
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-.next/
-out/
-build/
-dist/
-*.tsbuildinfo
-.turbo
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Environment
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
 
-# IDEs
+# Build outputs
+.next/
+dist/
+build/
+*.egg-info/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
-.DS_Store
 
-# Logs
-logs/
-*.log
-
-# Docker
-docker-compose.override.yml
-
-# Do NOT ignore .kiro/ - it must be committed
+# Temporary files
+tmp/
+temp/
+*.tmp

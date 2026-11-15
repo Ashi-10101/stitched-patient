@@ -1,0 +1,204 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://stitchedpatient.dev/schemas/case.json",
+  "title": "Stitched Patient Case Definition",
+  "description": "Schema for case definition files in Stitched Patient simulation",
+  "type": "object",
+  "required": ["id", "title", "patient", "engine", "timeline", "alarms", "interventions", "references"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique case identifier (lowercase-with-hyphens)",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable case title"
+    },
+    "patient": {
+      "type": "object",
+      "description": "Patient demographics and presentation",
+      "required": ["age", "sex", "summary"],
+      "properties": {
+        "age": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sex": {
+          "type": "string",
+          "enum": ["male", "female", "other"]
+        },
+        "summary": {
+          "type": "string",
+          "description": "One-line chief complaint or presentation"
+        }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "description": "Pulse engine configuration",
+      "required": ["startingState"],
+      "properties": {
+        "startingState": {
+          "type": "string",
+          "description": "Path to Pulse engine starting state file"
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "description": "Scheduled events in the simulation",
+      "required": ["scheduledInsults"],
+      "properties": {
+        "scheduledInsults": {
+          "type": "array",
+          "description": "List of pathological events that occur at specific times",
+          "items": {
+            "type": "object",
+            "required": ["timeSeconds", "action", "parameters"],
+            "properties": {
+              "timeSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "description": "When this insult occurs (simulation time)"
+              },
+              "action": {
+                "type": "string",
+                "description": "Pulse action class name (e.g., SETensionPneumothorax)"
+              },
+              "parameters": {
+                "type": "object",
+                "description": "Action-specific parameters",
+                "properties": {
+                  "side": {
+                    "type": "string",
+                    "enum": ["Left", "Right"]
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["Closed", "Open"]
+                  },
+                  "severity": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "alarms": {
+      "type": "object",
+      "description": "Vital sign alarm thresholds",
+      "required": ["heartRate", "respiratoryRate", "spO2", "meanArterialPressure"],
+      "properties": {
+        "heartRate": {
+          "$ref": "#/definitions/thresholds"
+        },
+        "respiratoryRate": {
+          "$ref": "#/definitions/thresholds"
+        },
+        "spO2": {
+          "$ref": "#/definitions/thresholds"
+        },
+        "meanArterialPressure": {
+          "$ref": "#/definitions/thresholds"
+        },
+        "etCO2": {
+          "$ref": "#/definitions/thresholds"
+        },
+        "tidalVolume": {
+          "$ref": "#/definitions/thresholds"
+        }
+      }
+    },
+    "interventions": {
+      "type": "array",
+      "description": "Available interventions for this case",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "action"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique intervention identifier"
+          },
+          "label": {
+            "type": "string",
+            "description": "Display label for UI button"
+          },
+          "action": {
+            "type": "string",
+            "description": "Pulse action class name"
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Fixed or configurable parameters"
+          }
+        }
+      }
+    },
+    "references": {
+      "type": "array",
+      "description": "Clinical sources for case content",
+      "items": {
+        "type": "object",
+        "required": ["citation"],
+        "properties": {
+          "citation": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "thresholds": {
+      "type": "object",
+      "required": ["critical", "warning", "normal"],
+      "properties": {
+        "critical": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          }
+        },
+        "warning": {
+          "type": "object",
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          }
+        },
+        "normal": {
+          "type": "object",
+          "required": ["low", "high"],
+          "properties": {
+            "low": {
+              "type": "number"
+            },
+            "high": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    }
+  }
+}

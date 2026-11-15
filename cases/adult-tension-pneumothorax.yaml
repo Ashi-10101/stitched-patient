@@ -1,0 +1,106 @@
+id: adult-tension-pneumothorax
+title: Adult Tension Pneumothorax
+
+patient:
+  age: 32
+  sex: male
+  summary: "Sudden onset chest pain and shortness of breath following motor vehicle collision"
+
+engine:
+  startingState: /pulse/bin/states/StandardMale@0s.json
+
+timeline:
+  scheduledInsults:
+    - timeSeconds: 30
+      action: SETensionPneumothorax
+      parameters:
+        side: Left
+        type: Closed
+        severity: 0.75
+
+alarms:
+  heartRate:
+    critical:
+      low: 40
+      high: 140
+    warning:
+      low: 50
+      high: 120
+    normal:
+      low: 60
+      high: 100
+  
+  respiratoryRate:
+    critical:
+      low: 8
+      high: 35
+    warning:
+      low: 10
+      high: 24
+    normal:
+      low: 12
+      high: 20
+  
+  spO2:
+    critical:
+      low: 0.88
+    warning:
+      low: 0.92
+    normal:
+      low: 0.95
+      high: 1.0
+  
+  meanArterialPressure:
+    critical:
+      low: 60
+      high: 120
+    warning:
+      low: 70
+      high: 110
+    normal:
+      low: 70
+      high: 100
+  
+  etCO2:
+    # TODO(author): verify EtCO2 alarm thresholds and add clinical source
+    critical:
+      low: 25
+      high: 50
+    warning:
+      low: 30
+      high: 45
+    normal:
+      low: 35
+      high: 45
+  
+  tidalVolume:
+    # TODO(author): verify tidal volume alarm thresholds and add clinical source
+    critical:
+      low: 300
+      high: 800
+    warning:
+      low: 400
+      high: 700
+    normal:
+      low: 450
+      high: 600
+
+interventions:
+  - id: needle-decompression-left
+    label: "Needle decompression - left"
+    action: SENeedleDecompression
+    parameters:
+      side: Left
+      state: On
+  
+  - id: needle-decompression-right
+    label: "Needle decompression - right"
+    action: SENeedleDecompression
+    parameters:
+      side: Right
+      state: On
+
+references:
+  # TODO(author): Add specific ATLS or other trauma guideline references for tension pneumothorax recognition and management
+  - citation: "American College of Surgeons. Advanced Trauma Life Support (ATLS) Student Course Manual. 10th ed."
+    url: "https://www.facs.org/quality-programs/trauma/atls/"

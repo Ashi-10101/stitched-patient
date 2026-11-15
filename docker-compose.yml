@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  physiology:
+    build:
+      context: ./services/physiology
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./cases:/app/cases:ro
+    environment:
+      - PULSE_DATA_ROOT=/pulse/bin
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - PHYSIOLOGY_URL=http://physiology:8000
+      - NODE_ENV=development
+    depends_on:
+      - physiology
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
