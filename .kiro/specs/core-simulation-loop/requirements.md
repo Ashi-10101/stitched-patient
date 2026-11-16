@@ -125,8 +125,8 @@ The primary users are medical students and residents practicing emergency case m
 4. WHEN multiple Scheduled_Insults have scheduled times within the same simulation tick, THE Physiology_Service SHALL apply them in ascending order by their scheduled time
 5. WHEN multiple Scheduled_Insults have identical scheduled times, THE Physiology_Service SHALL apply them in the order they appear in the Case_Definition
 6. THE Physiology_Service SHALL apply each Scheduled_Insult exactly once per Branch
-7. WHEN a Branch is forked from a Checkpoint, and a Scheduled_Insult has scheduled time less than the Checkpoint time, THE new Branch SHALL NOT apply that insult
-8. WHEN a Branch is forked from a Checkpoint, and a Scheduled_Insult has scheduled time greater than or equal to the Checkpoint time, THE new Branch SHALL apply that insult when Simulation_Time reaches its scheduled time
+7. WHEN a Branch is forked from a Checkpoint, THE new Branch SHALL NOT apply again any Scheduled_Insult that the Checkpoint records as applied
+8. WHEN a Branch is forked from a Checkpoint, THE new Branch SHALL apply each Scheduled_Insult that the Checkpoint does not record as applied when Simulation_Time reaches that insult's scheduled time
 9. IF a Case_Definition contains a Scheduled_Insult with scheduled time less than 0, THEN THE Physiology_Service SHALL reject the session creation with error message indicating invalid scheduled insult time
 10. THE Physiology_Service SHALL advance Simulation_Time exactly once per tick, regardless of the number of Scheduled_Insults processed in that tick
 
@@ -163,12 +163,12 @@ The primary users are medical students and residents practicing emergency case m
 5. WHEN the learner requests a fork from a Checkpoint that exists, THE Physiology_Service SHALL create a new Branch starting from that Checkpoint state within 5 seconds
 6. THE new Branch SHALL initialize a Pulse_Engine instance loaded from the Checkpoint state such that vital signs match the Checkpoint's recorded values
 7. THE new Branch SHALL have a unique branch_id and SHALL store references to the parent Branch identifier and the forked Checkpoint identifier
-8. THE new Branch SHALL inherit the parent Branch Event_Log entries where Simulation_Time is less than or equal to the Checkpoint's Simulation_Time
+8. THE new Branch SHALL inherit exactly the parent Branch Event_Log entries that the Checkpoint records as applied Interventions
 9. WHEN a Branch is forked, THE original Branch SHALL remain unchanged with all its Checkpoints and Event_Log entries accessible
 10. WHEN a Branch is successfully created, THE Physiology_Service SHALL update the Session's current Branch reference to the newly forked Branch identifier
 11. THE Physiology_Service SHALL limit stored Checkpoints per Branch to a configurable maximum count between 10 and 1000, with default value 100
 12. WHEN saving a new Checkpoint would exceed the Branch Checkpoint cap, THE Physiology_Service SHALL delete the oldest automatic Checkpoint if any exist, otherwise THE Physiology_Service SHALL delete the oldest manual Checkpoint excluding the initial Checkpoint at Simulation_Time zero
-13. WHEN a fork request references a checkpoint_id that does not exist in the specified Branch, THE Physiology_Service SHALL return HTTP 404 status with an error message indicating the checkpoint_id was not found
+13. WHEN a fork request references a checkpoint_id that does not exist in any Branch of that Session, THE Physiology_Service SHALL return HTTP 404 status with an error message indicating the checkpoint_id was not found
 14. THE Physiology_Service SHALL read the maximum number of Checkpoints per Branch from the environment variable MAX_CHECKPOINTS_PER_BRANCH, defaulting to 100 if not set
 
 ### Requirement 8: Bedside Monitor User Interface
@@ -242,6 +242,6 @@ The primary users are medical students and residents practicing emergency case m
 3. WHEN Simulation_Time reaches 150 seconds (2 minutes after insult), IF no Intervention has been applied, THEN THE VitalSigns SHALL show deterioration from baseline: heart rate SHALL be at least 115 bpm, SpO2 SHALL be at most 0.93, and mean arterial pressure SHALL be at most 88 mmHg
 4. WHEN the learner applies the "Needle decompression - left" Intervention, THE Physiology_Service SHALL register the Intervention within 1 simulated second
 5. WHEN 60 simulated seconds have elapsed after applying the "Needle decompression - left" Intervention, THE VitalSigns SHALL show improvement from pre-intervention values, with specific thresholds determined by running the scenario once and recording actual values with a safety margin
-6. WHEN the learner forks from the last Checkpoint before the needle decompression and allows the simulation to run without applying any Intervention, THE VitalSigns in the new Branch SHALL continue deteriorating: heart rate SHALL continue increasing, SpO2 SHALL continue decreasing, and mean arterial pressure SHALL continue decreasing
+6. WHEN the learner forks from the last Checkpoint before the needle decompression and lets the new Branch run for 120 simulated seconds without any Intervention, THE new Branch SHALL show SpO2 lower than at the fork point, AND at the same Simulation_Time SHALL show lower SpO2 and higher heart rate than the Branch in which the needle decompression was applied
 7. WHEN comparing two Branches at 300 simulated seconds (one with needle decompression applied, one without any Intervention), THE Branch with Intervention SHALL show better vital signs than the Branch without Intervention, with specific thresholds determined by running the scenario once and recording actual values with a safety margin
 8. THE automated test suite SHALL include a test that executes this acceptance demonstration scenario and verifies all criteria 1-7, where criteria 5 and 7 use thresholds derived from an initial test run with appropriate safety margins
