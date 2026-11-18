@@ -42,7 +42,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 9.4_
     - _Deviations: 7_
   
-  - [ ] 2.3 Add concurrency fields to Session dataclass
+  - [x] 2.3 Add concurrency fields to Session dataclass
     - Add `lock: asyncio.Lock` field for protecting engine operations
     - Add `clock_task: asyncio.Task` field for background clock task
     - Add `vitals_subscribers: Set[WebSocket]` field for active connections

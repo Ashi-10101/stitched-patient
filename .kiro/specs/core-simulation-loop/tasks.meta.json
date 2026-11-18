@@ -36,6 +36,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1794972250030
       }
+    ],
+    "2.3 Add concurrency fields to Session dataclass": [
+      {
+        "executionId": "1b7d976e-6bda-4b39-bb6c-319b90c7e341",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794972580516
+      },
+      {
+        "executionId": "1b7d976e-6bda-4b39-bb6c-319b90c7e341",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794973006879
+      }
     ]
   }
 }

@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 from collections import deque
 
+from fastapi import WebSocket
+
 from pulse_wrapper import PulseEngineWrapper
 from models import (
     VitalSigns, InterventionEvent, CheckpointMetadata, 
@@ -69,6 +71,10 @@ class Session:
     speed: PlaybackSpeed = PlaybackSpeed.NORMAL
     temp_dir: Path = field(default_factory=lambda: Path(tempfile.mkdtemp()))
     scheduled_insults: List[Dict[str, Any]] = field(default_factory=list)
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)  # Protects all engine operations
+    clock_task: Optional[asyncio.Task] = None  # Background clock task
+    vitals_subscribers: Set[WebSocket] = field(default_factory=set)  # Active WebSocket connections
+    last_activity: datetime = field(default_factory=datetime.utcnow)  # For idle timeout tracking
     
     @property
     def current_branch(self) -> Branch:
