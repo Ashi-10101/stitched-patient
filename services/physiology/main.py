@@ -5,13 +5,12 @@ from typing import Dict, List
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-import time
 import logging
 
 from models import (
     SessionRequest, SessionMetadata, InterventionRequest,
     PlaybackControlRequest, PlaybackState, ForkRequest,
-    BranchMetadata, CheckpointMetadata, VitalSigns, PlaybackSpeed
+    BranchMetadata, CheckpointMetadata, VitalSigns
 )
 from session_manager import SessionManager
 from case_loader import load_case, list_cases, CaseLoadError
@@ -267,39 +266,22 @@ async def vitals_stream(websocket: WebSocket, session_id: str):
         return
     
     try:
-        last_wall_clock_time = time.time()
-        
         while True:
             # Send current vitals regardless of playback state
             vitals = session.current_branch.engine.get_vitals()
             await websocket.send_json(vitals.model_dump())
             
-            # If playing, advance the simulation
+            # If playing, advance the simulation by one 1.0 s tick
+            # (speed is ignored until the clock task replaces this loop)
             if session.playing:
-                current_wall_clock_time = time.time()
-                wall_delta = current_wall_clock_time - last_wall_clock_time
-                last_wall_clock_time = current_wall_clock_time
-                
-                # Calculate simulation time delta based on speed
-                speed_multiplier = {
-                    PlaybackSpeed.NORMAL: 1.0,
-                    PlaybackSpeed.DOUBLE: 2.0,
-                    PlaybackSpeed.QUAD: 4.0,
-                }[session.speed]
-                
-                sim_delta = wall_delta * speed_multiplier
-                
-                # Advance simulation
                 try:
-                    session_manager.advance_simulation(session, sim_delta)
+                    await session_manager._advance_tick(session)
                 except Exception as e:
                     logger.error(f"Simulation error in session {session_id}: {e}", exc_info=True)
                     await websocket.send_json({
                         "error": f"Simulation error: {str(e)}"
                     })
                     break
-            else:
-                last_wall_clock_time = time.time()
             
             # Wait ~1 second wall clock time between updates
             await asyncio.sleep(1.0)

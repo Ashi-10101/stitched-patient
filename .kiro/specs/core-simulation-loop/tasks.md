@@ -61,7 +61,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Deviations: 6_
 
 - [ ] 3. Implement correct scheduled insults algorithm
-  - [ ] 3.1 Rewrite `_advance_tick` method with correct insult application
+  - [x] 3.1 Rewrite `_advance_tick` method with correct insult application
     - Acquire session.lock for entire operation
     - Collect all unapplied insults with `timeSeconds <= target`
     - Sort by (timeSeconds, case file order)

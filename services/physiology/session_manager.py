@@ -182,68 +182,68 @@ class SessionManager:
             # TODO: Clean up temp files
             del self.sessions[session_id]
     
-    def advance_simulation(
-        self,
-        session: Session,
-        delta_seconds: float,
-    ) -> VitalSigns:
+    async def _advance_tick(self, session: Session) -> VitalSigns:
         """
-        Advance the simulation by delta_seconds.
+        Advance the current branch by exactly 1.0 simulated second.
         
-        Applies scheduled insults, saves checkpoints, and returns current vitals.
+        branch.tick_counter is the only clock: every offset is measured from
+        it, never from engine.current_time. Unapplied scheduled insults with
+        timeSeconds <= target are applied in (timeSeconds, case file order),
+        each at its exact time (or at the current position if already past).
+        The advance_time durations within one tick sum to exactly 1.0.
         
         Args:
-            session: Active session
-            delta_seconds: Time to advance in simulation seconds
+            session: Active session (operates on session.current_branch)
             
         Returns:
-            Current vital signs after advancing
+            Vital signs at the end of the tick, with simulation_time = target
         """
-        branch = session.current_branch
-        engine = branch.engine
-        
-        current_time = engine.current_time
-        target_time = current_time + delta_seconds
-        
-        # Check for scheduled insults in this time window
-        for insult_index, insult in enumerate(session.scheduled_insults):
-            insult_time = insult["timeSeconds"]
+        async with session.lock:
+            branch = session.current_branch
+            engine = branch.engine
             
-            if (current_time < insult_time <= target_time and 
-                insult_index not in branch.applied_insults):
+            target = branch.tick_counter + 1.0
+            
+            # 1. Collect unapplied insults due at or before the target time
+            pending = [
+                (idx, insult)
+                for idx, insult in enumerate(session.scheduled_insults)
+                if insult["timeSeconds"] <= target
+                and idx not in branch.applied_insults
+            ]
+            
+            # 2. Sort by (timeSeconds, case file order)
+            pending.sort(key=lambda item: (item[1]["timeSeconds"], item[0]))
+            
+            # 3. Apply each insult at its exact time
+            last_advance = branch.tick_counter
+            for idx, insult in pending:
+                insult_time = insult["timeSeconds"]
+                if insult_time > last_advance:
+                    await asyncio.to_thread(engine.advance_time, insult_time - last_advance)
+                    last_advance = insult_time
                 
-                # Advance to insult time
-                if insult_time > current_time:
-                    engine.advance_time(insult_time - current_time)
-                
-                # Apply the insult
-                engine.apply_action(insult["action"], insult["parameters"])
-                branch.applied_insults.add(insult_index)
-                
-                # Continue to target time
-                remaining = target_time - insult_time
-                if remaining > 0:
-                    engine.advance_time(remaining)
-            elif current_time < insult_time:
-                # Insult is in the future, just advance normally
-                engine.advance_time(delta_seconds)
-            else:
-                # Already processed or in the past
-                engine.advance_time(delta_seconds)
-        
-        if not session.scheduled_insults:
-            # No scheduled insults, just advance
-            engine.advance_time(delta_seconds)
-        
-        # Get current vitals
-        vitals = engine.get_vitals()
-        branch.vitals_history.append(vitals)
-        
-        # Check if we need an automatic checkpoint
-        if vitals.simulation_time - branch.last_checkpoint_time >= self.CHECKPOINT_INTERVAL:
-            self._save_checkpoint(session, branch, is_automatic=True)
-        
-        return vitals
+                await asyncio.to_thread(
+                    engine.apply_action, insult["action"], insult["parameters"]
+                )
+                branch.applied_insults.add(idx)
+            
+            # 4. Advance the remaining time to the target
+            if target > last_advance:
+                await asyncio.to_thread(engine.advance_time, target - last_advance)
+            
+            # 5. Query vitals once, stamped with the branch clock
+            vitals = await asyncio.to_thread(engine.get_vitals)
+            vitals = vitals.model_copy(update={"simulation_time": target})
+            branch.vitals_history.append(vitals)
+            branch.last_vitals = vitals
+            branch.tick_counter = target
+            
+            # 6. Automatic checkpoint (synchronous until task 6.2)
+            if target - branch.last_checkpoint_time >= self.CHECKPOINT_INTERVAL:
+                self._save_checkpoint(session, branch, is_automatic=True)
+            
+            return vitals
     
     def apply_intervention(
         self,
@@ -386,7 +386,7 @@ class SessionManager:
         
         checkpoint = Checkpoint(
             checkpoint_id=checkpoint_id,
-            simulation_time=branch.engine.current_time,
+            simulation_time=branch.tick_counter,
             path=checkpoint_path,
             created_at=datetime.utcnow(),
             is_automatic=is_automatic,
@@ -397,4 +397,4 @@ class SessionManager:
         )
         
         branch.add_checkpoint(checkpoint)
-        branch.last_checkpoint_time = branch.engine.current_time
+        branch.last_checkpoint_time = branch.tick_counter
