@@ -33,7 +33,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 5.6, 5.7, 5.8_
     - _Deviations: 6_
   
-  - [ ] 2.2 Add branch runtime state fields to Branch dataclass
+  - [x] 2.2 Add branch runtime state fields to Branch dataclass
     - Add `tick_counter: float` field (simulated time clock, seconds)
     - Add `last_vitals: Optional[VitalSigns]` field (cached for paused path)
     - Add `failed: bool` field (default False)

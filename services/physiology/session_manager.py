@@ -39,6 +39,10 @@ class Branch:
     vitals_history: deque = field(default_factory=lambda: deque(maxlen=300))  # 5 min at 1 Hz
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_checkpoint_time: float = 0.0
+    tick_counter: float = 0.0  # Simulated time clock (seconds)
+    last_vitals: Optional[VitalSigns] = None  # Cached for paused path
+    failed: bool = False
+    failure_reason: Optional[str] = None
     
     def add_checkpoint(self, checkpoint: Checkpoint) -> None:
         """Add a checkpoint, removing oldest automatic ones if at capacity."""
@@ -333,6 +337,7 @@ class SessionManager:
         )
         new_branch.add_checkpoint(initial_checkpoint)
         new_branch.last_checkpoint_time = source_checkpoint.simulation_time
+        new_branch.tick_counter = source_checkpoint.simulation_time
         
         # Copy events up to the checkpoint time
         for event in source_branch.events:

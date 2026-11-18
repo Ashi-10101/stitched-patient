@@ -24,6 +24,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1794971754199
       }
+    ],
+    "2.2 Add branch runtime state fields to Branch dataclass": [
+      {
+        "executionId": "2ca63b5d-c771-4276-9efa-997fdaaf56ad",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794971995103
+      },
+      {
+        "executionId": "2ca63b5d-c771-4276-9efa-997fdaaf56ad",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794972250030
+      }
     ]
   }
 }
