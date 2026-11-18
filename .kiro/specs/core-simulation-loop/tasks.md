@@ -8,7 +8,7 @@ The approach follows dependency order: configuration → data models → clock a
 
 ## Tasks
 
-- [ ] 1. Add configuration environment variables and test dependencies
+- [x] 1. Add configuration environment variables and test dependencies
   - Update `services/physiology/config.py` using pydantic-settings
   - Add range check (10-1000) to existing `max_checkpoints_per_branch` field
   - Rename `idle_session_timeout_seconds` to `session_idle_timeout` (positive int, default 3600)
