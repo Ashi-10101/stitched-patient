@@ -25,7 +25,7 @@ The approach follows dependency order: configuration → data models → clock a
   - _Deviations: 4, 12, 13_
 
 - [ ] 2. Update data models for per-branch state tracking (services/physiology/session_manager.py)
-  - [ ] 2.1 Add `applied_insults: Set[int]` field to Branch dataclass
+  - [x] 2.1 Add `applied_insults: Set[int]` field to Branch dataclass
     - Move `applied_insults` from Session to Branch (stores insult indices)
     - Initialize as empty set in Branch constructor
     - Update Session.processed_insults uses in advance_simulation and fork_branch

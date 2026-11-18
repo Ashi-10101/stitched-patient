@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 from collections import deque
 
 from pulse_wrapper import PulseEngineWrapper
@@ -34,6 +34,7 @@ class Branch:
     forked_from_checkpoint: Optional[str]
     engine: PulseEngineWrapper
     events: List[InterventionEvent] = field(default_factory=list)
+    applied_insults: Set[int] = field(default_factory=set)  # Indices into session.scheduled_insults
     checkpoints: deque = field(default_factory=lambda: deque(maxlen=100))  # Cap at 100 per branch
     vitals_history: deque = field(default_factory=lambda: deque(maxlen=300))  # 5 min at 1 Hz
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -64,7 +65,6 @@ class Session:
     speed: PlaybackSpeed = PlaybackSpeed.NORMAL
     temp_dir: Path = field(default_factory=lambda: Path(tempfile.mkdtemp()))
     scheduled_insults: List[Dict[str, Any]] = field(default_factory=list)
-    processed_insults: set = field(default_factory=set)
     
     @property
     def current_branch(self) -> Branch:
@@ -190,12 +190,11 @@ class SessionManager:
         target_time = current_time + delta_seconds
         
         # Check for scheduled insults in this time window
-        for insult in session.scheduled_insults:
+        for insult_index, insult in enumerate(session.scheduled_insults):
             insult_time = insult["timeSeconds"]
-            insult_key = f"{insult_time}_{insult['action']}"
             
             if (current_time < insult_time <= target_time and 
-                insult_key not in session.processed_insults):
+                insult_index not in branch.applied_insults):
                 
                 # Advance to insult time
                 if insult_time > current_time:
@@ -203,7 +202,7 @@ class SessionManager:
                 
                 # Apply the insult
                 engine.apply_action(insult["action"], insult["parameters"])
-                session.processed_insults.add(insult_key)
+                branch.applied_insults.add(insult_index)
                 
                 # Continue to target time
                 remaining = target_time - insult_time
@@ -340,14 +339,11 @@ class SessionManager:
             if event.simulation_time <= source_checkpoint.simulation_time:
                 new_branch.events.append(event)
         
-        # Reset processed insults for new branch - only mark as processed if before checkpoint
-        session.processed_insults = {
-            key for key in session.processed_insults
-            if any(
-                insult["timeSeconds"] <= source_checkpoint.simulation_time
-                for insult in session.scheduled_insults
-                if f"{insult['timeSeconds']}_{insult['action']}" == key
-            )
+        # New branch inherits only the source branch's insults applied at or
+        # before the checkpoint time. Source branch and session are untouched.
+        new_branch.applied_insults = {
+            idx for idx in source_branch.applied_insults
+            if session.scheduled_insults[idx]["timeSeconds"] <= source_checkpoint.simulation_time
         }
         
         session.branches[new_branch_id] = new_branch

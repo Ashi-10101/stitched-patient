@@ -12,6 +12,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1794969443012
       }
+    ],
+    "2.1 Add `applied_insults: Set[int]` field to Branch dataclass": [
+      {
+        "executionId": "593709ed-f399-4c2f-9666-db6da5e873c9",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794970787347
+      },
+      {
+        "executionId": "593709ed-f399-4c2f-9666-db6da5e873c9",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794971754199
+      }
     ]
   }
 }
