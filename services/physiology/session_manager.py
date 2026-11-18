@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
+from typing import Dict, FrozenSet, List, Optional, Any, Set
 from collections import deque
 
 from fastapi import WebSocket
@@ -25,6 +25,9 @@ class Checkpoint:
     path: Path
     created_at: datetime
     is_automatic: bool
+    applied_insults: FrozenSet[int]  # Immutable copy of branch.applied_insults at checkpoint time
+    event_count: int  # len(branch.events) at checkpoint time
+    tick_counter: float  # Branch simulated clock (seconds) at checkpoint time
     description: Optional[str] = None
 
 
@@ -146,6 +149,9 @@ class SessionManager:
             path=checkpoint_path,
             created_at=datetime.utcnow(),
             is_automatic=True,
+            applied_insults=frozenset(),
+            event_count=0,
+            tick_counter=0.0,
             description="Initial state",
         )
         branch.add_checkpoint(initial_checkpoint)
@@ -339,6 +345,9 @@ class SessionManager:
             path=source_checkpoint.path,  # Reuse same checkpoint file
             created_at=datetime.utcnow(),
             is_automatic=False,
+            applied_insults=source_checkpoint.applied_insults,
+            event_count=source_checkpoint.event_count,
+            tick_counter=source_checkpoint.tick_counter,
             description=description or f"Forked from {source_branch.branch_id[:8]}",
         )
         new_branch.add_checkpoint(initial_checkpoint)
@@ -381,6 +390,9 @@ class SessionManager:
             path=checkpoint_path,
             created_at=datetime.utcnow(),
             is_automatic=is_automatic,
+            applied_insults=frozenset(branch.applied_insults),
+            event_count=len(branch.events),
+            tick_counter=branch.tick_counter,
             description=description,
         )
         

@@ -24,7 +24,7 @@ The approach follows dependency order: configuration → data models → clock a
   - _Requirements: 2.12, 7.14, 10.15_
   - _Deviations: 4, 12, 13_
 
-- [ ] 2. Update data models for per-branch state tracking (services/physiology/session_manager.py)
+- [x] 2. Update data models for per-branch state tracking (services/physiology/session_manager.py)
   - [x] 2.1 Add `applied_insults: Set[int]` field to Branch dataclass
     - Move `applied_insults` from Session to Branch (stores insult indices)
     - Initialize as empty set in Branch constructor
@@ -51,7 +51,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.12, 10.13, 10.14, 10.6_
     - _Deviations: 3, 10, 11_
   
-  - [ ] 2.4 Add checkpoint state fields to Checkpoint dataclass
+  - [x] 2.4 Add checkpoint state fields to Checkpoint dataclass
     - Add `applied_insults: frozenset[int]` field (immutable copy from branch)
     - Add `event_count: int` field (len of parent.events at checkpoint time)
     - Add `tick_counter: float` field (branch simulation clock value)

@@ -48,6 +48,25 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1794973006879
       }
+    ],
+    "2.4 Add checkpoint state fields to Checkpoint dataclass": [
+      {
+        "executionId": "8d33292f-b2a4-43ad-b913-e3682a9ce398",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794973615045
+      },
+      {
+        "executionId": "8d33292f-b2a4-43ad-b913-e3682a9ce398",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794974991160
+      }
+    ],
+    "2. Update data models for per-branch state tracking (services/physiology/session_manager.py)": [
+      {
+        "executionId": "8d33292f-b2a4-43ad-b913-e3682a9ce398",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794974991196
+      }
     ]
   }
 }
