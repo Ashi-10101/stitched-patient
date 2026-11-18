@@ -77,7 +77,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.10, 7.1_
     - _Deviations: 5 (CRITICAL BUG)_
   
-  - [ ] 3.2 Add `SessionManager.step()` test hook
+  - [x] 3.2 Add `SessionManager.step()` test hook
     - Add method signature: `async def step(session: Session, num_ticks: int) -> VitalSigns`
     - Require `session.playing = False` (paused state)
     - Call `_advance_tick()` num_ticks times without wall-clock delays

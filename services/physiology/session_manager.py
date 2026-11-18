@@ -245,6 +245,40 @@ class SessionManager:
             
             return vitals
     
+    async def step(self, session: Session, num_ticks: int) -> VitalSigns:
+        """
+        Test hook: advance the current branch by num_ticks simulated seconds.
+        
+        Runs _advance_tick() num_ticks times back to back, with no wall-clock
+        delays, so tests can bypass the real-time clock. Not exposed over HTTP.
+        
+        The caller must have paused the session (session.playing is False).
+        This method does not take session.lock itself; each _advance_tick()
+        call acquires it, and asyncio.Lock is not reentrant.
+        
+        Args:
+            session: Active, paused session (operates on session.current_branch)
+            num_ticks: Number of 1.0 s ticks to run (must be >= 1)
+            
+        Returns:
+            Vital signs from the last tick
+            
+        Raises:
+            RuntimeError: If the session is playing
+            ValueError: If num_ticks < 1
+        """
+        if session.playing:
+            raise RuntimeError(
+                "step() requires a paused session; session.playing is True"
+            )
+        if num_ticks < 1:
+            raise ValueError(f"num_ticks must be >= 1, got {num_ticks}")
+        
+        vitals: Optional[VitalSigns] = None
+        for _ in range(num_ticks):
+            vitals = await self._advance_tick(session)
+        return vitals
+    
     def apply_intervention(
         self,
         session: Session,

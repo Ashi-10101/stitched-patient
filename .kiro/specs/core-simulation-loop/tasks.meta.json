@@ -79,6 +79,28 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1794976134043
       }
+    ],
+    "3.2 Add `SessionManager.step()` test hook": [
+      {
+        "executionId": "a7e47f9b-041f-4d71-9fe4-9538c4eee1b6",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794977869262
+      },
+      {
+        "executionId": "a7e47f9b-041f-4d71-9fe4-9538c4eee1b6",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794978147948
+      },
+      {
+        "executionId": "a52bb769-da9e-4c80-bfab-ff82b8b26a02",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794978452682
+      },
+      {
+        "executionId": "a52bb769-da9e-4c80-bfab-ff82b8b26a02",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1794979105405
+      }
     ]
   }
 }
