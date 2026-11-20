@@ -65,7 +65,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Properties: 2_
 
 - [ ] 3. Implement Avatar and status logic
-  - [ ] 3.1 Implement `apps/web/src/lib/sides.ts`
+  - [x] 3.1 Implement `apps/web/src/lib/sides.ts`
     - `computeSides`, `viewerHalf` and `sideGeometry` as in the design. Results are sorted in `['Left', 'Right']` order without duplicates. `sideGeometry('Left')` lies in x `[100, 200]` and `sideGeometry('Right')` in x `[0, 100]` of the 200 × 280 viewBox; each swollen chest rectangle is wider and taller than the normal one on the same side and stays in the same half
     - Add `arbInsults` and `arbActiveInterventions` to `src/test/generators.ts`
     - Create `apps/web/src/lib/sides.test.ts`:
