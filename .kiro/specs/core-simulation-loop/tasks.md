@@ -212,7 +212,7 @@ The approach follows dependency order: configuration → data models → clock a
     - Quote pytest summary (passed/failed/skipped) in task report
     - _Requirements: 6.11, 6.12, 7.2, 7.11, 7.12_
 
-- [ ] 7. Implement branch forking with checkpoint copying
+- [x] 7. Implement branch forking with checkpoint copying
   - [x] 7.1 Update `fork_branch` to copy checkpoint files
     - Acquire session.lock for entire operation
     - Find checkpoint in any branch (404 if not found)
@@ -229,7 +229,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 7.5, 7.6, 7.7, 7.8, 7.9, 7.10_
     - _Deviations: 2, 3, 6, 8_
   
-  - [ ] 7.2 Write integration tests for branch forking
+  - [x] 7.2 Write integration tests for branch forking
     - Test fork creates new branch with separate engine instance
     - Test new branch starts at checkpoint time
     - Test events copied up to checkpoint.event_count

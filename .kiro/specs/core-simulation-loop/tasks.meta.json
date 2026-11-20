@@ -283,6 +283,25 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795182528480
       }
+    ],
+    "7.2 Write integration tests for branch forking": [
+      {
+        "executionId": "803cc0ee-06f2-4ec2-8c22-233d5010ccc6",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795182623372
+      },
+      {
+        "executionId": "954387ad-39f6-4d95-8cc2-e74b6f495aae",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795183062554
+      }
+    ],
+    "7. Implement branch forking with checkpoint copying": [
+      {
+        "executionId": "954387ad-39f6-4d95-8cc2-e74b6f495aae",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795183062595
+      }
     ]
   }
 }
