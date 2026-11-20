@@ -361,7 +361,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 4.19, 5.1, 5.6, 5.11, 5.13, 5.14, 5.15, 11.1_
 
-  - [ ] 10.3 Create `HintPanel` and `Toast`
+  - [x] 10.3 Create `HintPanel` and `Toast`
     - `apps/web/src/components/HintPanel.tsx`: hidden when `play.hints` is missing or empty; a native `<button>` "Hint (N left)"; revealed Hints in an ordered list in Case_Definition order; at N = 0 the button is disabled and reads "No hints left"; activation calls `revealHint` only
     - `apps/web/src/components/Toast.tsx`: `role="status"`, does not take focus, auto-hides after `TOAST_MS = 3000` (export the constant)
     - Create `apps/web/src/components/HintPanel.test.tsx` with `renderToStaticMarkup`: counts for 0 to 3 revealed of 3; disabled text; hidden without Hints; revealed order; `Toast` role and text; `TOAST_MS` within 2000 to 5000

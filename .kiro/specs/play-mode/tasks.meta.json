@@ -422,6 +422,18 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795195546509
       }
+    ],
+    "10.3 Create `HintPanel` and `Toast`": [
+      {
+        "executionId": "b0065780-3a1f-4fcd-bd0c-c6ccc45cd25f",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795195618519
+      },
+      {
+        "executionId": "b0065780-3a1f-4fcd-bd0c-c6ccc45cd25f",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795195816996
+      }
     ]
   }
 }
