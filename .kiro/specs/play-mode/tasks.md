@@ -116,7 +116,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Properties: 10, 11_
 
 - [ ] 4. Implement case helpers and Ending evaluation
-  - [ ] 4.1 Implement `apps/web/src/lib/playCase.ts`
+  - [x] 4.1 Implement `apps/web/src/lib/playCase.ts`
     - `playButtonText(i)`: `playLabel` when it has a non-whitespace character, else `label`
     - `conditionsDisjoint(a, b)`: same vital and no number satisfies both, using the half-line rule in the design (strict operators at equal values make them disjoint; same-direction bounds are never disjoint)
     - `interventionSide(i)`: `parameters.side` when it is `'Left'` or `'Right'`, else `undefined`
