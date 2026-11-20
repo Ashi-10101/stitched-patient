@@ -400,6 +400,33 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.8, 7.2, 7.3, 7.4, 7.5, 7.6, 7.9, 7.11, 7.12, 10.1, 11.5, 11.10, 11.11_
 
+  - [ ] 10.7 Enrich the `StitchedPatient` Avatar
+    - Touch only `apps/web/src/components/StitchedPatient.tsx`, `apps/web/src/app/globals.css` and `apps/web/src/components/StitchedPatient.test.tsx`
+    - Expressions, per the design section "Expressions and dress-up": export `Expression` and the pure helper `expressionFor(overallStatus, variant)` with the precedence `rescued` → `joyful`, `lost` → `sleepy`, otherwise `normal` → `calm`, `warning` → `worried`, `critical` → `alarmed`; draw eyes, brows and mouth inside one `<g data-part="face" data-expression={…}>` inside the head Patch, per the design table (crescent eyes, big grin and three `sparkle` shapes for `joyful`; closed drooping eyes, sad mouth and exactly one light-blue `tear` for `sleepy`); eyes and brows only with `circle`, `ellipse` and `path`, no `<line>` in the face group, no X eyes or other death symbol; every Expression draws exactly one `data-part="lips"` element inside the `mouth` group in the Skin_Tone's lips colour (`SKIN_PALETTES[skinTone].lips`) per the design table (`calm`: the existing lips path; `alarmed`: lips-coloured ring with a small dark `#2E1A47` "o" inside; `worried` and `sleepy`: lips-coloured curve, stroke width ≥ 2.5, fill `none`; `joyful`: grin filled with the lips colour, optional `#FFF7EC` tooth strip, no fangs)
+    - Dress-up: the pumpkin `hat` (one group), exactly two `bat` groups and exactly two `spark` groups at the bolts, drawn inside `HAT_BOX`, `BAT_BOXES` and `SPARK_BOXES`, with no `data-side` and no `transform` attribute; their shapes use only `rect`, `circle`, `ellipse`, `line`, `polygon` and `path` with absolute `M`/`L`/`H`/`V`/`Q`/`C`/`Z` commands so the test can compute bounding boxes; export `FACE_FEATURE_BOX`, `CHEST_REGION`, `HAT_BOX`, `BAT_BOXES` and `SPARK_BOXES` with the design values
+    - Idle motions: `sp-blink` on the eyes group for `calm`, `worried` and `alarmed` only; a `<g data-part="head-tilt">` around the head, forehead and cheek Patches, head-area stitches, blush, freckles, plaster, sweat drops, hat and sparkles, with class `sp-tilt` only when `variant` is `live` or `rescued`; `sp-spark` / `sp-spark sp-spark-delay` on the sparks and `sp-bat` / `sp-bat sp-bat-delay` on the bats
+    - Celebration: when `params.decompressedSides` is non-empty, `sp-celebrate-bolt` on both bolts and `sp-celebrate-heart` on a new `<g data-part="heart-hop">` around the heart path (which keeps `sp-beat`); no state, no timers, no effects
+    - Craft details: two `blush` ellipses with a new `blush` fill per Skin_Tone in `SKIN_PALETTES`, six `freckle` dots, one `plaster` group (a friendly rounded strip, no wound under it), `fabric-check` lines inside the forehead Patch and `fabric-stripe` lines inside the hands Patch, all as plain lines and shapes with the design coordinates
+    - Constraints: no new prop on `StitchedPatient` and no new field in `AvatarParameters`; no `id`, gradient, `<pattern>`, `<clipPath>`, `<mask>`, `<filter>` or `<defs>`; no `Math.random`, `Date` or timers; chest halves, needles and bandages stay direct children of `<svg>`, outside the head-tilt group and every other group; all artwork original and friendly, no blood, wounds, bone, fangs or skulls, skin never green, head never flat
+    - `apps/web/src/app/globals.css`: add only the rules from the design's "Animation stylesheet additions" (`sp-blink`, `sp-tilt`, `sp-spark`, `sp-spark-delay`, `sp-bat`, `sp-bat-delay`, `sp-celebrate-bolt`, `sp-celebrate-heart` and their keyframes, with `animation-iteration-count: 1` on the two celebration classes); keep every existing rule unchanged; the existing `.sp-avatar *, .sp-ending * { animation: none !important; … }` rule in the `prefers-reduced-motion: reduce` block covers the new classes, because every new element sits inside `.sp-avatar`
+    - Extend `apps/web/src/components/StitchedPatient.test.tsx` with `renderToStaticMarkup`:
+      - one test per Expression: `calm`, `worried` and `alarmed` for `live` with Overall_Status `normal`, `warning` and `critical`; `joyful` for `rescued` and `sleepy` for `lost`, each with Overall_Status `normal` and `critical` (variant beats Overall_Status); `expressionFor` agrees with the rendered `data-expression`
+      - no `<line` inside the face group and no cross-stitch centre inside an eye white's bounding box, in every Expression; exactly one `tear` for `sleepy` and none otherwise
+      - one `hat`, exactly two `bat` and exactly two `spark` groups in every Expression, none with `data-side`
+      - `sp-celebrate-bolt` (twice) and `sp-celebrate-heart` (once) present when `decompressedSides` is `['Left']`, `['Right']` or both, and absent when it is empty
+      - `blush` (two), `freckle` (at least three), `plaster`, `fabric-check` and `fabric-stripe` present
+      - for every Expression and every Skin_Tone (`healthy`, `pale`, `cyanotic`), exactly one `data-part="lips"` element whose `fill` or `stroke` equals `SKIN_PALETTES[tone].lips`; the existing palette tests keep passing unchanged
+      - no `<pattern`, `<clipPath`, `<mask`, `<filter`, `<defs`, `Gradient`, ` id=` or `url(` in the markup, for each variant
+      - non-overlap: conservative bounding boxes of the hat, bat and spark groups (all coordinate pairs, including path control points; `cx ± r` for circles) lie inside their design boxes and are disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION`; every eye, brow, mouth and tear shape lies inside `FACE_FEATURE_BOX`; every `data-side` element lies inside `CHEST_REGION` and is a direct child of `<svg>`
+      - CSS text: read `apps/web/src/app/globals.css` with `fs.readFileSync`, extract the `@media (prefers-reduced-motion: reduce)` block, check it contains `.sp-avatar *` with `animation: none !important`; check that `.sp-blink`, `.sp-tilt`, `.sp-spark`, `.sp-bat`, `.sp-celebrate-bolt` and `.sp-celebrate-heart` are defined and that both celebration rules contain `animation-iteration-count: 1`
+      - extend the generators of the existing Property 8 and Property 9 tests with an arbitrary `variant`; both keep their tags and pass; Property 9 also checks the new forbidden elements
+      - **Property 22: The Avatar's Expression and dress-up follow its props and keep clear of the face and chest**. Tag: `// Feature: play-mode, Property 22: The Avatar's Expression and dress-up follow its props and keep clear of the face and chest`
+    - Run `npx tsc --noEmit` from `apps/web/`; no new errors compared with the 1.1 baseline
+    - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
+    - Quote the Vitest summary line (passed/failed/skipped) in the task report
+    - _Requirements: 3.1, 3.12, 3.13, 3.14, 3.15, 3.16, 3.17, 3.18, 3.19, 3.20, 3.21, 3.22, 3.23, 3.24, 3.25, 3.26, 3.27, 3.28, 3.29, 3.30, 3.31, 3.32, 3.33, 12.15_
+    - _Properties: 8, 9, 22_
+
 - [ ] 11. Wire the Play view and the session page
   - [ ] 11.1 Create `PlayView`
     - `apps/web/src/components/PlayView.tsx`: the two-column layout from the design (`height: calc(100vh - var(--notice-h))`, `overflow: hidden` at widths ≥ 1024 px, stacked and scrolling below 1024 px), with `StitchedPatient`, `StatusLine`, `GoalBar`, `PlaybackControls variant="play"`, `InterventionPanel` with `getLabel = playButtonText`, `HintPanel`, Rewind button with `RewindPanel`, `Toast`s (success "Done: <button text>.", error "That didn't work. Please try again.", "The simulation could not be paused.", stream stopped "The simulation stopped. Please reload the page.") and `EndingScreen` while the Ending is not `none`. DOM order equals the visual and focus order in the design. Text at least `1rem`
@@ -550,13 +577,14 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     { "id": 25, "tasks": ["10.4"] },
     { "id": 26, "tasks": ["10.5"] },
     { "id": 27, "tasks": ["10.6"] },
-    { "id": 28, "tasks": ["11.1"] },
-    { "id": 29, "tasks": ["11.2"] },
-    { "id": 30, "tasks": ["12.1"] },
-    { "id": 31, "tasks": ["12.2"] },
-    { "id": 32, "tasks": ["12.3"] },
-    { "id": 33, "tasks": ["13.1"] },
-    { "id": 34, "tasks": ["14.1"] }
+    { "id": 28, "tasks": ["10.7"] },
+    { "id": 29, "tasks": ["11.1"] },
+    { "id": 30, "tasks": ["11.2"] },
+    { "id": 31, "tasks": ["12.1"] },
+    { "id": 32, "tasks": ["12.2"] },
+    { "id": 33, "tasks": ["12.3"] },
+    { "id": 34, "tasks": ["13.1"] },
+    { "id": 35, "tasks": ["14.1"] }
   ]
 }
 ```

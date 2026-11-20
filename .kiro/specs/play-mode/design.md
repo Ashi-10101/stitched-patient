@@ -753,6 +753,132 @@ Every side-specific element carries `data-side="Left"` or `data-side="Right"` an
 }
 ```
 
+### Expressions and dress-up (Requirements 3.13–3.33)
+
+This extends the Avatar drawn in task 10.1. The props stay exactly as above, and `AvatarParameters` gains no field (3.31). Everything below is chosen from `params.overallStatus`, `params.decompressedSides`, `params.skinTone` and `variant` with plain conditionals. Nothing reads `Math.random`, `Date` or timers, so identical props still give identical markup (3.12). All new artwork lives inside the one inline `<svg>`, uses flat fills and strokes only, and has no `id`, gradient, `<pattern>`, `<clipPath>`, `<mask>`, `<filter>`, `<defs>`, `<image>`, `href` or `url(` (3.1, 3.30).
+
+**Expression helper.** `StitchedPatient.tsx` exports a pure helper that the component and the tests both use:
+
+```ts
+export type Expression = 'calm' | 'worried' | 'alarmed' | 'joyful' | 'sleepy';
+export function expressionFor(
+  overallStatus: AlarmState,
+  variant: 'live' | 'rescued' | 'lost',
+): Expression;
+```
+
+Precedence: `variant === 'rescued'` → `joyful`; else `variant === 'lost'` → `sleepy`; else (`live`) `normal` → `calm`, `warning` → `worried`, `critical` → `alarmed` (3.14–3.18). The face group is `<g data-part="face" data-expression={expression}>`, and it contains the eyes (`data-part="eyes"`), brows (`data-part="brows"`), mouth (`data-part="mouth"`) and, for `sleepy` only, the tear (3.13).
+
+| Input | `data-expression` | Eyes | Brows | Mouth | Extras |
+|---|---|---|---|---|---|
+| `live`, Overall_Status `normal` | `calm` | open: whites r 9 at (84, 70) and (116, 70), pupils r 4; class `sp-blink` | gentle arcs above the eyes | the current small smile: the existing lips path (`data-part="lips"`), fill = lips colour | — |
+| `live`, `warning` | `worried` | open, as `calm`; class `sp-blink` | short strokes slanting so the inner ends (near x = 100) are lower than the outer ends | small frown: a downward curve centred at (100, 92), drawn as the `lips` element with stroke = lips colour, stroke width at least 2.5, fill `none` | — |
+| `live`, `critical` | `alarmed` | wide: whites r 11 at the same centres, pupils r 3; class `sp-blink` | raised arcs, higher than `calm` | small open "o": a lips-coloured ring, the `lips` element (ellipse rx 5, ry 6 at (100, 91), fill = lips colour; spans x 95–105, y 85–97), with a smaller dark inner ellipse rx 3, ry 4 at (100, 91), fill `#2E1A47`, drawn on top of it | — |
+| `rescued` (any status) | `joyful` | crescents: upward-curving strokes over each eye centre, no whites | raised arcs | big grin: a filled half-moon from (88, 86) to (112, 86) with control point (100, 100); the grin path is the `lips` element, fill = lips colour; optionally a small `#FFF7EC` tooth strip on top, a plain rounded `rect` (about x 94–106, y 86–89, rx 1), no fangs | three four-point sparkles (`data-part="sparkle"`), about 10 units across, centred at (46, 52), (154, 52) and (64, 14), outside the face group |
+| `lost` (any status) | `sleepy` | closed, drooping: downward-curving lid strokes over each eye centre | outer ends lower than inner ends (sad) | small sad curve centred at (100, 92), drawn as the `lips` element with stroke = lips colour, stroke width at least 2.5, fill `none` | one tear (`data-part="tear"`): a small drop at about (80, 85), 6 × 8 units, fill `#BFE6FF`, outline `#6FA8DC` (the sweat colours) |
+
+Every Expression draws exactly one `data-part="lips"` element inside the `mouth` group, coloured with `SKIN_PALETTES[skinTone].lips`, so the Skin_Tone cue at the mouth survives every Expression (3.33, 4.5); the `mouth` group keeps `data-part="mouth"`. Every mouth shape stays inside `FACE_FEATURE_BOX` (x 72–128, y 52–100): the `alarmed` ring spans y 85–97 and the `joyful` grin, control point included, spans x 88–112, y 86–100.
+
+Eyes and brows are drawn with `circle`, `ellipse` and `path` only. The face group contains no `<line>` element, so no Expression can show crossed strokes or X eyes (3.19). No cross-stitch mark has its centre inside an eye white's bounding box: the closest existing stitch, (118, 56), lies above the `alarmed` eye box (y from 59 to 81).
+
+**Layout constants (UI constants, not clinical values).** Exported from `StitchedPatient.tsx`, in viewBox units. Each rectangle is `{ x, y, width, height }`; the ranges below are inclusive.
+
+| Constant | x range | y range | Contents |
+|---|---|---|---|
+| `FACE_FEATURE_BOX` (Face_Feature_Region) | 72–128 | 52–100 | eyes, brows, mouth and tear of every Expression. Head circle: centre (100, 64), r 42. |
+| `CHEST_REGION` (Chest_Region) | 40–160 | 112–184 | both chest halves and swollen outlines from `sideGeometry` (Left swollen x 101–157, y 115–181; Right mirrored x 43–99), needles (y 124–136) and bandages (y 134–142) |
+| `HAT_BOX` | 100–148 | 0–34 | the pumpkin hat |
+| `BAT_BOXES[0]` | 6–40 | 8–30 | bat on the viewer's upper left |
+| `BAT_BOXES[1]` | 158–194 | 62–86 | bat on the viewer's right, beside the head |
+| `SPARK_BOXES[0]` | 64–77 | 101–111 | sparks at the viewer's-left bolt (bolt x 78–90, y 106–114) |
+| `SPARK_BOXES[1]` | 123–136 | 101–111 | sparks at the viewer's-right bolt (bolt x 110–122) |
+
+Every hat, bat and spark box is disjoint from `FACE_FEATURE_BOX` and from `CHEST_REGION`: the hat and the right bat are separated by y or x, the left bat lies left of x = 40, and the spark boxes lie between y = 100 and y = 112 (3.21). The hat box also clears the sweat-drop positions (the nearest, (124, 40), starts at y = 35), so the sweat cue stays visible. The animations keep the drawn geometry inside these boxes plus a small margin: sparks change only opacity, bats move at most 3 units (their boxes are at least 26 units from both protected regions), and the head tilt moves the hat by at most about 4 units, which keeps it above y = 52.
+
+**Dress-up parts (3.20).** None carries `data-side` (3.21), and none has a `transform` attribute; the tilt of the hat is drawn into its coordinates.
+
+| Part | `data-part` | Drawing |
+|---|---|---|
+| Pumpkin hat | `hat` (one group) | A small pumpkin sitting on the upper right of the head, tilted about 15° clockwise, inside `HAT_BOX`: an orange `#FF7A1A` body with two darker rib curves, a short brown stem in the seam colour `#6B4A3A` and a curled brown tendril. The right part of the hair tuft is behind it. No face carved into it. |
+| Bats | `bat` (exactly two groups) | Small friendly bats inside `BAT_BOXES`: an oval body and two scalloped wings in `#4A2F6E` with a `#FFF7EC` outline of 0.8, and two tiny `#FFD166` eye dots. No teeth or fangs. Bat 0 has class `sp-bat`, bat 1 has `sp-bat sp-bat-delay`. |
+| Bolt sparks | `spark` (exactly two groups) | Three short `#FFD166` strokes (stroke width at most 1.5) radiating outward from each bolt's outer end, inside `SPARK_BOXES`. Spark 0 has class `sp-spark`, spark 1 has `sp-spark sp-spark-delay`. |
+
+**Craft details (3.29).**
+
+| Part | `data-part` | Drawing |
+|---|---|---|
+| Blush | `blush` (exactly two) | Ellipses rx 6, ry 3.5 at (72, 86) and (128, 86). Their outer edge is at most about 40.9 units from the head centre (100, 64), inside the head circle (r 42). Fill from a new `blush` entry in `SKIN_PALETTES`: `#F59AB0` for `healthy`, a faint `#E9C9CF` for `pale` and `cyanotic`, so rosy cheeks do not hide the Skin_Tone cue. |
+| Freckles | `freckle` (six) | Circles r 1.2, fill `#C98A6B`, at (66, 72), (63, 76), (68, 79) and the mirrored (134, 72), (137, 76), (132, 79). |
+| Sticking plaster | `plaster` (one group) | A rounded strip about 12 × 5 units drawn as a path (no transform) from about (60, 57) to (69, 46) on the viewer's-left side of the head, fill `#FFF7EC`, outline `#C98A6B`, with a slightly darker centre pad and two rows of tiny dots. Nothing under it: no wound, no red, no stitches. It lies inside x 56–70, y 44–60, clear of the face box and the sweat drops. |
+| Checked patch | `fabric-check` (inside the forehead Patch group) | Thin lines in the seam colour with `strokeOpacity` 0.35: verticals (116, 36)–(116, 54) and (126, 36)–(126, 52), horizontals (108, 42)–(132, 42) and (110, 50)–(136, 50). Every endpoint lies inside the forehead patch outline, so no clipping is needed. |
+| Striped patch | `fabric-stripe` (inside the hands Patch group) | Three horizontal lines across each hand circle (centres (45, 184) and (155, 184), r 10), at y = 180, 184 and 188, ending 1 unit inside the circle edge. Same stroke as the checks. |
+
+**Group structure.** Side-specific elements stay direct children of `<svg>`, outside the head-tilt group and every other group, as in task 10.1 (3.24, Property 8):
+
+```
+<svg role="img" …>
+  <g data-part="torso" class="sp-breathe">…</g>
+  <g data-part="head-tilt" class="sp-tilt">            ← class only when variant is live or rescued (3.23)
+    <Patch head>  neck, bolts, head circle, hair, face group </Patch>
+    <Patch forehead>  outline, fabric-check </Patch>
+    <Patch cheek>  outline </Patch>
+    head-area cross-stitch marks (the first five STITCHES)
+    blush, freckles, plaster
+    sweat drops (when sweating)
+    hat
+    sparkles (joyful only)
+  </g>
+  <Patch hands>  hands, fabric-stripe </Patch>
+  hand cross-stitch marks (the last two STITCHES)
+  spark groups ×2, bat groups ×2
+  chest halves (data-side)                  ← direct children of <svg>
+  needle and bandage per decompressed side (data-side)
+  <g data-part="heart-hop" class="sp-celebrate-heart">   ← class only when decompressedSides is non-empty
+    heart path (sp-beat)
+  </g>
+</svg>
+```
+
+The bolts get `sp-celebrate-bolt` when `decompressedSides` is non-empty (3.26, 3.27). The heart keeps its `sp-beat` class on the path; the hop sits on the wrapper group so the two animations do not replace each other. The eyes group gets `sp-blink` for `calm`, `worried` and `alarmed` only (3.22). In the `lost` variant the Patch groups keep `sp-unstitch` (7.4), and the face group drifts with the head Patch.
+
+**One-time celebration.** The celebration needs no state and no timer. The two celebration classes appear in the markup in the render where `decompressedSides` first becomes non-empty. The browser starts a CSS animation when a class adds it to an element, and `animation-iteration-count: 1` makes it run once. Later renders keep the same class on the same element, so the animation does not restart when a second side is decompressed. After a fork to a moment before the Decompression, the classes are removed, and a new Decompression plays the celebration again. When the Avatar is mounted again (a view switch, or the Ending_Screen's Avatar) with decompressed sides, it plays once on mount. This is accepted.
+
+**Animation stylesheet additions (in `globals.css`, after the existing Avatar rules).** All periods are wall-clock seconds. The existing rules stay unchanged.
+
+```css
+.sp-blink { transform-box: fill-box; transform-origin: center;
+  animation: sp-blink 5s ease-in-out infinite; }
+@keyframes sp-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+
+.sp-tilt { transform-box: view-box; transform-origin: 100px 106px;   /* neck */
+  animation: sp-tilt 9s ease-in-out infinite; }
+@keyframes sp-tilt { 0%, 70%, 100% { transform: rotate(0deg); }
+  80% { transform: rotate(-2deg); } 90% { transform: rotate(2deg); } }
+
+.sp-spark { animation: sp-spark 6s linear infinite; }
+.sp-spark-delay { animation-delay: -3s; }
+@keyframes sp-spark { 0%, 86%, 100% { opacity: 0; } 90% { opacity: 1; } 94% { opacity: 0.4; } }
+
+.sp-bat { animation: sp-bat 7s ease-in-out infinite; }
+.sp-bat-delay { animation-delay: -3.5s; }
+@keyframes sp-bat { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(2px, -2px); }
+  50% { transform: translate(0, -1px); } 75% { transform: translate(-2px, -2px); } }
+
+.sp-celebrate-bolt { animation: sp-celebrate-bolt 0.8s ease-out;
+  animation-iteration-count: 1; }
+@keyframes sp-celebrate-bolt { 0%, 100% { fill: #9A98A8; } 40% { fill: #FFD166; } }
+
+.sp-celebrate-heart { transform-box: fill-box; transform-origin: center bottom;
+  animation: sp-celebrate-heart 0.8s ease-out; animation-iteration-count: 1; }
+@keyframes sp-celebrate-heart { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+```
+
+Negative delays start the second spark and bat mid-cycle, so the pairs never move together and no element waits in its base style. The periods meet 3.22 (5 s), 3.23 (9 s, ±2°) and 3.25 (6 s and 7 s, bats at most 2.9 units, sparks opacity only). Each celebration lasts 0.8 s (3.26).
+
+**Reduced motion (3.28).** Every new element sits inside the `.sp-avatar` wrapper, so the existing rule in the `prefers-reduced-motion: reduce` block, `.sp-avatar *, .sp-ending * { animation: none !important; transition: none !important; }`, already stops all of them. No new selector is needed in that block. With the animations off, every element shows its base style: eyes open, head upright, sparks fully visible, bats at their drawn positions, bolts grey and the heart in place. The test reads `globals.css` as text and checks that the reduced-motion block contains this rule and that the six new classes are defined, with `animation-iteration-count: 1` on the two celebration classes.
+
+**Testing the non-covering rule.** The markup test computes a conservative bounding box for each hat, bat and spark group from its descendant shapes. These shapes are limited to `rect`, `circle`, `ellipse`, `line`, `polygon` and `path` with the absolute commands `M`, `L`, `H`, `V`, `Q`, `C` and `Z`. For a path, the test takes every coordinate pair, including control points; a Bézier curve lies inside the convex hull of its control points, so the box can only be too large. The test then checks that each box lies inside its `HAT_BOX`, `BAT_BOXES` or `SPARK_BOXES` entry and is disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION`. It also checks that every eye, brow, mouth and tear shape lies inside `FACE_FEATURE_BOX` and every `data-side` element lies inside `CHEST_REGION`. Because the real features are checked against the regions, moving a constant cannot hide an overlap. Whether the hat, bats and sparks look clear of the face and chest is also part of the manual artwork review (3.32).
+
 ### Hint panel (`HintPanel.tsx`)
 
 - Hidden entirely if `play.hints` is missing or empty (9.9).
@@ -1205,9 +1331,9 @@ The test asserts each offset is smaller than half the smallest gap, so `boundary
 
 ### Property 9: The Avatar renders one deterministic inline SVG
 
-*For any* Avatar_Parameters, Status_Sentence and Speech_Bubble_Slot text, `renderToStaticMarkup(<StitchedPatient …/>)` contains exactly one `<svg` element with `role="img"` and the Status_Sentence as `aria-label`, contains no `<image`, no `href`, no `url(` and no `id=` attribute, and rendering again with deep-equal props gives an identical string.
+*For any* Avatar_Parameters, Avatar_Variant, Status_Sentence and Speech_Bubble_Slot text, `renderToStaticMarkup(<StitchedPatient …/>)` contains exactly one `<svg` element with `role="img"` and the Status_Sentence as `aria-label`, contains no `<image`, no `href`, no `url(`, no `id=` attribute, no `<pattern`, `<clipPath`, `<mask`, `<filter`, `<defs`, `<linearGradient` or `<radialGradient` element, and rendering again with deep-equal props gives an identical string.
 
-**Validates: Requirements 3.1, 3.8, 3.12**
+**Validates: Requirements 3.1, 3.8, 3.12, 3.30, 3.31**
 
 ### Property 10: Status_Selector returns the first matching case sentence
 
@@ -1281,6 +1407,12 @@ The test asserts each offset is smaller than half the smallest gap, so `boundary
 
 **Validates: Requirements 9.1, 9.2, 9.3, 9.5**
 
+### Property 22: The Avatar's Expression and dress-up follow its props and keep clear of the face and chest
+
+*For any* Avatar_Parameters and Avatar_Variant, the rendered Avatar markup has exactly one element with a `data-expression` attribute, and its value equals `expressionFor(params.overallStatus, variant)`: `joyful` for `rescued` and `sleepy` for `lost` whatever the Overall_Status, otherwise `calm`, `worried` or `alarmed` for `normal`, `warning` or `critical`. The face group contains no `<line` element and contains exactly one `tear` when the Expression is `sleepy` and none otherwise. The face group contains exactly one `lips` element, whose fill or stroke equals the Skin_Tone's lips colour. The eyes group carries `sp-blink` exactly when the Expression is `calm`, `worried` or `alarmed`, and the head-tilt group carries `sp-tilt` exactly when the variant is not `lost`. The markup has exactly one `hat`, exactly two `bat` and exactly two `spark` groups. None of them carries `data-side`, and the conservative bounding box of each lies inside its design box and is disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION`. Every eye, brow, mouth and tear shape lies inside `FACE_FEATURE_BOX`. Every `data-side` element is a direct child of the `<svg>` element and lies inside `CHEST_REGION`. Exactly two elements carry `sp-celebrate-bolt` and exactly one carries `sp-celebrate-heart` when `decompressedSides` is non-empty, and none carries either class when it is empty.
+
+**Validates: Requirements 3.13, 3.14, 3.15, 3.16, 3.17, 3.18, 3.19, 3.20, 3.21, 3.22, 3.23, 3.24, 3.26, 3.27, 3.33**
+
 ## Error Handling
 
 All user-facing error text is plain language and never shows HTTP codes or stack traces in the Play_View. The Clinician_View keeps its current red error box for technical detail.
@@ -1312,7 +1444,7 @@ All user-facing error text is plain language and never shows HTTP codes or stack
 - **fast-check** (add `fast-check@^3` to `devDependencies`) for property tests. `src/test/pbt.ts` exports `PBT_PARAMS = { seed: 20261031, numRuns: 100 }`, passed to every `fc.assert`, so every run uses the same generated inputs (12.10). A failing run prints the counterexample and the seed.
 - **yaml** (add `yaml@^2` to `devDependencies`) for case-content tests. The tests read `path.resolve(__dirname, '../../../../cases/adult-tension-pneumothorax.yaml')` from `apps/web/src/lib/` and use `parseDocument` so comments are available for the `TODO(author)` check.
 - **React server rendering** (`react-dom/server`, already a dependency) for markup tests of `StitchedPatient`, `StatusLine`, `ViewSwitcher` and `EndingScreen`. No jsdom or Testing Library dependency is needed.
-- Add `"test:run": "vitest --run"` to `apps/web/package.json`. Run with `cd apps/web && npm run test:run`. The Play tests must finish within 30 s on an Apple Silicon laptop (12.12); 21 properties at 100 runs over pure functions take well under that.
+- Add `"test:run": "vitest --run"` to `apps/web/package.json`. Run with `cd apps/web && npm run test:run`. The Play tests must finish within 30 s on an Apple Silicon laptop (12.12); 22 properties at 100 runs over pure functions take well under that.
 
 ### Why property-based testing applies
 
@@ -1343,7 +1475,7 @@ Each correctness property is implemented by exactly one `fc.assert` test.
 | `avatarMapper.test.ts` | all cases in 12.1 and 12.13; samples without `systolic_pressure`/`diastolic_pressure` and with one case vital missing (12.14) | 3, 4, 5 |
 | `sides.test.ts` | Left insult before/at/after `timeSeconds`; Left Decompression; Right-only Decompression keeps Left swollen; Left → viewer right (12.2); early Decompression (4.18) | 6 |
 | `branchLineage.test.ts` | fork-time lookup, missing fork Checkpoint fallback, Active_Interventions after fork (12.2, 10.9) | 7 |
-| `StitchedPatient.test.tsx` | default sentence as accessible name; speech text up to 200 chars present; empty and whitespace speech render no bubble; Overall_Status labels | 8, 9 |
+| `StitchedPatient.test.tsx` | default sentence as accessible name; speech text up to 200 chars present; empty and whitespace speech render no bubble; Overall_Status labels; one test per Expression with variant precedence; dress-up and craft parts present; celebration classes with and without Decompressed_Sides; reduced-motion CSS-text check of `globals.css` (12.15) | 8, 9, 22 |
 | `statusSelector.test.ts` | first of two matching rules; partial match of a multi-condition rule; no-direction condition matches both directions; default when none match (12.3); null sample; missing vital (12.14) | 10, 11 |
 | `endingEvaluator.test.ts` | every case listed in 12.4: exact-hold rescue and one sample short; pre-insult samples add no time; exact-hold for each lost group; restart after one failing sample; equal and decreasing times; sample at and below `timeLimitSeconds`; simultaneous rescue and lost → `rescued`; missing vitals (12.14) | 12, 13, 14 |
 | `playCase.test.ts` | `conditionsDisjoint` examples for each operator pair | 15, 18 |
@@ -1361,7 +1493,7 @@ The schema is validated by the existing Python tooling, not by Vitest. The imple
 
 - **Service round trip (2.13):** with `docker compose up`, create a Session and compare `GET /sessions/{id}/case` `play` and `playLabel` values with the YAML.
 - **Calibration (Requirement 13):** run `calibratePlayMode.ts` after the author drafts the values; commit the record under `docs/calibration/`.
-- **Manual acceptance checklist** in the new file `docs/play-mode-acceptance.md`: artwork review and the no-franchise confirmation (3.2–3.6); speech-bubble placement at 320 px and 1280 px (3.11); Safety_Notice at 320–1920 px and over overlays (1.8, 7.9); 1280×720 fit with 0–3 Hints, 16 px text, contrast (11.7, 11.8); keyboard order, focus ring, focus trap and Escape (11.2–11.6, 11.10); reduced motion on macOS (4.21, 7.12); screen-reader announcement of status changes (5.11, 5.13); the timed behaviours (1.6, 4.20, 5.12, 7.2); and the stakeholder demonstration in Requirement 14.
+- **Manual acceptance checklist** in the new file `docs/play-mode-acceptance.md`: artwork review and the no-franchise confirmation (3.2–3.6), including the new expressions, dress-up and craft details (3.32); speech-bubble placement at 320 px and 1280 px (3.11); Safety_Notice at 320–1920 px and over overlays (1.8, 7.9); 1280×720 fit with 0–3 Hints, 16 px text, contrast (11.7, 11.8); keyboard order, focus ring, focus trap and Escape (11.2–11.6, 11.10); reduced motion on macOS (4.21, 7.12); screen-reader announcement of status changes (5.11, 5.13); the timed behaviours (1.6, 4.20, 5.12, 7.2); and the stakeholder demonstration in Requirement 14.
 
 ### Why some criteria have no automated test
 
@@ -1373,7 +1505,7 @@ Visual design (3.2–3.6), layout fit (11.7), focus behaviour in a real browser 
 |---|---|
 | 1 Two views | `useSimulationSession`, `sessionReducer` (`viewSelected`, `caseLoaded`, `caseFailed`), `ViewSwitcher`, `SafetyNotice`, `ClinicianView` |
 | 2 Case file | YAML shape, schema fragments, `caseContent.test.ts`, existing `validate-case.py` and `case_loader.py` |
-| 3 Avatar | `StitchedPatient`, `sideGeometry`, palette, Speech_Bubble_Slot headroom band |
+| 3 Avatar | `StitchedPatient`, `sideGeometry`, palette, Speech_Bubble_Slot headroom band, `expressionFor`, Expressions and dress-up layout constants, new animation classes (Properties 8, 9, 22) |
 | 4 Avatar follows vitals | `avatarMapper.ts`, `vitalBands.ts`, `sides.ts`, CSS custom-property animation |
 | 5 Status | `statusSelector.ts`, `StatusLine`, `GoalBar`, `timeFormat.ts` |
 | 6 Ending evaluation | `endingEvaluator.ts`, reducer fork handling, stale-sample guard |

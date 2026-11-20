@@ -65,6 +65,10 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 - **Avatar**: The original cartoon stitched patient, drawn as a parameterized SVG React component
 - **Avatar_Parameters**: The data structure that drives the Avatar. Fields: Skin_Tone, breathing period, breathing depth, heartbeat period, sweat flag, Swollen_Sides, Decompressed_Sides and Overall_Status
 - **Avatar_Mapper**: The pure function that computes Avatar_Parameters from a VitalSigns sample, the Case thresholds, the Play_Section, the applied Scheduled_Insults and the Active_Interventions
+- **Avatar_Variant**: The existing `variant` prop of the Avatar: `live` in the Play_View, and `rescued` or `lost` on the Ending_Screen
+- **Expression**: The face the Avatar shows, one of `calm`, `worried`, `alarmed`, `joyful` or `sleepy`, chosen from the Avatar_Variant and the Overall_Status (Requirements 3.13 to 3.18)
+- **Face_Feature_Region**: A rectangle in the Avatar's 200 × 280 viewBox, defined as a design constant, that contains the eyes, brows and mouth of every Expression
+- **Chest_Region**: A rectangle in the Avatar's 200 × 280 viewBox, defined as a design constant, that contains both chest halves and every Swollen_Sides and Decompressed_Sides mark
 - **Skin_Tone**: One of `healthy`, `pale` or `cyanotic`. `cyanotic` means pale skin with blue lips
 - **Vital_Band**: The pair (Alarm_State, direction) for one vital sign. The direction is `low` or `high` when the Alarm_State is `warning` or `critical`, according to whether a low boundary or a high boundary was crossed. The direction is `none` when the Alarm_State is `normal`
 - **Overall_Status**: The most severe Alarm_State across the vital signs that have thresholds in the Case, with order `normal` < `warning` < `critical`
@@ -171,6 +175,27 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 10. WHILE the Speech_Bubble_Slot has no content, or its content is empty or contains only whitespace, THE Avatar SHALL render no visible speech bubble and SHALL leave the Avatar's layout and size unchanged.
 11. WHILE the Speech_Bubble_Slot shows text of up to 200 characters, THE Avatar SHALL place the speech bubble so that its bounding box does not overlap the bounding box of the Avatar's face or of the chest region, at viewport widths of 320 CSS pixels and 1280 CSS pixels.
 12. WHEN the Avatar is rendered twice with equal Avatar_Parameters and equal Speech_Bubble_Slot content, THE Avatar SHALL produce identical SVG markup.
+13. THE Avatar SHALL draw its eyes, brows and mouth inside exactly one group that carries a `data-expression` attribute whose value is the current Expression, one of `calm`, `worried`, `alarmed`, `joyful` or `sleepy`.
+14. WHILE the Avatar_Variant is `live` and the Overall_Status is `normal`, THE Avatar SHALL show the `calm` Expression: open eyes and a small smile.
+15. WHILE the Avatar_Variant is `live` and the Overall_Status is `warning`, THE Avatar SHALL show the `worried` Expression: open eyes, brows drawn together with their inner ends lower than their outer ends, and a small frown.
+16. WHILE the Avatar_Variant is `live` and the Overall_Status is `critical`, THE Avatar SHALL show the `alarmed` Expression: wide eyes whose eye whites are larger than in the `calm` Expression, and a small open round mouth.
+17. WHILE the Avatar_Variant is `rescued`, THE Avatar SHALL show the `joyful` Expression, whatever the Overall_Status: crescent eyes, a big grin, and at least three sparkles placed outside the Face_Feature_Region.
+18. WHILE the Avatar_Variant is `lost`, THE Avatar SHALL show the `sleepy` Expression, whatever the Overall_Status: closed, drooping eyes, a small sad mouth and exactly one tear, drawn as a single small light-blue drop.
+19. THE Avatar SHALL draw the eyes of every Expression without crossed strokes, X shapes or any other symbol of death, and SHALL place no cross-stitch mark inside the bounding box of an eye.
+20. THE Avatar SHALL draw, for every combination of Avatar_Parameters and Avatar_Variant, a small tilted pumpkin hat on the head (`data-part="hat"`), exactly two small bats near the figure (`data-part="bat"`) and exactly two groups of sparks, one next to each neck bolt (`data-part="spark"`).
+21. THE Avatar SHALL draw the hat, the bats and the sparks so that the bounding box of each lies outside the Face_Feature_Region and outside the Chest_Region, and SHALL give none of them a `data-side` attribute.
+22. WHILE the Expression is `calm`, `worried` or `alarmed`, THE Avatar SHALL animate an eye blink (class `sp-blink`) as a repeating CSS animation with a period between 4 and 10 seconds of Wall_Clock_Time.
+23. WHILE the Avatar_Variant is `live` or `rescued`, THE Avatar SHALL animate a head tilt of at most 2 degrees (class `sp-tilt`) as a repeating CSS animation with a period between 6 and 15 seconds of Wall_Clock_Time, on one group that contains the head, the face and the hat.
+24. THE Avatar SHALL draw every element that carries a `data-side` attribute as a direct child of its SVG element, outside the head-tilt group and outside every other group.
+25. THE Avatar SHALL animate the sparks (class `sp-spark`) and the bats (class `sp-bat`) as repeating CSS animations with periods of at least 5 seconds of Wall_Clock_Time, in which no bat moves more than 3 viewBox units from its drawn position and the sparks change only their opacity.
+26. WHILE Decompressed_Sides is not empty, THE Avatar SHALL give both neck bolts the class `sp-celebrate-bolt` and the group around the heart patch the class `sp-celebrate-heart`, whose CSS animations run exactly once (`animation-iteration-count: 1`) for at most 1 second of Wall_Clock_Time, so that the bolts flash once and the heart patch hops once when the decompression marks first appear.
+27. WHILE Decompressed_Sides is empty, THE Avatar SHALL draw no element with the class `sp-celebrate-bolt` or `sp-celebrate-heart`.
+28. WHILE the Reduced_Motion_Preference is `reduce`, THE Avatar SHALL show the eyes, head, sparks, bats, bolts and heart patch with no blink, tilt, spark, bat or celebration animation, drawn still at their drawn positions.
+29. THE Avatar SHALL draw blush on both cheeks (exactly two elements with `data-part="blush"`), at least three freckles (`data-part="freckle"`), one small sticking plaster on the head (`data-part="plaster"`) drawn as a plain rounded strip, at least one checked skin patch (`data-part="fabric-check"`) and at least one striped skin patch (`data-part="fabric-stripe"`).
+30. THE Avatar SHALL draw the checked and striped fabric looks only with plain SVG lines and shapes inside each patch, and, in every combination of Avatar_Parameters and Avatar_Variant, SHALL contain no `id` attribute, no gradient, and no `<pattern>`, `<clipPath>`, `<mask>`, `<filter>` or `<defs>` element.
+31. THE Avatar SHALL derive the Expression, the dress-up parts, the idle motions and the celebration only from its existing Avatar_Parameters and Avatar_Variant props, with no new prop on the Avatar component, no new field in Avatar_Parameters and no random or time-dependent value, so that Requirement 3.12 continues to hold.
+32. THE Avatar SHALL apply Requirements 3.4, 3.5 and 3.6 to all artwork added by criteria 13 to 30: the hat, bats, sparks, sparkles, tear, blush, freckles, plaster and fabric looks are original, show no blood, wounds, bone, fangs or skulls, the plaster covers no wound, the skin is never green and the head is never flat, verified through manual inspection during acceptance testing.
+33. THE Avatar SHALL draw the mouth of every Expression as, or with, exactly one element with `data-part="lips"` whose fill (or stroke, for a mouth drawn as a single curve) is the Skin_Tone's lips colour, so that the cyanotic blue lips stay visible (Requirement 4.5).
 
 ### Requirement 4: Avatar follows the live vitals
 
@@ -417,6 +442,15 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 12. WHEN the Play mode tests are run with `vitest --run` on a macOS Apple Silicon development machine, THE web test suite SHALL finish them within 30 seconds of Wall_Clock_Time.
 13. THE web test suite SHALL include Vitest unit tests with fixed inputs for stopped vital signs: a VitalSigns sample with a heart rate of 0 makes the Avatar_Mapper mark the heartbeat as stopped (Requirement 4.24), and a VitalSigns sample with a respiratory rate of 0 makes the Avatar_Mapper mark breathing as stopped (Requirement 4.7).
 14. THE web test suite SHALL include Vitest unit tests with fixed VitalSigns samples that omit the optional `systolic_pressure` and `diastolic_pressure` values, and samples that omit one vital sign named in the Case thresholds. For each such sample, the Avatar_Mapper, the Status_Selector and the Ending_Evaluator SHALL return a result without throwing, and the results SHALL follow Requirement 4.25 (Avatar_Mapper), Requirement 5.4 (Status_Selector) and Requirement 6.16 (Ending_Evaluator).
+15. THE web test suite SHALL include Vitest tests of the rendered Avatar markup for Requirements 3.13 to 3.31 and 3.33 that cover each of these cases:
+   - one fixed-input test per Expression, including a `rescued` and a `lost` Avatar with Overall_Status `critical` and with Overall_Status `normal`, so that the Avatar_Variant takes precedence over the Overall_Status;
+   - no crossed strokes in the eyes and no cross-stitch mark inside an eye's bounding box, for every Expression;
+   - the hat, exactly two bats and exactly two spark groups in every Expression, with bounding boxes outside the Face_Feature_Region and the Chest_Region and without a `data-side` attribute;
+   - the celebration classes present when Decompressed_Sides is not empty and absent when it is empty;
+   - the blush, freckles, plaster, checked patch and striped patch present;
+   - exactly one `data-part="lips"` element in the Skin_Tone's lips colour for every Expression and every Skin_Tone;
+   - no `id` attribute, gradient, `<pattern>`, `<clipPath>`, `<mask>`, `<filter>` or `<defs>` element in the markup;
+   - a test that reads `apps/web/src/app/globals.css` and checks that the `prefers-reduced-motion: reduce` block stops every animation inside the Avatar, and that the classes `sp-blink`, `sp-tilt`, `sp-spark`, `sp-bat`, `sp-celebrate-bolt` and `sp-celebrate-heart` are defined, with an iteration count of 1 for the two celebration classes.
 
 ### Requirement 13: Engine calibration of the Play thresholds
 
