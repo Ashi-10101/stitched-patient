@@ -147,7 +147,7 @@ The approach follows dependency order: configuration → data models → clock a
     - Quote pytest summary (passed/failed/skipped) in task report
     - _Requirements: 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 4.1, 4.2_
 
-- [ ] 5. Convert WebSocket handler to subscribe-only and spawn clock task
+- [x] 5. Convert WebSocket handler to subscribe-only and spawn clock task
   - [x] 5.1 Rewrite `/sessions/{session_id}/vitals` WebSocket endpoint and update create_session
     - On connect: add WebSocket to session.vitals_subscribers, update last_activity
     - On disconnect: remove from vitals_subscribers, update last_activity
@@ -161,7 +161,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 2.4, 2.5, 2.6, 2.7, 2.8, 4.1, 4.2, 10.7, 10.13, 10.14_
     - _Deviations: 1, 10_
   
-  - [ ] 5.2 Write integration test for pause-on-disconnect
+  - [x] 5.2 Write integration test for pause-on-disconnect
     - Create session with 2 WebSocket connections
     - Verify playing continues with both connected
     - Disconnect one, verify still playing

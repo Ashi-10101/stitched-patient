@@ -209,6 +209,25 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795180244437
       }
+    ],
+    "5.2 Write integration test for pause-on-disconnect": [
+      {
+        "executionId": "7eae2c37-1cae-4be0-ac31-e7b072188c91",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795180328091
+      },
+      {
+        "executionId": "7eae2c37-1cae-4be0-ac31-e7b072188c91",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795180807733
+      }
+    ],
+    "5. Convert WebSocket handler to subscribe-only and spawn clock task": [
+      {
+        "executionId": "7eae2c37-1cae-4be0-ac31-e7b072188c91",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795180807781
+      }
     ]
   }
 }
