@@ -6,6 +6,8 @@ import fc from 'fast-check';
 import type {
   AlarmThreshold,
   AvatarParameters,
+  BranchMetadata,
+  CheckpointMetadata,
   ComparisonOp,
   ConditionGroup,
   InterventionRecordEntry,
@@ -357,4 +359,177 @@ export const arbSampleSequence: fc.Arbitrary<(Partial<VitalSigns> & { simulation
       if (i > 0) t += step;
       return { ...sample, simulation_time: t };
     });
+  });
+
+/** A generated Branch tree with its ground truth, for Property 7. */
+export interface LineageCase {
+  branches: BranchMetadata[];
+  currentBranchId: string;
+  checkpointsByBranch: Record<string, CheckpointMetadata[]>;
+  record: InterventionRecordEntry[];
+  /** Ground truth: Simulation_Time at which each non-root Branch was forked. */
+  forkTimeByBranch: Record<string, number>;
+  /** Branches whose source Checkpoint was evicted from the parent's list. */
+  evictedSources: string[];
+}
+
+/** Checkpoints fall on multiples of 5 s, so many entries share a Checkpoint's time. */
+const CHECKPOINT_STEP_S = 5;
+
+const arbLaterCheckpointOffsets = fc.uniqueArray(
+  fc.integer({ min: 1, max: 12 }).map((n) => n * CHECKPOINT_STEP_S),
+  { maxLength: 5 },
+);
+
+/** How a Branch is forked: which parent Checkpoint, its later Checkpoints, and whether the source is evicted. */
+const arbForkSpec = fc.record({
+  sourcePick: fc.nat(),
+  laterOffsets: arbLaterCheckpointOffsets,
+  evictSource: fc.oneof({ weight: 2, arbitrary: fc.constant(false) }, { weight: 1, arbitrary: fc.constant(true) }),
+});
+
+/**
+ * One Intervention_Record entry: a Branch, an anchor time (one of that
+ * Branch's Checkpoint times, or a time at which a child was forked from it)
+ * plus a delta, and a sort key that sets the entry's place in the record.
+ */
+const arbEntrySpec = fc.record({
+  branchPick: fc.nat(),
+  anchorKind: fc.constantFrom<'checkpoint' | 'forkTime'>('checkpoint', 'forkTime', 'forkTime'),
+  anchorPick: fc.nat(),
+  delta: fc.oneof(
+    { weight: 3, arbitrary: fc.constant(0) },
+    { weight: 1, arbitrary: fc.constantFrom(-1, 0.5, 1) },
+    { weight: 2, arbitrary: fc.integer({ min: 1, max: 30 }) },
+  ),
+  action: fc.constantFrom('SENeedleDecompression', 'SENeedleDecompression', 'SETensionPneumothorax'),
+  side: fc.constantFrom<Side>('Left', 'Right'),
+  sortKey: fc.nat(),
+});
+
+const LINEAGE_CREATED_AT = '2026-10-31T00:00:00.000Z';
+
+interface LineageNode {
+  id: string;
+  parentId?: string;
+  sourceId?: string;
+  startTime: number;
+  /** Every Checkpoint the Branch ever had, before any eviction. */
+  allCheckpoints: CheckpointMetadata[];
+  childForkTimes: number[];
+}
+
+const checkpoint = (checkpoint_id: string, simulation_time: number): CheckpointMetadata => ({
+  checkpoint_id,
+  simulation_time,
+  created_at: LINEAGE_CREATED_AT,
+  is_automatic: true,
+});
+
+/**
+ * Branch tree: a parent chain of 1 to 4 Branches from the root `main` to the
+ * current Branch, plus 0 to 2 sibling Branches forked from any chain Branch
+ * (outside the lineage). Each forked Branch is modelled as the service forks:
+ * its first Checkpoint is a copy of the parent's source Checkpoint with a new
+ * id and the same Simulation_Time, and `forked_from_checkpoint` names the
+ * source id, which stays in the parent's list unless it is evicted (about one
+ * fork in three; a fork copy is never evicted). Intervention_Record entries (0 to 10) sit on any of these
+ * Branches, often exactly at a Checkpoint or fork time, in shuffled order.
+ */
+export const arbLineage: fc.Arbitrary<LineageCase> = fc
+  .record({
+    rootLaterOffsets: arbLaterCheckpointOffsets,
+    chain: fc.array(arbForkSpec, { maxLength: 3 }),
+    siblings: fc.array(fc.record({ parentPick: fc.nat(), fork: arbForkSpec }), { maxLength: 2 }),
+    entries: fc.array(arbEntrySpec, { maxLength: 10 }),
+    branchOrder: fc.array(fc.nat(), { minLength: 6, maxLength: 6 }),
+  })
+  .map(({ rootLaterOffsets, chain, siblings, entries, branchOrder }) => {
+    const root: LineageNode = {
+      id: 'main',
+      startTime: 0,
+      allCheckpoints: [0, ...rootLaterOffsets].sort((a, b) => a - b).map((t, k) => checkpoint(`main-cp-${k}`, t)),
+      childForkTimes: [],
+    };
+    const nodes: LineageNode[] = [root];
+    const evicted = new Set<string>();
+    const evictedSources: string[] = [];
+    const forkTimeByBranch: Record<string, number> = {};
+
+    const fork = (id: string, parent: LineageNode, spec: (typeof chain)[number]): LineageNode => {
+      const source = parent.allCheckpoints[spec.sourcePick % parent.allCheckpoints.length];
+      const forkTime = source.simulation_time;
+      // A Branch's fork copy is never evicted, so its earliest Checkpoint stays at its fork time.
+      if (spec.evictSource && source.checkpoint_id !== `${parent.id}-cp-fork`) {
+        evicted.add(source.checkpoint_id);
+        evictedSources.push(id);
+      }
+      parent.childForkTimes.push(forkTime);
+      forkTimeByBranch[id] = forkTime;
+      const node: LineageNode = {
+        id,
+        parentId: parent.id,
+        sourceId: source.checkpoint_id,
+        startTime: forkTime,
+        allCheckpoints: [
+          checkpoint(`${id}-cp-fork`, forkTime),
+          ...[...spec.laterOffsets].sort((a, b) => a - b).map((o, k) => checkpoint(`${id}-cp-${k}`, forkTime + o)),
+        ],
+        childForkTimes: [],
+      };
+      nodes.push(node);
+      return node;
+    };
+
+    const chainNodes = [root];
+    chain.forEach((spec, i) => chainNodes.push(fork(`branch-${i + 1}`, chainNodes[i], spec)));
+    siblings.forEach(({ parentPick, fork: spec }, j) =>
+      fork(`sibling-${j + 1}`, chainNodes[parentPick % chainNodes.length], spec),
+    );
+
+    const record = entries
+      .map((e) => {
+        const node = nodes[e.branchPick % nodes.length];
+        const anchors =
+          e.anchorKind === 'forkTime' && node.childForkTimes.length > 0
+            ? node.childForkTimes
+            : node.allCheckpoints.map((c) => c.simulation_time);
+        const simulationTime = Math.max(node.startTime, anchors[e.anchorPick % anchors.length] + e.delta);
+        const entry: InterventionRecordEntry = {
+          interventionId:
+            e.action === 'SENeedleDecompression' ? `needle-decompression-${e.side.toLowerCase()}` : 'tension-pneumothorax',
+          action: e.action,
+          side: e.side,
+          simulationTime,
+          branchId: node.id,
+        };
+        return { entry, sortKey: e.sortKey };
+      })
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .map(({ entry }) => entry);
+
+    const branches = nodes
+      .map((n, i) => ({ n, key: branchOrder[i] }))
+      .sort((a, b) => a.key - b.key)
+      .map(
+        ({ n }): BranchMetadata => ({
+          branch_id: n.id,
+          ...(n.parentId === undefined ? {} : { parent_branch_id: n.parentId, forked_from_checkpoint: n.sourceId }),
+          created_at: LINEAGE_CREATED_AT,
+          event_count: 0,
+        }),
+      );
+
+    const checkpointsByBranch = Object.fromEntries(
+      nodes.map((n) => [n.id, n.allCheckpoints.filter((c) => !evicted.has(c.checkpoint_id))]),
+    );
+
+    return {
+      branches,
+      currentBranchId: chainNodes[chainNodes.length - 1].id,
+      checkpointsByBranch,
+      record,
+      forkTimeByBranch,
+      evictedSources,
+    };
   });

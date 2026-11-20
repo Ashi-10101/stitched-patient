@@ -161,7 +161,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 5.15, 10.5, 12.5_
 
-  - [ ] 5.2 Implement `apps/web/src/lib/branchLineage.ts`
+  - [x] 5.2 Implement `apps/web/src/lib/branchLineage.ts`
     - `buildLineage(branches, currentBranchId, checkpointsByBranch)` and `activeInterventions(record, lineage)` as in the design: fork time from the parent's Checkpoint named by `forked_from_checkpoint`, falling back to the child's earliest Checkpoint; the walk stops on a cycle or a missing parent; before Checkpoint lists load, the lineage is the current Branch alone; entries are kept with `simulationTime <= upperBound` in their original order
     - Add `arbLineage` (1 to 4 Branches in a parent chain, Checkpoints per Branch including the fork copy at the same time, Intervention_Record entries on those Branches) to `src/test/generators.ts`
     - Create `apps/web/src/lib/branchLineage.test.ts`:
