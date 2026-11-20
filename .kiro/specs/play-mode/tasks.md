@@ -33,7 +33,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 4.25, 5.4, 6.15, 6.16_
 
-- [ ] 2. Implement alarm band semantics
+- [x] 2. Implement alarm band semantics
   - [x] 2.1 Rewrite the Alarm_Function in `apps/web/src/lib/alarms.ts`
     - This spec owns `alarms.ts`. Keep this task one small change: `alarms.ts`, its new test file, the `AlarmThreshold` type and the shared test helpers below. The core-simulation-loop session rebases onto it
     - Rewrite `getAlarmState` as in the design's "Alarm_Function change": `critical` when strictly beyond a present critical bound; otherwise `warning` when strictly outside a present `normal` or `warning` bound; otherwise `normal`. Each absent object or bound is skipped. `getAlarmColor` and `getAlarmBgColor` stay unchanged
@@ -53,7 +53,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10, 15.11, 15.12, 1.7_
     - _Properties: 1_
 
-  - [ ] 2.2 Implement `apps/web/src/lib/vitalBands.ts`
+  - [x] 2.2 Implement `apps/web/src/lib/vitalBands.ts`
     - `getVitalBand`, `thresholdsFor` and `overallStatus` as in the design, including the tie rule (`low` wins for a malformed threshold that a value crosses on both sides)
     - Create `apps/web/src/lib/vitalBands.test.ts`:
       - for each vital with thresholds in the case file: state equals `getAlarmState` and direction is `none` exactly when the state is `normal`, at each boundary, at each boundary ± the per-vital offset, and at no fewer than 100 evenly spaced values from 50% of the lowest boundary to 150% of the highest
