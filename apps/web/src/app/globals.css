@@ -75,6 +75,35 @@ body {
 
 .sp-rate-static { display: none; }
 
+/* Avatar idle motions and one-time celebration (play-mode task 10.7).
+   All periods are wall-clock seconds. Stopped by the reduced-motion
+   `.sp-avatar *` rule below. */
+.sp-blink { transform-box: fill-box; transform-origin: center;
+  animation: sp-blink 5s ease-in-out infinite; }
+@keyframes sp-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+
+.sp-tilt { transform-box: view-box; transform-origin: 100px 106px;   /* neck */
+  animation: sp-tilt 9s ease-in-out infinite; }
+@keyframes sp-tilt { 0%, 70%, 100% { transform: rotate(0deg); }
+  80% { transform: rotate(-2deg); } 90% { transform: rotate(2deg); } }
+
+.sp-spark { animation: sp-spark 6s linear infinite; }
+.sp-spark-delay { animation-delay: -3s; }
+@keyframes sp-spark { 0%, 86%, 100% { opacity: 0; } 90% { opacity: 1; } 94% { opacity: 0.4; } }
+
+.sp-bat { animation: sp-bat 7s ease-in-out infinite; }
+.sp-bat-delay { animation-delay: -3.5s; }
+@keyframes sp-bat { 0%, 100% { transform: translate(0, 0); } 25% { transform: translate(2px, -2px); }
+  50% { transform: translate(0, -1px); } 75% { transform: translate(-2px, -2px); } }
+
+.sp-celebrate-bolt { animation: sp-celebrate-bolt 0.8s ease-out;
+  animation-iteration-count: 1; }
+@keyframes sp-celebrate-bolt { 0%, 100% { fill: #9A98A8; } 40% { fill: #FFD166; } }
+
+.sp-celebrate-heart { transform-box: fill-box; transform-origin: center bottom;
+  animation: sp-celebrate-heart 0.8s ease-out; animation-iteration-count: 1; }
+@keyframes sp-celebrate-heart { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
 @media (prefers-reduced-motion: reduce) {
   .sp-avatar *, .sp-ending * { animation: none !important; transition: none !important; }
   .sp-unstitch { transform: var(--sp-unstitch-final); }   /* stitches already apart (7.12) */
