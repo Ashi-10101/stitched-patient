@@ -30,8 +30,11 @@ class FakeEngine:
         self.calls.append(("apply", action, params, self.current_time))
 
     def get_vitals(self) -> VitalSigns:
+        # Offset by 2**-10 so the fake's time never equals the tick number.
+        # Tests that see an integer simulation_time prove _advance_tick
+        # stamps its own target instead of passing the engine's time through.
         return VitalSigns(
-            simulation_time=self.current_time,
+            simulation_time=self.current_time - 2**-10,
             heart_rate=72.0,
             respiratory_rate=12.0,
             spo2=0.97,
@@ -180,6 +183,25 @@ async def test_insult_applied_only_once(tmp_path):
     assert [c[1] for c in applies(engine)] == ["A", "B"]
     assert [c[3] for c in applies(engine)] == [2.5, 3.0]
     assert session.current_branch.applied_insults == {0, 1}
+
+
+async def test_insult_on_tick_boundary_applied_in_ending_tick(tmp_path):
+    manager = SessionManager()
+    # 3.0 is the target of tick 2 -> 3, so it belongs to that tick (<= target),
+    # not to the start of tick 3 -> 4.
+    session, engine = make_session(tmp_path, [insult(3.0, "B")])
+
+    ticks = await run_ticks(manager, session, engine, 3)
+
+    assert ticks[0] == [("advance", 1.0)]
+    assert ticks[1] == [("advance", 1.0)]
+    assert ticks[2] == [("advance", 1.0), ("apply", "B", {}, 3.0)]
+    assert 0 in session.current_branch.applied_insults
+
+    ticks += await run_ticks(manager, session, engine, 1)
+
+    assert ticks[3] == [("advance", 1.0)]
+    assert len(applies(engine)) == 1
 
 
 async def test_advance_calls_sum_to_one_per_tick(tmp_path):
