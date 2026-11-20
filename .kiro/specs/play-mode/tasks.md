@@ -265,7 +265,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 2.12, 2.14, 2.15, 2.16, 2.17, 2.19, 5.9, 5.10, 6.14, 9.7, 9.8, 12.7, 12.8, 12.9, 13.10_
 
 - [ ] 8. Implement session state and the session hook
-  - [ ] 8.1 Implement the session reducer core in `apps/web/src/lib/sessionState.ts`
+  - [x] 8.1 Implement the session reducer core in `apps/web/src/lib/sessionState.ts`
     - Define `View`, `SessionUiState`, `SessionAction`, `initialSessionState()` and `sessionReducer` as in the design. Export `HISTORY_LIMIT = 300` and `STALE_TOLERANCE_S = 5`
     - Implement these transitions: `caseLoaded` (stored view if the case has a Play_Section, `clinician` without one, else `play`; builds `endingCtx`), `caseFailed` (`clinician`, session/branch/connection fields untouched), `sessionLoaded`, `checkpointsLoaded` (recompute lineage), `connectionChanged`, `sampleReceived` (stale guard, history capped at 300, first positive tidal volume, `mapAvatar` with the previous parameters, `stepEnding`, `endingSnapshot` when the Ending leaves `none`), `viewSelected`, `playbackChanged`
     - Create `apps/web/src/lib/sessionState.test.ts`:
