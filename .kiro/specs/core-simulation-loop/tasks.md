@@ -243,7 +243,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 7.5, 7.6, 7.7, 7.8, 7.9, 7.13_
 
 - [ ] 8. Implement error recovery from checkpoints
-  - [ ] 8.1 Add error recovery to playback control endpoint
+  - [ ]* 8.1 Add error recovery to playback control endpoint
     - In POST `/sessions/{session_id}/playback` when setting playing=true
     - Check if current branch.failed is True
     - If failed: restore from most recent checkpoint
@@ -263,7 +263,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
     - _Deviations: 9_
   
-  - [ ] 8.2 Write integration test for error recovery
+  - [ ]* 8.2 Write integration test for error recovery
     - Mock engine failure during simulation
     - Verify branch marked failed and session paused
     - Verify error logged with session_id and branch_id
@@ -275,7 +275,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
 - [ ] 9. Implement idle session cleanup
-  - [ ] 9.1 Update existing `_cleanup_loop` in SessionManager.start
+  - [ ]* 9.1 Update existing `_cleanup_loop` in SessionManager.start
     - Replace sleep(300) with sleep(min(60, settings.session_idle_timeout / 2))
     - Extract loop body into new method `_cleanup_idle_sessions()`
     - Loop calls `_cleanup_idle_sessions()` after each sleep
@@ -285,7 +285,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.6, 10.15_
     - _Deviations: 11_
   
-  - [ ] 9.2 Implement `delete_session` method
+  - [ ]* 9.2 Implement `delete_session` method
     - delete_session becomes async because it takes the lock. In the same task, update the DELETE /sessions/{session_id} endpoint in main.py to await it
     - Acquire session.lock
     - Cancel session.clock_task
@@ -295,14 +295,14 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.8, 10.9_
     - _Deviations: 11_
   
-  - [ ] 9.3 Update session.last_activity tracking
+  - [ ]* 9.3 Update session.last_activity tracking
     - Update in create_session
     - Update in all API endpoints (playback control, intervention, fork)
     - Update in WebSocket connect/disconnect
     - _Requirements: 10.6_
     - _Deviations: 11_
   
-  - [ ] 9.4 Write integration test for idle session release
+  - [ ]* 9.4 Write integration test for idle session release
     - Set session_idle_timeout=2 for test via settings override
     - Create session, verify created
     - Wait ≥ timeout seconds, call `_cleanup_idle_sessions()` directly
@@ -314,7 +314,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.5, 10.6, 10.8, 10.9_
 
 - [ ] 10. Add session creation timeout
-  - [ ] 10.1 Wrap engine initialization with configurable timeout
+  - [ ]* 10.1 Wrap engine initialization with configurable timeout
     - In `create_session`, wrap engine init with `asyncio.wait_for(..., timeout=settings.session_creation_timeout)`
     - On timeout: raise TimeoutError with message
     - On engine error: raise with original error message
@@ -323,7 +323,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 2.9, 2.10, 2.11, 2.12_
     - _Deviations: 4_
   
-  - [ ] 10.2 Write unit test for session creation timeout
+  - [ ]* 10.2 Write unit test for session creation timeout
     - Use fake engine that sleeps ~0.5s with timeout setting ~0.1s
     - Verify timeout error returned within expected time
     - Verify session not created in registry
@@ -420,16 +420,26 @@ The approach follows dependency order: configuration → data models → clock a
     - Add `venv/`, `.venv`, `.env.*.local` to .gitignore
     - _Requirements: None (configuration fixes)_
     - _Deviations: 19_
+  
+  - [ ] 15.4 Make docker compose build both services from a clean clone
+    - The web Dockerfile runs `npm ci`. The play-mode spec's task 1.1 creates and commits `apps/web/package-lock.json`. If that lockfile does not exist yet when 15.4 runs, stop and report; do not create it here
+    - The web service mounts `./apps/web` over `/app`, which hides the production build that the Dockerfile produces. Make the compose web service and the Dockerfile agree
+    - npm flags `next@14.1.0` for a security advisory. Upgrade to the latest 14.2.x patch release
+    - Host ports 3000 and 3001 are taken on this Mac by other apps. Make the web host port configurable as `WEB_PORT` (default 3000, in `.env.example`). Make the API's CORS origins follow it, so the browser at that port can call the API
+    - Verify with `WEB_PORT=3457`: run `docker compose build web physiology`, then `docker compose up`, and load http://localhost:3457
+    - Run: `docker compose build physiology && docker compose run --rm physiology python3 -m pytest -v 2>&1 | tee /tmp/sp-pytest.log`
+    - Quote pytest summary (passed/failed/skipped) in task report
+    - _Requirements: None (configuration fixes)_
 
 - [ ] 16. Fix documentation and case file issues
-  - [ ] 16.1 Delete overclaiming documentation files
+  - [ ]* 16.1 Delete overclaiming documentation files
     - Delete `IMPLEMENTATION_COMPLETE.md`
     - Delete `CHANGELOG.md`
     - Delete `docs/screenshots.md`
     - _Requirements: None (documentation cleanup)_
     - _Deviations: 20_
   
-  - [ ] 16.2 Add TODO markers to case file
+  - [ ]* 16.2 Add TODO markers to case file
     - Add `# TODO(author): verify StandardMale age matches 32yo patient` to engine section
     - Add `# TODO(author): verify EtCO2 alarm thresholds and add clinical source` to alarms section
     - Add `# TODO(author): verify tidal volume alarm thresholds and add clinical source` to alarms section
@@ -457,6 +467,9 @@ The approach follows dependency order: configuration → data models → clock a
 - Error recovery reloads from most recent checkpoint without losing progress
 - Idle session cleanup prevents unbounded resource growth
 - This is a correctness-focused implementation: all critical architectural deviations must be fixed
+- Deferred on 11-20 for the deadline: 8 (error recovery), 9 (idle cleanup), 10 (creation timeout), 16 (docs and case TODOs). They stay in the plan and run only if time allows.
+- `apps/web/src/lib/alarms.ts` belongs to the play-mode spec. No core task changes it.
+- The play-mode spec's case-file tasks add an optional "play" section and "playLabel" fields to `cases/adult-tension-pneumothorax.yaml` and `cases/case-schema.json`. Core tasks 13.1 and 14.1 must keep working with those additions.
 
 ### Runtime
 
@@ -513,9 +526,10 @@ The approach follows dependency order: configuration → data models → clock a
     { "id": 32, "tasks": ["15.1"] },
     { "id": 33, "tasks": ["15.2"] },
     { "id": 34, "tasks": ["15.3"] },
-    { "id": 35, "tasks": ["16.1"] },
-    { "id": 36, "tasks": ["16.2"] },
-    { "id": 37, "tasks": ["17.1"] }
+    { "id": 35, "tasks": ["15.4"] },
+    { "id": 36, "tasks": ["16.1"] },
+    { "id": 37, "tasks": ["16.2"] },
+    { "id": 38, "tasks": ["17.1"] }
   ]
 }
 ```
