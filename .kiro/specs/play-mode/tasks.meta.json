@@ -257,6 +257,18 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795189509352
       }
+    ],
+    "7.1 Extend `cases/case-schema.json`": [
+      {
+        "executionId": "9f11b1c8-9f56-458e-8c6d-b8e15c4d5b91",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795189576991
+      },
+      {
+        "executionId": "9f11b1c8-9f56-458e-8c6d-b8e15c4d5b91",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795190038792
+      }
     ]
   }
 }

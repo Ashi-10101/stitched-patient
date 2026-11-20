@@ -137,6 +137,135 @@
           "parameters": {
             "type": "object",
             "description": "Fixed or configurable parameters"
+          },
+          "playLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "action": { "const": "SENeedleDecompression" } },
+              "required": ["action"]
+            },
+            "then": {
+              "required": ["parameters"],
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "required": ["side", "state"],
+                  "properties": {
+                    "side": { "enum": ["Left", "Right"] },
+                    "state": { "enum": ["On", "Off"] }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "play": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goalText", "endings", "hints", "status", "diagnosisTerms"],
+      "properties": {
+        "goalText": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "diagnosisTerms": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+        },
+        "avatar": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "referenceTidalVolumeMl": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        },
+        "references": { "$ref": "#/definitions/citationList" },
+        "endings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rescued", "lost"],
+          "properties": {
+            "rescued": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["conditions", "holdSeconds"],
+              "properties": {
+                "conditions": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "items": { "$ref": "#/definitions/vitalCondition" }
+                },
+                "holdSeconds": { "type": "number", "exclusiveMinimum": 0 },
+                "references": { "$ref": "#/definitions/citationList" }
+              }
+            },
+            "lost": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "groups": {
+                  "type": "array",
+                  "minItems": 0,
+                  "maxItems": 5,
+                  "items": { "$ref": "#/definitions/conditionGroup" }
+                },
+                "timeLimitSeconds": { "type": "number", "exclusiveMinimum": 0 },
+                "references": { "$ref": "#/definitions/citationList" }
+              },
+              "anyOf": [
+                { "required": ["groups"], "properties": { "groups": { "minItems": 1 } } },
+                { "required": ["timeLimitSeconds"] }
+              ]
+            }
+          }
+        },
+        "hints": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["text"],
+            "properties": {
+              "text": { "type": "string", "minLength": 1, "maxLength": 160 },
+              "references": { "$ref": "#/definitions/citationList" }
+            }
+          }
+        },
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rules", "defaultSentence"],
+          "properties": {
+            "defaultSentence": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "rules": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["when", "sentence"],
+                "properties": {
+                  "when": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 6,
+                    "items": { "$ref": "#/definitions/statusWhen" }
+                  },
+                  "sentence": { "type": "string", "minLength": 1, "maxLength": 80 }
+                }
+              }
+            }
           }
         }
       }
@@ -160,6 +289,52 @@
     }
   },
   "definitions": {
+    "vitalName": {
+      "enum": ["heartRate", "respiratoryRate", "spO2", "meanArterialPressure", "etCO2", "tidalVolume"]
+    },
+    "citationList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "vitalCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vital", "op", "value"],
+      "properties": {
+        "vital": { "$ref": "#/definitions/vitalName" },
+        "op": { "enum": ["<", "<=", ">=", ">"] },
+        "value": { "type": "number", "minimum": 0 }
+      },
+      "if": { "properties": { "vital": { "const": "spO2" } } },
+      "then": { "properties": { "value": { "maximum": 1 } } }
+    },
+    "conditionGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conditions", "holdSeconds"],
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "items": { "$ref": "#/definitions/vitalCondition" }
+        },
+        "holdSeconds": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "statusWhen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vital", "band"],
+      "properties": {
+        "vital": { "$ref": "#/definitions/vitalName" },
+        "band": { "enum": ["normal", "warning", "critical"] },
+        "direction": { "enum": ["low", "high"] }
+      },
+      "if": { "properties": { "band": { "const": "normal" } } },
+      "then": { "not": { "required": ["direction"] } }
+    },
     "thresholds": {
       "type": "object",
       "required": ["critical", "warning", "normal"],

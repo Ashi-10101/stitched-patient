@@ -214,7 +214,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 1.11, 7.10, 8.8, 10.10, 11.13, 12.11_
 
 - [ ] 7. Add Play mode to the case schema and the case file
-  - [ ] 7.1 Extend `cases/case-schema.json`
+  - [x] 7.1 Extend `cases/case-schema.json`
     - Add the Draft-07 `definitions` from the design: `vitalName`, `citationList`, `vitalCondition` (with the SpO2 `maximum: 1` rule), `conditionGroup`, `statusWhen` (no `direction` on a `normal` band)
     - Add the optional top-level `play` object exactly as in the design, with `additionalProperties: false` on `play` and every object nested in it, and the `anyOf` on `endings.lost` (at least one group or a `timeLimitSeconds`)
     - Add the optional `playLabel` (1 to 80 characters) to the Intervention item, and the `allOf` / `if` / `then` rule restricting `SENeedleDecompression` `parameters.side` to `"Left"` / `"Right"` and `parameters.state` to `"On"` / `"Off"`. Intervention items keep `additionalProperties` open
