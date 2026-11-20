@@ -352,7 +352,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 4.17, 4.21, 4.23, 7.4, 7.12, 11.4_
     - _Properties: 8, 9_
 
-  - [ ] 10.2 Create `StatusLine` and `GoalBar`
+  - [x] 10.2 Create `StatusLine` and `GoalBar`
     - `apps/web/src/components/StatusLine.tsx`: Overall_Status badge outside the live region (circle with check "OK", triangle "Worried", octagon "Danger"), and a `<p aria-live="polite">` that contains only the Status_Sentence; text wraps, no `truncate` or `line-clamp`
     - `apps/web/src/components/GoalBar.tsx`: Goal_Text in full; when `timeLimitSeconds` exists, a `<progress>` and a visible `M:SS left` label from `remainingSeconds` and `formatMSS`
     - Create `apps/web/src/components/StatusLine.test.tsx` with `renderToStaticMarkup`: the live region text equals the sentence only; each badge has a distinct shape and label; no truncation classes; `GoalBar` shows the full goal, `"3:20 left"` for limit 600 and latest time 400, `"0:00 left"` past the limit, and no bar without a Time_Limit

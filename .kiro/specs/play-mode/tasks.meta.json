@@ -410,6 +410,18 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795195283893
       }
+    ],
+    "10.2 Create `StatusLine` and `GoalBar`": [
+      {
+        "executionId": "3740a538-42b2-4b80-a458-b3ddfdfc4abe",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795195357194
+      },
+      {
+        "executionId": "3740a538-42b2-4b80-a458-b3ddfdfc4abe",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795195546509
+      }
     ]
   }
 }
