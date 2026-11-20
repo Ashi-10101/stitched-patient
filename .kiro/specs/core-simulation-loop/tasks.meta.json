@@ -130,6 +130,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795154723624
       }
+    ],
+    "3.4 Fix needle decompression state parsing (bug found while running the demo)": [
+      {
+        "executionId": "219795ca-660c-462d-bc7a-013bb7b69960",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795161684349
+      },
+      {
+        "executionId": "219795ca-660c-462d-bc7a-013bb7b69960",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795162254238
+      }
     ]
   }
 }

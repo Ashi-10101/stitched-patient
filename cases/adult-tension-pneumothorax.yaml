@@ -91,14 +91,14 @@ interventions:
     action: SENeedleDecompression
     parameters:
       side: Left
-      state: On
+      state: "On"
   
   - id: needle-decompression-right
     label: "Needle decompression - right"
     action: SENeedleDecompression
     parameters:
       side: Right
-      state: On
+      state: "On"
 
 references:
   # TODO(author): Add specific ATLS or other trauma guideline references for tension pneumothorax recognition and management

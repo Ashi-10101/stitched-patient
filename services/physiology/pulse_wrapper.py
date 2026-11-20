@@ -10,6 +10,23 @@ from pulse.cdm.scalars import FrequencyUnit, PressureUnit, VolumeUnit
 from models import VitalSigns
 
 
+# Exact case-file strings accepted for enum parameters. Anything else,
+# including YAML 1.1 booleans such as an unquoted `On`, is rejected.
+_SIDES = {"Left": eSide.Left, "Right": eSide.Right}
+_GATES = {"Closed": eGate.Closed, "Open": eGate.Open}
+_SWITCHES = {"On": eSwitch.On, "Off": eSwitch.Off}
+
+
+def _lookup(action_name: str, param: str, value: Any, mapping: Dict[str, Any]) -> Any:
+    """Map a case-file string to a Pulse enum, or raise ValueError."""
+    if not isinstance(value, str) or value not in mapping:
+        expected = ", ".join(repr(k) for k in mapping)
+        raise ValueError(
+            f"{action_name}: invalid {param} {value!r} (expected one of {expected})"
+        )
+    return mapping[value]
+
+
 class PulseEngineWrapper:
     """
     Manages a single Pulse engine instance and its state.
@@ -83,18 +100,22 @@ class PulseEngineWrapper:
         """
         if action_name == "SETensionPneumothorax":
             action = SETensionPneumothorax()
-            side = eSide.Left if parameters["side"] == "Left" else eSide.Right
-            action.set_side(side)
-            action_type = eGate.Closed if parameters["type"] == "Closed" else eGate.Open
-            action.set_type(action_type)
+            action.set_side(
+                _lookup(action_name, "side", parameters["side"], _SIDES)
+            )
+            action.set_type(
+                _lookup(action_name, "type", parameters["type"], _GATES)
+            )
             action.get_severity().set_value(parameters["severity"])
             
         elif action_name == "SENeedleDecompression":
             action = SENeedleDecompression()
-            side = eSide.Left if parameters["side"] == "Left" else eSide.Right
-            action.set_side(side)
-            state = eSwitch.On if parameters["state"] == "On" else eSwitch.Off
-            action.set_state(state)
+            action.set_side(
+                _lookup(action_name, "side", parameters["side"], _SIDES)
+            )
+            action.set_state(
+                _lookup(action_name, "state", parameters["state"], _SWITCHES)
+            )
             
         else:
             raise ValueError(f"Unknown action: {action_name}")

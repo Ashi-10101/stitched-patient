@@ -96,6 +96,18 @@ The approach follows dependency order: configuration → data models → clock a
     - Run: `docker compose build physiology && docker compose run --rm physiology python3 -m pytest -v 2>&1 | tee /tmp/sp-pytest.log`
     - Quote pytest summary (passed/failed/skipped) in task report
     - _Requirements: 5.1, 5.3, 5.4, 5.5, 5.6_
+  
+  - [x] 3.4 Fix needle decompression state parsing (bug found while running the demo)
+    - Bug: in `cases/adult-tension-pneumothorax.yaml`, both interventions use unquoted `state: On`. PyYAML follows YAML 1.1, so this loads as the boolean True, and `pulse_wrapper.apply_action` maps anything other than the string "On" to `eSwitch.Off`. Every needle decompression has been sent to Pulse switched off
+    - In `cases/adult-tension-pneumothorax.yaml`, quote `state: "On"` in both interventions, and quote every other unquoted value that YAML 1.1 reads as a boolean (On, Off, Yes, No, True, False, Y, N)
+    - In `services/physiology/pulse_wrapper.py` `apply_action`, map side with `{"Left": eSide.Left, "Right": eSide.Right}`, type with `{"Closed": eGate.Closed, "Open": eGate.Open}` and state with `{"On": eSwitch.On, "Off": eSwitch.Off}`. Raise ValueError naming the action, the parameter and the bad value for anything else, booleans included
+    - New test file `services/physiology/test_case_actions.py`:
+      - Every scheduled insult and intervention parameter in every case file under `cases/` is a string or a number, never a bool
+      - `apply_action` raises ValueError for `state=True` and for `side="left"`, using a wrapper instance with a fake engine object (no Pulse)
+      - Real Pulse through `SessionManager.step()`: step to t=150, apply `needle-decompression-left`, step to t=270 and record vitals; fork from the automatic t=150 checkpoint, step to t=270 and record vitals. The decompressed branch has higher SpO2 and lower heart rate than the fork. No other thresholds (13.1 records the real numbers)
+    - Run: `docker compose build physiology && docker compose run --rm physiology python3 -m pytest -v 2>&1 | tee /tmp/sp-pytest.log`
+    - Quote pytest summary (passed/failed/skipped) in task report
+    - _Requirements: 6.5, 6.6, 11.5, 11.6, 11.7_
 
 - [ ] 4. Implement single clock per session with thread pool
   - [ ] 4.1 Add `_clock_task` background task method
@@ -474,35 +486,36 @@ The approach follows dependency order: configuration → data models → clock a
     { "id": 5, "tasks": ["3.1"] },
     { "id": 6, "tasks": ["3.2"] },
     { "id": 7, "tasks": ["3.3"] },
-    { "id": 8, "tasks": ["4.1"] },
-    { "id": 9, "tasks": ["4.2"] },
-    { "id": 10, "tasks": ["4.3"] },
-    { "id": 11, "tasks": ["4.4"] },
-    { "id": 12, "tasks": ["5.1"] },
-    { "id": 13, "tasks": ["5.2"] },
-    { "id": 14, "tasks": ["6.1"] },
-    { "id": 15, "tasks": ["6.2"] },
-    { "id": 16, "tasks": ["6.3"] },
-    { "id": 17, "tasks": ["7.1"] },
-    { "id": 18, "tasks": ["7.2"] },
-    { "id": 19, "tasks": ["8.1"] },
-    { "id": 20, "tasks": ["8.2"] },
-    { "id": 21, "tasks": ["9.1"] },
-    { "id": 22, "tasks": ["9.2"] },
-    { "id": 23, "tasks": ["9.3"] },
-    { "id": 24, "tasks": ["9.4"] },
-    { "id": 25, "tasks": ["10.1"] },
-    { "id": 26, "tasks": ["10.2"] },
-    { "id": 27, "tasks": ["11.1"] },
-    { "id": 28, "tasks": ["12.1"] },
-    { "id": 29, "tasks": ["13.1"] },
-    { "id": 30, "tasks": ["14.1"] },
-    { "id": 31, "tasks": ["15.1"] },
-    { "id": 32, "tasks": ["15.2"] },
-    { "id": 33, "tasks": ["15.3"] },
-    { "id": 34, "tasks": ["16.1"] },
-    { "id": 35, "tasks": ["16.2"] },
-    { "id": 36, "tasks": ["17.1"] }
+    { "id": 8, "tasks": ["3.4"] },
+    { "id": 9, "tasks": ["4.1"] },
+    { "id": 10, "tasks": ["4.2"] },
+    { "id": 11, "tasks": ["4.3"] },
+    { "id": 12, "tasks": ["4.4"] },
+    { "id": 13, "tasks": ["5.1"] },
+    { "id": 14, "tasks": ["5.2"] },
+    { "id": 15, "tasks": ["6.1"] },
+    { "id": 16, "tasks": ["6.2"] },
+    { "id": 17, "tasks": ["6.3"] },
+    { "id": 18, "tasks": ["7.1"] },
+    { "id": 19, "tasks": ["7.2"] },
+    { "id": 20, "tasks": ["8.1"] },
+    { "id": 21, "tasks": ["8.2"] },
+    { "id": 22, "tasks": ["9.1"] },
+    { "id": 23, "tasks": ["9.2"] },
+    { "id": 24, "tasks": ["9.3"] },
+    { "id": 25, "tasks": ["9.4"] },
+    { "id": 26, "tasks": ["10.1"] },
+    { "id": 27, "tasks": ["10.2"] },
+    { "id": 28, "tasks": ["11.1"] },
+    { "id": 29, "tasks": ["12.1"] },
+    { "id": 30, "tasks": ["13.1"] },
+    { "id": 31, "tasks": ["14.1"] },
+    { "id": 32, "tasks": ["15.1"] },
+    { "id": 33, "tasks": ["15.2"] },
+    { "id": 34, "tasks": ["15.3"] },
+    { "id": 35, "tasks": ["16.1"] },
+    { "id": 36, "tasks": ["16.2"] },
+    { "id": 37, "tasks": ["17.1"] }
   ]
 }
 ```
