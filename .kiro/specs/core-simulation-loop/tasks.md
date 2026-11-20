@@ -109,7 +109,7 @@ The approach follows dependency order: configuration → data models → clock a
     - Quote pytest summary (passed/failed/skipped) in task report
     - _Requirements: 6.5, 6.6, 11.5, 11.6, 11.7_
 
-- [ ] 4. Implement single clock per session with thread pool
+- [x] 4. Implement single clock per session with thread pool
   - [x] 4.1 Add `_clock_task` background task method
     - Infinite loop: if playing, call _advance_tick and broadcast; if paused, broadcast cached
     - DO NOT acquire session.lock in clock task (_advance_tick acquires it internally)
@@ -133,7 +133,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.1, 10.2_
     - _Deviations: 9_
   
-  - [ ] 4.4 Write integration tests for clock task
+  - [x] 4.4 Write integration tests for clock task
     - Use fake engine for timing validation (no Pulse overhead)
     - Test playing at 1x advances 1.0 sim second per 1.0 wall second (±10%)
     - Test playing at 2x advances at 2× rate
