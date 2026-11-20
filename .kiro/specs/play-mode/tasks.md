@@ -306,7 +306,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 1.4, 1.5, 1.9, 1.11, 7.1, 7.10, 8.5, 8.6, 8.8, 8.11, 8.12, 8.13, 8.14, 9.6, 10.6, 10.8, 10.10, 10.11, 11.12, 11.13_
 
 - [ ] 9. Build the shared shell and the Clinician view
-  - [ ] 9.1 Create `SafetyNotice` and `ViewSwitcher` components
+  - [x] 9.1 Create `SafetyNotice` and `ViewSwitcher` components
     - `apps/web/src/components/SafetyNotice.tsx`: sticky top bar with the text "Educational simulation, not for clinical use", `z-50`, height exposed as the CSS variable `--notice-h`, readable from 320 px to 1920 px
     - `apps/web/src/components/ViewSwitcher.tsx`: `role="radiogroup"` with "Play" and "Clinician" options, `aria-checked` on the selected one, a visible selected marker that is not only colour; Play disabled with `aria-disabled="true"` and the text "Play mode is not available for this case" (no Play_Section) or "Play mode is unavailable: the case could not be loaded." (case load failed); both options disabled while loading; activating a disabled option does nothing
     - Create `apps/web/src/components/ViewSwitcher.test.tsx` and `SafetyNotice.test.tsx` with `renderToStaticMarkup`: notice text present once; selected option marked in both views; each disabled state and its text; loading disables both

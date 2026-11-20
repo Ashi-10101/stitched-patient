@@ -341,6 +341,18 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795192943974
       }
+    ],
+    "9.1 Create `SafetyNotice` and `ViewSwitcher` components": [
+      {
+        "executionId": "cfa200e9-61a8-4427-a7f5-4c69b61dce56",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795193030044
+      },
+      {
+        "executionId": "cfa200e9-61a8-4427-a7f5-4c69b61dce56",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795193271789
+      }
     ]
   }
 }
