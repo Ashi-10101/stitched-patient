@@ -238,6 +238,25 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795189089577
       }
+    ],
+    "6.1 Add an optional per-request timeout to `apps/web/src/lib/api.ts`": [
+      {
+        "executionId": "ba36a64c-757a-4cca-8e7d-afef14c8f2af",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795189193319
+      },
+      {
+        "executionId": "ba36a64c-757a-4cca-8e7d-afef14c8f2af",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795189509298
+      }
+    ],
+    "6. Add request timeouts to the API client": [
+      {
+        "executionId": "ba36a64c-757a-4cca-8e7d-afef14c8f2af",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795189509352
+      }
     ]
   }
 }

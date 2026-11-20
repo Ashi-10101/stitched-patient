@@ -203,8 +203,8 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 8.6, 8.12, 8.13, 8.14_
     - _Properties: 19_
 
-- [ ] 6. Add request timeouts to the API client
-  - [ ] 6.1 Add an optional per-request timeout to `apps/web/src/lib/api.ts`
+- [x] 6. Add request timeouts to the API client
+  - [x] 6.1 Add an optional per-request timeout to `apps/web/src/lib/api.ts`
     - `fetchApi` takes an optional `timeoutMs`, uses an `AbortController`, and throws `ApiError(0, 'timeout')` when the timer fires. Clear the timer on every path
     - `getCaseData`, `getSession`, `controlPlayback`, `applyIntervention`, `forkBranch` and `getCheckpoints` gain an optional trailing `{ timeoutMs }` argument. Existing callers keep working unchanged
     - Export the design's timeout constants: 10 s case, 10 s intervention, 30 s fork, 5 s playback, 10 s checkpoints
