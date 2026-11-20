@@ -174,7 +174,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 4.15, 10.9, 12.2_
     - _Properties: 7_
 
-  - [ ] 5.3 Implement `apps/web/src/lib/rewindMoments.ts`
+  - [x] 5.3 Implement `apps/web/src/lib/rewindMoments.ts`
     - `selectRewindCheckpoints` with the 6 steps in the design (empty without a latest sample; eligibility below the latest sample time and below the Time_Limit; de-duplicate by `checkpoint_id`, then by equal `simulation_time` keeping the lowest depth; sort descending with stable ties; take 5; inclusion rule for the newest eligible Checkpoint older than the newest lineage entry). Export `MAX_REWIND_MOMENTS = 5`
     - `labelRewindMoment` with the three label rules of Requirement 10.5, using `formatMSS` and `playButtonText` (clinical `label` fallback)
     - Create `apps/web/src/lib/rewindMoments.test.ts`:
