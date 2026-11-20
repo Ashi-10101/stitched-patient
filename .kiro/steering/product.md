@@ -14,6 +14,22 @@ Stitched Patient is a virtual patient for medical training that combines two com
 - Nurses
 - Other healthcare learners in emergency medicine training
 
+### Anyone can play
+
+Play mode opens the same simulation to people with no medical training:
+
+- Hackathon judges
+- Curious non-medical visitors
+
+They must understand what is happening within a minute, without reading numbers.
+
+## Two Views of One Session
+
+- **Play** (default): a cartoon stitched patient avatar whose look follows the live vitals, a one-sentence plain-language status, a goal with an ending (rescued or lost), up to three hints, plain intervention labels, and a Rewind button
+- **Clinician**: the full bedside monitor for medical learners
+
+Both views run on the same session, the same branches, and the same physiology engine. Switching views never restarts or changes the session. Play mode changes presentation only and adds a per-case goal. Its goals, hints, and status sentences live in the case file and follow the clinical-safety rules (citation or `TODO(author)`).
+
 ## Core Loop
 
 1. **Talk**: interact with the patient through natural conversation
@@ -32,6 +48,7 @@ Adult tension pneumothorax
 - **Not a diagnostic tool**: this is for training only
 - **Not for real patient care**: no clinical decision support
 - **No real patient data**: all scenarios are synthetic
+- **Not health advice for the public**: Play mode's plain-language cues and hints simplify the simulation so it is easy to follow. They are not guidance for real situations
 
 ## Hackathon Context
 
