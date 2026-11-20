@@ -148,7 +148,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 4.1, 4.2_
 
 - [ ] 5. Convert WebSocket handler to subscribe-only and spawn clock task
-  - [ ] 5.1 Rewrite `/sessions/{session_id}/vitals` WebSocket endpoint and update create_session
+  - [x] 5.1 Rewrite `/sessions/{session_id}/vitals` WebSocket endpoint and update create_session
     - On connect: add WebSocket to session.vitals_subscribers, update last_activity
     - On disconnect: remove from vitals_subscribers, update last_activity
     - If last subscriber: set session.playing = False

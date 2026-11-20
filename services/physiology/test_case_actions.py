@@ -6,6 +6,7 @@ string "On" to eSwitch.Off, so needle decompression reached Pulse switched off.
 
 Validates: Requirements 6.5, 6.6, 11.5, 11.6, 11.7
 """
+import asyncio
 import shutil
 from typing import Any, Dict, List, Tuple
 
@@ -156,4 +157,9 @@ async def test_case_needle_decompression_beats_untreated_fork():
         assert vitals_dec.spo2 > vitals_fork.spo2
         assert vitals_dec.heart_rate < vitals_fork.heart_rate
     finally:
+        session.clock_task.cancel()
+        try:
+            await session.clock_task
+        except asyncio.CancelledError:
+            pass
         shutil.rmtree(session.temp_dir, ignore_errors=True)

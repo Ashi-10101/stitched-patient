@@ -197,6 +197,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795179889810
       }
+    ],
+    "5.1 Rewrite `/sessions/{session_id}/vitals` WebSocket endpoint and update create_session": [
+      {
+        "executionId": "b9fa2c3e-e21b-45f0-8d95-5f87bdc0628e",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795180004868
+      },
+      {
+        "executionId": "b9fa2c3e-e21b-45f0-8d95-5f87bdc0628e",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795180244437
+      }
     ]
   }
 }

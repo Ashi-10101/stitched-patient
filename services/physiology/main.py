@@ -1,6 +1,6 @@
 """FastAPI application for physiology service."""
-import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime
 from typing import Dict, List
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -254,9 +254,12 @@ async def get_checkpoints(session_id: str, branch_id: str) -> List[CheckpointMet
 @app.websocket("/sessions/{session_id}/vitals")
 async def vitals_stream(websocket: WebSocket, session_id: str):
     """
-    Stream vital signs for a session.
+    Subscribe to a session's vitals stream.
     
-    Pushes VitalSigns updates at ~1 Hz when playing, respecting playback speed.
+    Subscribe-only: this handler never sends, advances time, or calls the
+    engine. The session's clock task pushes vitals (and error messages) to
+    every subscriber. The handler only waits for the client to leave; when
+    the last subscriber leaves, the session is paused.
     """
     await websocket.accept()
     
@@ -265,32 +268,29 @@ async def vitals_stream(websocket: WebSocket, session_id: str):
         await websocket.close(code=1008, reason="Session not found")
         return
     
+    session.vitals_subscribers.add(websocket)
+    session.last_activity = datetime.utcnow()
+    
     try:
         while True:
-            # Send current vitals regardless of playback state
-            vitals = session.current_branch.engine.get_vitals()
-            await websocket.send_json(vitals.model_dump())
-            
-            # If playing, advance the simulation by one 1.0 s tick
-            # (speed is ignored until the clock task replaces this loop)
-            if session.playing:
-                try:
-                    await session_manager._advance_tick(session)
-                except Exception as e:
-                    logger.error(f"Simulation error in session {session_id}: {e}", exc_info=True)
-                    await websocket.send_json({
-                        "error": f"Simulation error: {str(e)}"
-                    })
-                    break
-            
-            # Wait ~1 second wall clock time between updates
-            await asyncio.sleep(1.0)
-            
+            # Awaiting receive is what notices a disconnect.
+            msg = await websocket.receive()
+            if msg["type"] == "websocket.disconnect":
+                logger.info(f"WebSocket disconnected for session {session_id}")
+                break
+            # Ignore anything else the client sends.
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected for session {session_id}")
     except Exception as e:
         logger.error(f"WebSocket error for session {session_id}: {e}", exc_info=True)
-        await websocket.close(code=1011, reason=f"Internal error: {str(e)}")
+    finally:
+        was_subscribed = websocket in session.vitals_subscribers
+        session.vitals_subscribers.discard(websocket)
+        session.last_activity = datetime.utcnow()
+        # Pause only when this discard removed the last subscriber. If a failed
+        # send already dropped it, the broadcaster has handled that.
+        if was_subscribed and not session.vitals_subscribers:
+            session.playing = False
 
 
 @app.get("/sessions/{session_id}/case")

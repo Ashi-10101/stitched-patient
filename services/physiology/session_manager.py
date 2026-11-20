@@ -110,6 +110,19 @@ class SessionManager:
                 await self._cleanup_task
             except asyncio.CancelledError:
                 pass
+        
+        # Cancel every session's clock task, then wait for each to finish.
+        clock_tasks = [
+            s.clock_task for s in list(self.sessions.values())
+            if s.clock_task is not None
+        ]
+        for task in clock_tasks:
+            task.cancel()
+        for task in clock_tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     
     async def _cleanup_loop(self):
         """Periodically clean up idle sessions."""
@@ -159,6 +172,12 @@ class SessionManager:
         )
         branch.add_checkpoint(initial_checkpoint)
         
+        # Initial vitals for the paused path, stamped with the branch clock
+        # the same way _advance_tick stamps its target.
+        branch.last_vitals = engine.get_vitals().model_copy(
+            update={"simulation_time": 0.0}
+        )
+        
         # Extract scheduled insults from timeline
         scheduled_insults = case_data.get("timeline", {}).get("scheduledInsults", [])
         
@@ -173,6 +192,9 @@ class SessionManager:
         )
         
         self.sessions[session_id] = session
+        
+        # One clock per session, running for the session's lifetime.
+        session.clock_task = asyncio.create_task(self._clock_task(session))
         return session
     
     def get_session(self, session_id: str) -> Optional[Session]:
@@ -182,6 +204,9 @@ class SessionManager:
     def delete_session(self, session_id: str) -> None:
         """Delete a session and clean up resources."""
         if session_id in self.sessions:
+            session = self.sessions[session_id]
+            if session.clock_task is not None:
+                session.clock_task.cancel()
             # TODO: Clean up temp files
             del self.sessions[session_id]
     
