@@ -12,6 +12,25 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795183446583
       }
+    ],
+    "1.2 Add Play types and the vital name helper": [
+      {
+        "executionId": "f55a3634-ee06-4e58-88e5-d4252a76dd3c",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795183525368
+      },
+      {
+        "executionId": "f55a3634-ee06-4e58-88e5-d4252a76dd3c",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795183976512
+      }
+    ],
+    "1. Set up web test tooling and shared types": [
+      {
+        "executionId": "f55a3634-ee06-4e58-88e5-d4252a76dd3c",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795183976547
+      }
     ]
   }
 }

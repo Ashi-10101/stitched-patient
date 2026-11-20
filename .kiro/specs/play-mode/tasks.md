@@ -10,7 +10,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
 
 ## Tasks
 
-- [ ] 1. Set up web test tooling and shared types
+- [x] 1. Set up web test tooling and shared types
   - [x] 1.1 Add test dependencies, Vitest config and shared property-test settings
     - From `apps/web/`, run `npm install --save-dev fast-check@^3 yaml@^2`. These are the only new dependencies the design names (`vite-node` ships with Vitest, `react-dom/server` is already a dependency)
     - This creates `apps/web/package-lock.json`, which does not exist today. Keep the lockfile and commit it with this change. Do not delete it or add it to `.gitignore`. The web Dockerfile's `npm ci` and the core spec's deployment work rely on it
@@ -24,7 +24,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 12.10, 12.11_
 
-  - [ ] 1.2 Add Play types and the vital name helper
+  - [x] 1.2 Add Play types and the vital name helper
     - In `apps/web/src/types/index.ts`, add the types from the design's "Data Models" section: `Side`, `ComparisonOp`, `VitalCondition`, `ConditionGroup`, `StatusWhen`, `StatusRule`, `Hint`, `PlaySection`, `ScheduledInsult`, `AvatarParameters`, `InterventionRecordEntry`, `HintRecordEntry`, `LineageSegment`, `RewindMoment`. Extend `Intervention` with optional `playLabel`, and `CaseData` with `timeline` and optional `play`. Do not change `AlarmThreshold` here (task 2.1 does)
     - Create `apps/web/src/lib/vitals.ts` with `VITAL_NAMES`, `VitalName`, `VITAL_FIELD` and `readVital` as in the design. `readVital` returns `undefined` for a missing sample, a missing field, `null`, `NaN` and ±Infinity
     - Create `apps/web/src/lib/vitals.test.ts`: every case vital name maps to the VitalSigns field in the design table; `readVital` returns the number for finite values (including 0 and negatives) and `undefined` for each non-finite or missing case
