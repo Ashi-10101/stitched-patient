@@ -228,6 +228,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795180807781
       }
+    ],
+    "6.1 Rewrite existing `Branch.add_checkpoint` method with explicit eviction and file deletion": [
+      {
+        "executionId": "04bdfe41-1425-4294-a0ec-4141eed37b55",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795180921280
+      },
+      {
+        "executionId": "04bdfe41-1425-4294-a0ec-4141eed37b55",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795181155923
+      }
     ]
   }
 }

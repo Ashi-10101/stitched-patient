@@ -11,6 +11,7 @@ from collections import deque
 
 from fastapi import WebSocket
 
+from config import settings
 from pulse_wrapper import PulseEngineWrapper
 from models import (
     VitalSigns, InterventionEvent, CheckpointMetadata, 
@@ -43,7 +44,7 @@ class Branch:
     engine: PulseEngineWrapper
     events: List[InterventionEvent] = field(default_factory=list)
     applied_insults: Set[int] = field(default_factory=set)  # Indices into session.scheduled_insults
-    checkpoints: deque = field(default_factory=lambda: deque(maxlen=100))  # Cap at 100 per branch
+    checkpoints: List[Checkpoint] = field(default_factory=list)
     vitals_history: deque = field(default_factory=lambda: deque(maxlen=300))  # 5 min at 1 Hz
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_checkpoint_time: float = 0.0
@@ -53,13 +54,44 @@ class Branch:
     failure_reason: Optional[str] = None
     
     def add_checkpoint(self, checkpoint: Checkpoint) -> None:
-        """Add a checkpoint, removing oldest automatic ones if at capacity."""
-        # If at capacity, remove oldest automatic checkpoint
-        if len(self.checkpoints) == self.checkpoints.maxlen:
-            for i, cp in enumerate(self.checkpoints):
-                if cp.is_automatic:
-                    del self.checkpoints[i]
-                    break
+        """
+        Append a checkpoint, evicting at most one old checkpoint at the cap.
+        
+        The cap is settings.max_checkpoints_per_branch, read on every call
+        (so tests can monkeypatch it). If len(checkpoints) >= cap, one victim
+        is chosen: the oldest automatic checkpoint, or if there is none, the
+        oldest manual checkpoint. "Oldest" means first in the list, because
+        checkpoints are appended in tick order. A checkpoint with
+        tick_counter == 0.0 (the initial state) is protected and never
+        evicted. If every existing checkpoint is protected, no victim is
+        found and the new checkpoint is simply appended (no error).
+        
+        The victim is removed from the list and its file is deleted. If the
+        deletion raises OSError (e.g. the file is already gone), a warning is
+        logged and the new checkpoint is still appended, so saving never
+        fails because of an old file.
+        
+        Known gap until task 7.1: fork_branch reuses the source checkpoint's
+        file for the new branch's first checkpoint, so evicting that source
+        checkpoint deletes a file another branch still points to. Task 7.1
+        copies the file on fork and closes this gap.
+        """
+        cap = settings.max_checkpoints_per_branch
+        if len(self.checkpoints) >= cap:
+            unprotected = [cp for cp in self.checkpoints if cp.tick_counter != 0.0]
+            victim = next((cp for cp in unprotected if cp.is_automatic), None)
+            if victim is None:
+                victim = next((cp for cp in unprotected if not cp.is_automatic), None)
+            
+            if victim is not None:
+                self.checkpoints.remove(victim)
+                try:
+                    victim.path.unlink()
+                except OSError as e:
+                    logger.warning(
+                        "Could not delete evicted checkpoint file %s: %s",
+                        victim.path, e,
+                    )
         
         self.checkpoints.append(checkpoint)
 

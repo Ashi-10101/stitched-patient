@@ -171,7 +171,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 10.7_
 
 - [ ] 6. Implement intervention application with manual checkpoints
-  - [ ] 6.1 Rewrite existing `Branch.add_checkpoint` method with explicit eviction and file deletion
+  - [x] 6.1 Rewrite existing `Branch.add_checkpoint` method with explicit eviction and file deletion
     - Replace `checkpoints: deque` with `checkpoints: List[Checkpoint]`
     - Remove maxlen constraint (eviction will be explicit)
     - If len(checkpoints) >= settings.max_checkpoints_per_branch:
