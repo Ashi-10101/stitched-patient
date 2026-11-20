@@ -300,6 +300,28 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795191435201
       }
+    ],
+    "8.2 Add intervention, fork and hint transitions to `sessionReducer`": [
+      {
+        "executionId": "abecb7c0-c8b6-4525-b51b-3cdf277bc6e8",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795191496136
+      },
+      {
+        "executionId": "abecb7c0-c8b6-4525-b51b-3cdf277bc6e8",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795192131724
+      },
+      {
+        "executionId": "980beeea-f656-4ac4-b132-58d370a4b27b",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795192205990
+      },
+      {
+        "executionId": "980beeea-f656-4ac4-b132-58d370a4b27b",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795192313884
+      }
     ]
   }
 }

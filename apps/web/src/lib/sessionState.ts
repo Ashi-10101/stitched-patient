@@ -9,6 +9,7 @@
 import { BREATH_DEPTH_DEFAULT, DEFAULT_BEAT_PERIOD_S, DEFAULT_BREATH_PERIOD_S, mapAvatar } from './avatarMapper';
 import { activeInterventions, buildLineage } from './branchLineage';
 import { buildEndingContext, initialEndingState, stepEnding, type EndingContext, type EndingState } from './endingEvaluator';
+import { computeSides } from './sides';
 import { readVital } from './vitals';
 import type {
   AvatarParameters,
@@ -124,6 +125,102 @@ function lineageFor(
   return buildLineage(session.branches ?? [], currentBranchId, checkpointsByBranch);
 }
 
+/**
+ * Simulation_Time "now" on the current Branch when no new sample is at hand
+ * (Requirement 9.5): the latest sample's time; else the current Branch's fork
+ * time; else 0 (the Session's first Branch).
+ */
+function currentSimulationTime(state: SessionUiState): number {
+  return state.latestSample?.simulation_time ?? state.lineage[0]?.forkTime ?? 0;
+}
+
+/**
+ * Recomputes only `swollenSides` and `decompressedSides` of the Avatar from the
+ * lineage's Active_Interventions, at `currentSimulationTime` (4.14, 4.15, 4.20).
+ * Like `onSample`, it leaves the Avatar as is without a loaded Play_Section.
+ */
+function withSides(
+  state: SessionUiState,
+  interventionRecord: InterventionRecordEntry[],
+): SessionUiState {
+  const caseData = state.caseData;
+  if (caseData === null || caseData.play === undefined) return { ...state, interventionRecord };
+  const sides = computeSides(
+    currentSimulationTime(state),
+    caseData.timeline?.scheduledInsults ?? [],
+    activeInterventions(interventionRecord, state.lineage),
+  );
+  return { ...state, interventionRecord, avatar: { ...state.avatar, ...sides } };
+}
+
+function onFork(
+  state: SessionUiState,
+  session: SessionMetadata,
+  newBranchId: string,
+  forkTime: number,
+): SessionUiState {
+  // The new Branch's Checkpoint list may not be loaded yet. The service copies
+  // the fork Checkpoint into the new Branch at the same Simulation_Time, so a
+  // stand-in entry at `forkTime` lets `buildLineage` bound the parent segment
+  // at once. A real list loaded later replaces it and gives the same lineage.
+  let checkpointsByBranch = state.checkpointsByBranch;
+  if (checkpointsByBranch[newBranchId] === undefined) {
+    const branch = (session.branches ?? []).find((b) => b.branch_id === newBranchId);
+    const forkCopy: CheckpointMetadata = {
+      checkpoint_id: branch?.forked_from_checkpoint ?? `${newBranchId}-fork`,
+      simulation_time: forkTime,
+      created_at: branch?.created_at ?? '',
+      is_automatic: false,
+    };
+    checkpointsByBranch = { ...checkpointsByBranch, [newBranchId]: [forkCopy] };
+  }
+  const lineage = lineageFor(session, newBranchId, checkpointsByBranch);
+
+  // Avatar at the fork point: default vital-derived fields, sides of the new lineage.
+  const caseData = state.caseData;
+  const play = caseData?.play;
+  const avatar =
+    caseData !== null && play !== undefined
+      ? mapAvatar({
+          sample: { simulation_time: forkTime },
+          alarms: caseData.alarms,
+          play,
+          scheduledInsults: caseData.timeline?.scheduledInsults ?? [],
+          activeInterventions: activeInterventions(state.interventionRecord, lineage),
+          previous: null,
+          firstPositiveTidalVolumeMl: state.firstPositiveTidalVolumeMl,
+        })
+      : defaultAvatar();
+
+  // A fresh Ending state: stepEnding ignores non-increasing times, so the old
+  // Branch's state must not be reused (6.11).
+  return {
+    ...state,
+    session,
+    currentBranchId: newBranchId,
+    checkpointsByBranch,
+    lineage,
+    latestSample: null,
+    history: [],
+    staleGuard: { maxTime: forkTime + STALE_TOLERANCE_S },
+    avatar,
+    ending: initialEndingState(state.endingCtx),
+    endingSnapshot: null,
+  };
+}
+
+function onHint(state: SessionUiState, wallClockTime: string): SessionUiState {
+  const hints = state.caseData?.play?.hints ?? [];
+  if (state.hintsRevealed >= hints.length) return state;
+  const entry: HintRecordEntry = {
+    hintIndex: state.hintsRevealed + 1,
+    branchId: state.currentBranchId ?? '',
+    simulationTime: currentSimulationTime(state),
+    wallClockTime,
+  };
+  return { ...state, hintsRevealed: state.hintsRevealed + 1, hintRecord: [...state.hintRecord, entry] };
+}
+
 function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
   // 1. Stale-sample guard: time-only, because messages carry no branch_id.
   const guard = state.staleGuard;
@@ -237,11 +334,17 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
       return playing === state.playing && speed === state.speed ? state : { ...state, playing, speed };
     }
 
-    case 'interventionRecordRestored': // implemented in task 8.2
-    case 'interventionSucceeded': // implemented in task 8.2
-    case 'forkSucceeded': // implemented in task 8.2
-    case 'hintRevealed': // implemented in task 8.2
-      return state;
+    case 'interventionRecordRestored':
+      return withSides(state, action.record);
+
+    case 'interventionSucceeded':
+      return withSides(state, [...state.interventionRecord, action.entry]);
+
+    case 'forkSucceeded':
+      return onFork(state, action.session, action.newBranchId, action.forkTime);
+
+    case 'hintRevealed':
+      return onHint(state, action.wallClockTime);
 
     default: {
       const unreachable: never = action;

@@ -1,7 +1,8 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BEAT_PERIOD_S, mapAvatar } from './avatarMapper';
 import { buildLineage } from './branchLineage';
-import { buildEndingContext, evaluateEnding } from './endingEvaluator';
+import { buildEndingContext, evaluateEnding, initialEndingState } from './endingEvaluator';
 import {
   HISTORY_LIMIT,
   STALE_TOLERANCE_S,
@@ -9,17 +10,22 @@ import {
   sessionReducer,
   type SessionAction,
   type SessionUiState,
+  type View,
 } from './sessionState';
 import type {
   AvatarParameters,
   CaseData,
   CheckpointMetadata,
+  Hint,
   InterventionRecordEntry,
+  PlaybackSpeed,
   PlaySection,
   SessionMetadata,
+  Side,
   VitalSigns,
 } from '@/types';
 import { CASE } from '@/test/caseFixtures';
+import { PBT_PARAMS } from '@/test/pbt';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -362,5 +368,621 @@ describe('sampleReceived: inputs passed to the Avatar_Mapper', () => {
     expect(next.avatar.decompressedSides).not.toContain('Left');
     // The case's Left insult at t = 30 stays untreated on this lineage.
     expect(next.avatar.swollenSides).toContain('Left');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8.2: interventions, forks and hints
+// ---------------------------------------------------------------------------
+
+const SESSION_MAIN: SessionMetadata = {
+  session_id: 's1',
+  case_id: 'adult-tension-pneumothorax',
+  created_at: '2026-11-20T10:00:00Z',
+  current_branch_id: 'main',
+  branches: [{ branch_id: 'main', created_at: '2026-11-20T10:00:00Z', event_count: 0 }],
+};
+
+/** Session after forking `fork1` from a Checkpoint of `main`. */
+function forkedSession(checkpointId: string): SessionMetadata {
+  return {
+    ...SESSION_MAIN,
+    current_branch_id: 'fork1',
+    branches: [
+      ...SESSION_MAIN.branches,
+      {
+        branch_id: 'fork1',
+        parent_branch_id: 'main',
+        forked_from_checkpoint: checkpointId,
+        created_at: '2026-11-20T10:06:00Z',
+        event_count: 0,
+      },
+    ],
+  };
+}
+
+/** Checkpoint ids in CHECKPOINTS.main by Simulation_Time. */
+const CP_AT: Record<number, string> = { 30: 'cp-main-30', 60: 'cp-main-60' };
+
+function fork(state: SessionUiState, forkTime: number): SessionUiState {
+  return reduce(state, {
+    type: 'forkSucceeded',
+    session: forkedSession(CP_AT[forkTime]),
+    newBranchId: 'fork1',
+    forkTime,
+  });
+}
+
+/** Case loaded and the Session on its first Branch `main`. */
+function onMain(caseData: CaseData = CASE_WITH_PLAY): SessionUiState {
+  return reduce(loaded(caseData), { type: 'sessionLoaded', session: SESSION_MAIN });
+}
+
+function decompression(side: 'Left' | 'Right', simulationTime: number, branchId: string): InterventionRecordEntry {
+  return {
+    interventionId: `needle-decompression-${side.toLowerCase()}`,
+    action: 'SENeedleDecompression',
+    side,
+    simulationTime,
+    branchId,
+  };
+}
+
+/** The Avatar without its side fields. */
+function withoutSides(a: AvatarParameters): Omit<AvatarParameters, 'swollenSides' | 'decompressedSides'> {
+  const { swollenSides: _s, decompressedSides: _d, ...rest } = a;
+  return rest;
+}
+
+// Test values with round numbers, not clinical content: Lost holds after 20 s
+// of SpO2 < 0.85; Rescue never holds long enough.
+const PLAY_LOST: PlaySection = {
+  goalText: 'Test goal',
+  diagnosisTerms: ['test-term'],
+  endings: {
+    rescued: { conditions: [{ vital: 'spO2', op: '>=', value: 0.99 }], holdSeconds: 10_000 },
+    lost: { groups: [{ conditions: [{ vital: 'spO2', op: '<', value: 0.85 }], holdSeconds: 20 }] },
+  },
+  hints: [{ text: 'Test hint 1' }, { text: 'Test hint 2' }],
+  status: { rules: [], defaultSentence: 'Test status' },
+};
+const CASE_LOST: CaseData = { ...structuredClone(CASE), play: PLAY_LOST };
+
+function feed(state: SessionUiState, times: number[], overrides: Partial<VitalSigns> = {}): SessionUiState {
+  return times.reduce((s, t) => reduce(s, { type: 'sampleReceived', sample: sample(t, overrides) }), state);
+}
+
+const range = (from: number, to: number): number[] => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+
+describe('interventionSucceeded', () => {
+  it('updates Swollen_Sides and Decompressed_Sides without waiting for a sample (4.14, 4.20)', () => {
+    // The case's Left insult starts at t = 30.
+    const before = feed(onMain(), [40]);
+    expect(before.avatar.swollenSides).toEqual(['Left']);
+    expect(before.avatar.decompressedSides).toEqual([]);
+
+    const entry = decompression('Left', 40, 'main');
+    const next = reduce(before, { type: 'interventionSucceeded', entry });
+
+    expect(next.interventionRecord).toEqual([entry]);
+    expect(next.avatar.swollenSides).toEqual([]);
+    expect(next.avatar.decompressedSides).toEqual(['Left']);
+    // Every other Avatar field is unchanged, with the same nested objects.
+    expect(withoutSides(next.avatar)).toEqual(withoutSides(before.avatar));
+    expect(next.avatar.breathing).toBe(before.avatar.breathing);
+    expect(next.avatar.heartbeat).toBe(before.avatar.heartbeat);
+    expect(next.avatar.bands).toBe(before.avatar.bands);
+    // No sample was consumed.
+    expect(next.latestSample).toBe(before.latestSample);
+    expect(next.history).toBe(before.history);
+    expect(next.ending).toBe(before.ending);
+  });
+
+  it('uses the fork time without a sample on the Branch, and 0 on the first Branch (9.5 fallbacks)', () => {
+    // Fork at t = 60, after the Left insult at 30: Left is swollen at the fork time.
+    const forked = fork(onMain(), 60);
+    expect(forked.latestSample).toBeNull();
+    const afterFork = reduce(forked, { type: 'interventionSucceeded', entry: decompression('Right', 60, 'fork1') });
+    expect(afterFork.avatar.swollenSides).toEqual(['Left']);
+    expect(afterFork.avatar.decompressedSides).toEqual(['Right']);
+
+    // First Branch, no sample: time 0 is before the insult, so nothing is swollen.
+    const first = reduce(onMain(), { type: 'interventionSucceeded', entry: decompression('Right', 0, 'main') });
+    expect(first.avatar.swollenSides).toEqual([]);
+    expect(first.avatar.decompressedSides).toEqual(['Right']);
+  });
+
+  it('uses only the Active_Interventions of the lineage (4.15)', () => {
+    const before = feed(onMain(), [40]);
+    const next = reduce(before, { type: 'interventionSucceeded', entry: decompression('Left', 40, 'other') });
+    expect(next.interventionRecord).toHaveLength(1);
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+    expect(next.avatar.decompressedSides).toEqual([]);
+  });
+});
+
+describe('interventionRecordRestored', () => {
+  it('replaces the record and recomputes the side fields from the lineage', () => {
+    const before = reduce(feed(onMain(), [40]), {
+      type: 'interventionSucceeded',
+      entry: decompression('Right', 35, 'main'),
+    });
+    const record = [decompression('Left', 35, 'main'), decompression('Right', 35, 'other')];
+
+    const next = reduce(before, { type: 'interventionRecordRestored', record });
+
+    expect(next.interventionRecord).toEqual(record);
+    expect(next.avatar.swollenSides).toEqual([]);
+    expect(next.avatar.decompressedSides).toEqual(['Left']);
+    expect(withoutSides(next.avatar)).toEqual(withoutSides(before.avatar));
+  });
+});
+
+describe('forkSucceeded', () => {
+  it('resets the per-Branch fields and keeps the session-scoped ones', () => {
+    let state = reduce(onMain(CASE_LOST), { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    state = feed(state, range(1, 40), { spo2: 0.8, tidal_volume: 480 });
+    state = reduce(state, { type: 'interventionSucceeded', entry: decompression('Left', 25, 'main') });
+    state = reduce(state, { type: 'hintRevealed', wallClockTime: '2026-11-20T10:03:00Z' });
+    state = reduce(state, { type: 'playbackChanged', playing: true, speed: '2x' });
+    state = reduce(state, { type: 'viewSelected', view: 'clinician' });
+    state = reduce(state, { type: 'connectionChanged', connected: true });
+    expect(state.ending.ending).toBe('lost');
+    expect(state.endingSnapshot).not.toBeNull();
+    expect(state.history).toHaveLength(40);
+
+    const session = forkedSession('cp-main-30');
+    const next = reduce(state, { type: 'forkSucceeded', session, newBranchId: 'fork1', forkTime: 30 });
+
+    const lineage = [
+      { branchId: 'fork1', upperBound: Number.POSITIVE_INFINITY, forkCheckpointId: 'cp-main-30', forkTime: 30 },
+      { branchId: 'main', upperBound: 30 },
+    ];
+    const avatar = mapAvatar({
+      sample: { simulation_time: 30 },
+      alarms: CASE_LOST.alarms,
+      play: PLAY_LOST,
+      scheduledInsults: CASE_LOST.timeline.scheduledInsults,
+      activeInterventions: [decompression('Left', 25, 'main')],
+      previous: null,
+      firstPositiveTidalVolumeMl: 480,
+    });
+    const { checkpointsByBranch, ...rest } = next;
+    const { checkpointsByBranch: _old, ...stateRest } = state;
+    expect(rest).toEqual({
+      ...stateRest,
+      // Reset or recomputed
+      session,
+      currentBranchId: 'fork1',
+      lineage,
+      latestSample: null,
+      history: [],
+      ending: initialEndingState(buildEndingContext(CASE_LOST)),
+      endingSnapshot: null,
+      staleGuard: { maxTime: 30 + STALE_TOLERANCE_S },
+      avatar,
+    });
+    expect(next.ending.lostStarts).toEqual([null]);
+    expect(checkpointsByBranch.main).toBe(state.checkpointsByBranch.main);
+
+    // Kept, as the same objects
+    for (const key of [
+      'hintsRevealed',
+      'hintRecord',
+      'interventionRecord',
+      'playing',
+      'speed',
+      'view',
+      'firstPositiveTidalVolumeMl',
+      'caseData',
+      'endingCtx',
+      'connected',
+    ] as const) {
+      expect(next[key]).toBe(state[key]);
+    }
+    expect(next.hintsRevealed).toBe(1);
+    expect(next.playing).toBe(true);
+    expect(next.speed).toBe('2x');
+    expect(next.view).toBe('clinician');
+    expect(next.firstPositiveTidalVolumeMl).toBe(480);
+  });
+
+  it("gives the new Branch's Ending `none`, and old samples add no hold time (6.11)", () => {
+    // Lost on main at t = 21 (SpO2 < 0.85 from t = 1, hold 20 s).
+    let state = feed(onMain(CASE_LOST), range(1, 40), { spo2: 0.8 });
+    expect(state.ending.ending).toBe('lost');
+    expect(state.ending.endedAt).toBe(21);
+
+    state = fork(state, 30);
+    expect(state.ending.ending).toBe('none');
+
+    // A late old-Branch sample above forkTime + 5 is dropped.
+    expect(reduce(state, { type: 'sampleReceived', sample: sample(41, { spo2: 0.8 }) })).toBe(state);
+
+    // The new Branch's hold starts at its own first sample, t = 31.
+    state = feed(state, range(31, 50), { spo2: 0.8 });
+    expect(state.ending.ending).toBe('none');
+    state = feed(state, [51], { spo2: 0.8 });
+    expect(state.ending.ending).toBe('lost');
+    expect(state.ending.endedAt).toBe(51);
+  });
+
+  it('bounds the parent at the fork time at once, before any checkpointsLoaded (4.15, 10.9)', () => {
+    let state = onMain();
+    state = reduce(state, {
+      type: 'interventionRecordRestored',
+      record: [
+        decompression('Left', 45, 'main'), // before the fork time: active
+        decompression('Right', 60, 'main'), // at the fork time: active
+        decompression('Left', 80, 'main'), // after the fork time: not active
+      ],
+    });
+    // No Checkpoint list is loaded for any Branch.
+    expect(state.checkpointsByBranch).toEqual({});
+
+    const next = fork(state, 60);
+
+    const expectedLineage = [
+      { branchId: 'fork1', upperBound: Number.POSITIVE_INFINITY, forkCheckpointId: 'cp-main-60', forkTime: 60 },
+      { branchId: 'main', upperBound: 60 },
+    ];
+    expect(next.lineage).toEqual(expectedLineage);
+    expect(next.avatar.decompressedSides).toEqual(['Left', 'Right']);
+    expect(next.avatar.swollenSides).toEqual([]);
+
+    // The real lists, loaded later, give the same lineage.
+    const loadedLater = reduce(next, {
+      type: 'checkpointsLoaded',
+      byBranch: {
+        ...CHECKPOINTS,
+        fork1: [
+          { checkpoint_id: 'cp-fork1-copy', simulation_time: 60, created_at: '2026-11-20T10:06:00Z', is_automatic: false },
+        ],
+      },
+    });
+    expect(loadedLater.lineage).toEqual(next.lineage);
+  });
+
+  it('excludes a parent entry after the fork time', () => {
+    const state = reduce(onMain(), {
+      type: 'interventionRecordRestored',
+      record: [decompression('Left', 80, 'main')],
+    });
+    const next = fork(state, 60);
+    expect(next.avatar.decompressedSides).toEqual([]);
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+  });
+
+  it('shows the side swollen again after a fork to a Checkpoint before the Decompression', () => {
+    let state = reduce(onMain(), { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    state = feed(state, [100]);
+    state = reduce(state, { type: 'interventionSucceeded', entry: decompression('Left', 100, 'main') });
+    state = feed(state, [120]);
+    expect(state.avatar.swollenSides).toEqual([]);
+    expect(state.avatar.decompressedSides).toEqual(['Left']);
+
+    const next = fork(state, 60);
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+    expect(next.avatar.decompressedSides).toEqual([]);
+    expect(next.interventionRecord).toBe(state.interventionRecord);
+  });
+});
+
+describe('failed fork', () => {
+  it('leaves the state identical: the hook dispatches nothing, and no other action resets the Branch (6.17)', () => {
+    let state = reduce(onMain(CASE_LOST), { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    state = feed(state, range(1, 40), { spo2: 0.8 });
+    state = reduce(state, { type: 'hintRevealed', wallClockTime: '2026-11-20T10:03:00Z' });
+    expect(state.ending.ending).toBe('lost');
+
+    // No action dispatched: the state object is the one before the attempt.
+    const afterFailure = state;
+    expect(afterFailure).toBe(state);
+
+    // Actions the hook may dispatch around a failed attempt never reset Branch state.
+    let other = reduce(state, { type: 'playbackChanged', playing: false });
+    other = reduce(other, { type: 'connectionChanged', connected: true });
+    other = reduce(other, { type: 'sessionLoaded', session: SESSION_MAIN });
+    other = reduce(other, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    other = reduce(other, { type: 'viewSelected', view: 'clinician' });
+    for (const key of [
+      'latestSample',
+      'history',
+      'staleGuard',
+      'avatar',
+      'ending',
+      'endingSnapshot',
+      'hintsRevealed',
+      'hintRecord',
+      'interventionRecord',
+      'currentBranchId',
+      'firstPositiveTidalVolumeMl',
+    ] as const) {
+      expect(other[key]).toBe(state[key]);
+    }
+    expect(other.lineage).toEqual(state.lineage);
+  });
+});
+
+describe('hintRevealed', () => {
+  const WALL = '2026-11-20T10:04:00Z';
+
+  it('records the latest sample time on the current Branch (9.5)', () => {
+    const next = reduce(feed(onMain(), [42]), { type: 'hintRevealed', wallClockTime: WALL });
+    expect(next.hintsRevealed).toBe(1);
+    expect(next.hintRecord).toEqual([{ hintIndex: 1, branchId: 'main', simulationTime: 42, wallClockTime: WALL }]);
+  });
+
+  it("records the Branch's fork time when no sample has arrived on it (9.5)", () => {
+    const afterFork = reduce(fork(feed(onMain(), [42]), 60), { type: 'hintRevealed', wallClockTime: WALL });
+    expect(afterFork.hintRecord).toEqual([{ hintIndex: 1, branchId: 'fork1', simulationTime: 60, wallClockTime: WALL }]);
+
+    // After a page load on a forked Branch, once the Checkpoint lists are known.
+    let reloaded = reduce(loaded(), { type: 'sessionLoaded', session: SESSION });
+    reloaded = reduce(reloaded, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    reloaded = reduce(reloaded, { type: 'hintRevealed', wallClockTime: WALL });
+    expect(reloaded.hintRecord).toEqual([{ hintIndex: 1, branchId: 'child', simulationTime: 60, wallClockTime: WALL }]);
+  });
+
+  it('records the latest sample time after a fork once a new-Branch sample has arrived (9.5)', () => {
+    // Fork at t = 60 arms the stale guard (max 65). The sample at 62 is accepted and
+    // disarms it, so the later sample at 75 is accepted too.
+    let state = fork(feed(onMain(), [42]), 60);
+    state = feed(state, [62, 75]);
+    expect(state.staleGuard).toBeNull();
+    expect(state.latestSample?.simulation_time).toBe(75);
+
+    const next = reduce(state, { type: 'hintRevealed', wallClockTime: WALL });
+    expect(next.hintRecord).toEqual([{ hintIndex: 1, branchId: 'fork1', simulationTime: 75, wallClockTime: WALL }]);
+  });
+
+  it("records 0 on the Session's first Branch when no sample has arrived (9.5)", () => {
+    const next = reduce(onMain(), { type: 'hintRevealed', wallClockTime: WALL });
+    expect(next.hintRecord).toEqual([{ hintIndex: 1, branchId: 'main', simulationTime: 0, wallClockTime: WALL }]);
+  });
+
+  it('reveals one Hint at a time and none past the last (9.2, 9.3)', () => {
+    const hintCount = CASE_WITH_PLAY.play!.hints.length;
+    expect(hintCount).toBe(3);
+    let state = onMain();
+    for (let i = 1; i <= hintCount; i++) {
+      state = reduce(state, { type: 'hintRevealed', wallClockTime: `2026-11-20T10:0${i}:00Z` });
+      expect(state.hintsRevealed).toBe(i);
+    }
+    expect(state.hintRecord.map((h) => h.hintIndex)).toEqual([1, 2, 3]);
+    expect(reduce(state, { type: 'hintRevealed', wallClockTime: WALL })).toBe(state);
+  });
+
+  it('returns the same state for a case without a Play_Section', () => {
+    const state = onMain(CASE_WITHOUT_PLAY);
+    expect(reduce(state, { type: 'hintRevealed', wallClockTime: WALL })).toBe(state);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8.2: properties 20 and 21
+// ---------------------------------------------------------------------------
+
+/** One step of a generated action sequence; turned into a valid action by `toAction`. */
+type OpSpec =
+  | { kind: 'view'; view: View }
+  | { kind: 'playback'; playing: boolean | undefined; speed: PlaybackSpeed | undefined }
+  /** Sample `offset` s after the latest sample (or the Branch start); offsets > 5 s right after a fork pass the stale-guard bound. */
+  | { kind: 'sample'; offset: number; spo2: number; tidalVolume: number }
+  /** Fork at `at` (0 to 1) of the way from the current Branch's start to its latest time. */
+  | { kind: 'fork'; at: number }
+  | { kind: 'intervention'; side: Side }
+  | { kind: 'hint' };
+
+const arbViewOp: fc.Arbitrary<OpSpec> = fc.record({
+  kind: fc.constant('view' as const),
+  view: fc.constantFrom<View>('play', 'clinician'),
+});
+const arbPlaybackOp: fc.Arbitrary<OpSpec> = fc.record({
+  kind: fc.constant('playback' as const),
+  playing: fc.option(fc.boolean(), { nil: undefined }),
+  speed: fc.option(fc.constantFrom<PlaybackSpeed>('1x', '2x', '4x'), { nil: undefined }),
+});
+const arbSampleOp: fc.Arbitrary<OpSpec> = fc.record({
+  kind: fc.constant('sample' as const),
+  offset: fc.integer({ min: 1, max: 24 }).map((n) => n / 2),
+  spo2: fc.constantFrom(0.97, 0.8),
+  tidalVolume: fc.constantFrom(0, 0, 480, 500),
+});
+const arbForkOp: fc.Arbitrary<OpSpec> = fc.record({
+  kind: fc.constant('fork' as const),
+  at: fc.integer({ min: 0, max: 4 }).map((n) => n / 4),
+});
+const arbInterventionOp: fc.Arbitrary<OpSpec> = fc.record({
+  kind: fc.constant('intervention' as const),
+  side: fc.constantFrom<Side>('Left', 'Right'),
+});
+const arbHintOp: fc.Arbitrary<OpSpec> = fc.constant({ kind: 'hint' as const });
+
+/** Mixed sequence for Property 20: mostly samples, view switches and forks. */
+const arbP20Ops: fc.Arbitrary<OpSpec[]> = fc.array(
+  fc.oneof(
+    { weight: 3, arbitrary: arbViewOp },
+    { weight: 2, arbitrary: arbPlaybackOp },
+    { weight: 6, arbitrary: arbSampleOp },
+    { weight: 3, arbitrary: arbForkOp },
+    { weight: 1, arbitrary: arbInterventionOp },
+    { weight: 1, arbitrary: arbHintOp },
+  ),
+  { minLength: 1, maxLength: 30 },
+);
+
+/** Mixed sequence for Property 21: hints interleaved with samples, view switches and forks. */
+const arbP21Ops: fc.Arbitrary<OpSpec[]> = fc.array(
+  fc.oneof(
+    { weight: 4, arbitrary: arbHintOp },
+    { weight: 4, arbitrary: arbSampleOp },
+    { weight: 2, arbitrary: arbViewOp },
+    { weight: 2, arbitrary: arbForkOp },
+    { weight: 1, arbitrary: arbPlaybackOp },
+  ),
+  { minLength: 1, maxLength: 25 },
+);
+
+/** Test values with round numbers, not clinical content: Lost holds after 5 s of SpO2 < 0.85. */
+const PLAY_P20: PlaySection = {
+  ...PLAY_LOST,
+  endings: {
+    ...PLAY_LOST.endings,
+    lost: { groups: [{ conditions: [{ vital: 'spO2', op: '<', value: 0.85 }], holdSeconds: 5 }] },
+  },
+};
+const CASE_P20: CaseData = { ...structuredClone(CASE), play: PLAY_P20 };
+
+/** Case for Property 20: usually with a Play_Section, sometimes without. */
+const arbP20Case: fc.Arbitrary<CaseData> = fc.oneof(
+  { weight: 3, arbitrary: fc.constant(CASE_P20) },
+  { weight: 1, arbitrary: fc.constant(CASE_WITHOUT_PLAY) },
+);
+
+/** Play_Section for Property 21: PLAY_LOST with 1 to 3 test Hints. */
+const arbP21Play: fc.Arbitrary<PlaySection> = fc
+  .integer({ min: 1, max: 3 })
+  .map((n): PlaySection => ({
+    ...PLAY_LOST,
+    hints: Array.from({ length: n }, (_, i): Hint => ({ text: `Test hint ${i + 1}` })),
+  }));
+
+/** Running facts the reducer state does not hold directly: the current Branch's start and the fork count. */
+interface OpModel {
+  branchStart: number;
+  forks: number;
+}
+
+/**
+ * Turns an OpSpec into a valid action for `state`: sample times increase from
+ * the latest sample (or the Branch start); a fork names a new Branch whose
+ * parent is the current Branch, a Checkpoint id of the parent, and a fork time
+ * between the current Branch's start and its latest time.
+ */
+function toAction(state: SessionUiState, model: OpModel, op: OpSpec, step: number): SessionAction {
+  const now = state.latestSample?.simulation_time ?? model.branchStart;
+  switch (op.kind) {
+    case 'view':
+      return { type: 'viewSelected', view: op.view };
+    case 'playback':
+      return { type: 'playbackChanged', playing: op.playing, speed: op.speed };
+    case 'sample':
+      return {
+        type: 'sampleReceived',
+        sample: sample(now + op.offset, { spo2: op.spo2, tidal_volume: op.tidalVolume }),
+      };
+    case 'intervention':
+      return { type: 'interventionSucceeded', entry: decompression(op.side, now, state.currentBranchId!) };
+    case 'hint':
+      return { type: 'hintRevealed', wallClockTime: new Date(Date.UTC(2026, 10, 20, 10, 0, step)).toISOString() };
+    case 'fork': {
+      const parentId = state.currentBranchId!;
+      const forkTime = model.branchStart + Math.round(op.at * (now - model.branchStart) * 2) / 2;
+      const newBranchId = `fork${model.forks + 1}`;
+      const session: SessionMetadata = {
+        ...state.session!,
+        current_branch_id: newBranchId,
+        branches: [
+          ...(state.session!.branches ?? []),
+          {
+            branch_id: newBranchId,
+            parent_branch_id: parentId,
+            forked_from_checkpoint: `${parentId}-cp-${forkTime}`,
+            created_at: '2026-11-20T10:06:00Z',
+            event_count: 0,
+          },
+        ],
+      };
+      return { type: 'forkSucceeded', session, newBranchId, forkTime };
+    }
+  }
+}
+
+/** Runs the ops from `start`, calling `check` with the state before and after every action. */
+function runOps(
+  start: SessionUiState,
+  ops: OpSpec[],
+  check: (prev: SessionUiState, action: SessionAction, next: SessionUiState) => void,
+): SessionUiState {
+  const model: OpModel = { branchStart: 0, forks: 0 };
+  let state = start;
+  ops.forEach((op, i) => {
+    const action = toAction(state, model, op, i);
+    const next = reduce(state, action);
+    check(state, action, next);
+    if (action.type === 'forkSucceeded') {
+      model.branchStart = action.forkTime;
+      model.forks += 1;
+    }
+    state = next;
+  });
+  return state;
+}
+
+const KEPT_ON_FORK = [
+  'hintsRevealed',
+  'hintRecord',
+  'interventionRecord',
+  'playing',
+  'speed',
+  'view',
+  'firstPositiveTidalVolumeMl',
+] as const;
+
+describe('sessionReducer properties', () => {
+  // Feature: play-mode, Property 20: View switches and forks preserve session-scoped state
+  it('Property 20: View switches and forks preserve session-scoped state', () => {
+    /** Validates: Requirements 1.4, 6.11, 9.4, 10.8 */
+    fc.assert(
+      fc.property(arbP20Case, arbP20Ops, (caseData, ops) => {
+        runOps(onMain(caseData), ops, (prev, action, next) => {
+          if (action.type === 'viewSelected') {
+            if (action.view === 'play' && prev.caseData?.play === undefined) {
+              expect(next).toBe(prev);
+              return;
+            }
+            expect(next.view).toBe(action.view);
+            for (const key of Object.keys(prev) as (keyof SessionUiState)[]) {
+              if (key !== 'view') expect(next[key]).toBe(prev[key]);
+            }
+          }
+          if (action.type === 'forkSucceeded') {
+            for (const key of KEPT_ON_FORK) expect(next[key]).toBe(prev[key]);
+            expect(next.latestSample).toBeNull();
+            expect(next.history).toEqual([]);
+            expect(next.ending).toEqual(initialEndingState(prev.endingCtx));
+            expect(next.ending.ending).toBe('none');
+            expect(next.endingSnapshot).toBeNull();
+            expect(next.staleGuard).toEqual({ maxTime: action.forkTime + STALE_TOLERANCE_S });
+            expect(next.currentBranchId).toBe(action.newBranchId);
+          }
+        });
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: play-mode, Property 21: Hints reveal one at a time in order
+  it('Property 21: Hints reveal one at a time in order', () => {
+    /** Validates: Requirements 9.1, 9.2, 9.3, 9.5 */
+    fc.assert(
+      fc.property(arbP21Play, arbP21Ops, (play, ops) => {
+        const caseData: CaseData = { ...structuredClone(CASE), play };
+        const total = play.hints.length;
+        let k = 0;
+        runOps(onMain(caseData), ops, (prev, action, next) => {
+          if (action.type === 'hintRevealed') {
+            k += 1;
+            if (prev.hintsRevealed >= total) expect(next).toBe(prev);
+          }
+          const revealed = Math.min(k, total);
+          expect(next.hintsRevealed).toBe(revealed);
+          expect(next.hintRecord.map((h) => h.hintIndex)).toEqual(Array.from({ length: revealed }, (_, i) => i + 1));
+          expect(total - next.hintsRevealed).toBeGreaterThanOrEqual(0);
+        });
+      }),
+      PBT_PARAMS,
+    );
   });
 });

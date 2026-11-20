@@ -278,7 +278,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.1, 1.2, 1.4, 1.9, 1.11, 4.9, 4.20, 4.25, 5.16, 6.8, 6.11, 6.13, 7.3_
 
-  - [ ] 8.2 Add intervention, fork and hint transitions to `sessionReducer`
+  - [x] 8.2 Add intervention, fork and hint transitions to `sessionReducer`
     - `interventionRecordRestored`; `interventionSucceeded` (append the entry, recompute only the side fields of `avatar` with `computeSides` at the latest sample time); `forkSucceeded` (set session and current branch, recompute lineage with the known fork time, clear `latestSample` and `history`, reset the Ending and `endingSnapshot`, arm the stale guard, set `avatar` from `mapAvatar` at the fork time with `previous: null`; keep hints, Intervention_Record, playback state, view and first tidal volume); `hintRevealed` (Hint_Record entry with the Simulation_Time fallbacks of Requirement 9.5)
     - Add to `apps/web/src/lib/sessionState.test.ts`:
       - after a fork the new Branch's Ending is `none` and old samples add no hold time
