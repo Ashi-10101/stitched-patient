@@ -299,9 +299,9 @@ class SessionManager:
             branch.last_vitals = vitals
             branch.tick_counter = target
             
-            # 6. Automatic checkpoint (synchronous until task 6.2)
+            # 6. Automatic checkpoint
             if target - branch.last_checkpoint_time >= self.CHECKPOINT_INTERVAL:
-                self._save_checkpoint(session, branch, is_automatic=True)
+                await self._save_checkpoint(session, branch, is_automatic=True)
             
             return vitals
     
@@ -461,7 +461,7 @@ class SessionManager:
                 if was_subscribed and not session.vitals_subscribers:
                     session.playing = False
     
-    def apply_intervention(
+    async def apply_intervention(
         self,
         session: Session,
         intervention_id: str,
@@ -470,44 +470,79 @@ class SessionManager:
         """
         Apply an intervention to the current branch.
         
+        All work runs inside session.lock, so the intervention lands between
+        clock ticks and a fork cannot switch the current branch mid-way. The
+        current branch is read inside the lock. Engine calls run in a worker
+        thread via asyncio.to_thread.
+        
+        Order: validate the id, merge parameters (case defaults, then runtime
+        values on top), apply the action, record the InterventionEvent
+        (simulation_time = branch.tick_counter), refresh branch.last_vitals
+        (stamped with branch.tick_counter, not appended to vitals_history),
+        then save a manual checkpoint (is_automatic=False) whose event_count
+        includes the new event.
+        
+        Errors:
+            An unknown intervention_id raises ValueError naming the bad id and
+            listing the valid ids, before the engine is touched. If
+            engine.apply_action raises, the exception propagates: no event is
+            recorded, no checkpoint is saved, last_vitals is not updated, and
+            the branch is not marked failed.
+        
         Args:
             session: Active session
             intervention_id: Intervention identifier from case file
             parameters: Optional runtime parameters (merged with case defaults)
         """
-        branch = session.current_branch
-        engine = branch.engine
-        
-        # Find intervention definition in case file
-        intervention = None
-        for interv in session.case_data["interventions"]:
-            if interv["id"] == intervention_id:
-                intervention = interv
-                break
-        
-        if not intervention:
-            raise ValueError(f"Unknown intervention: {intervention_id}")
-        
-        # Merge parameters
-        action_params = intervention.get("parameters", {}).copy()
-        if parameters:
-            action_params.update(parameters)
-        
-        # Apply the action
-        engine.apply_action(intervention["action"], action_params)
-        
-        # Record the event
-        event = InterventionEvent(
-            simulation_time=engine.current_time,
-            wall_clock_time=datetime.utcnow().isoformat(),
-            intervention_id=intervention_id,
-            parameters=action_params,
-        )
-        branch.events.append(event)
-        
-        # Save a checkpoint after intervention
-        self._save_checkpoint(session, branch, is_automatic=False, 
-                            description=f"After {intervention['label']}")
+        async with session.lock:
+            branch = session.current_branch
+            engine = branch.engine
+            
+            # Find intervention definition in case file
+            interventions = session.case_data.get("interventions", [])
+            intervention = next(
+                (interv for interv in interventions if interv["id"] == intervention_id),
+                None,
+            )
+            
+            if intervention is None:
+                valid_ids = [interv["id"] for interv in interventions]
+                raise ValueError(
+                    f"Unknown intervention: {intervention_id!r}. "
+                    f"Valid ids: {', '.join(valid_ids)}"
+                )
+            
+            # Merge parameters: case defaults, then runtime values on top
+            action_params = intervention.get("parameters", {}).copy()
+            if parameters:
+                action_params.update(parameters)
+            
+            # Apply the action; on failure, propagate with no side effects
+            await asyncio.to_thread(
+                engine.apply_action, intervention["action"], action_params
+            )
+            
+            # Record the event before the checkpoint so event_count includes it
+            event = InterventionEvent(
+                simulation_time=branch.tick_counter,
+                wall_clock_time=datetime.utcnow().isoformat(),
+                intervention_id=intervention_id,
+                parameters=action_params,
+            )
+            branch.events.append(event)
+            
+            # Refresh cached vitals so a paused session pushes the new state
+            vitals = await asyncio.to_thread(engine.get_vitals)
+            vitals = vitals.model_copy(update={"simulation_time": branch.tick_counter})
+            branch.last_vitals = vitals
+            
+            # Save a manual checkpoint after the intervention
+            await self._save_checkpoint(
+                session,
+                branch,
+                is_automatic=False,
+                description=f"After {intervention['label']}",
+            )
     
     def fork_branch(
         self,
@@ -587,18 +622,25 @@ class SessionManager:
         
         return new_branch_id
     
-    def _save_checkpoint(
+    async def _save_checkpoint(
         self,
         session: Session,
         branch: Branch,
         is_automatic: bool,
         description: Optional[str] = None,
     ) -> None:
-        """Save a checkpoint for a branch."""
+        """
+        Save a checkpoint for a branch.
+        
+        Does not take session.lock: every caller (_advance_tick,
+        apply_intervention) already holds it, and asyncio.Lock is not
+        reentrant. The engine write runs in a worker thread. Times come from
+        branch.tick_counter; eviction is handled by Branch.add_checkpoint.
+        """
         checkpoint_id = str(uuid.uuid4())
         checkpoint_path = session.temp_dir / f"{checkpoint_id}.json"
         
-        branch.engine.save_checkpoint(checkpoint_path)
+        await asyncio.to_thread(branch.engine.save_checkpoint, checkpoint_path)
         
         checkpoint = Checkpoint(
             checkpoint_id=checkpoint_id,

@@ -183,7 +183,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 7.11, 7.12_
     - _Deviations: 7_
   
-  - [ ] 6.2 Update `_save_checkpoint` and `apply_intervention` with locking and thread pool
+  - [x] 6.2 Update `_save_checkpoint` and `apply_intervention` with locking and thread pool
     - _save_checkpoint becomes async and calls engine.save_checkpoint through asyncio.to_thread. It takes simulation_time and last_checkpoint_time from branch.tick_counter
     - _advance_tick awaits it
     - Use Branch.add_checkpoint for eviction logic

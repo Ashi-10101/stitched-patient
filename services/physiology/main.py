@@ -184,7 +184,7 @@ async def apply_intervention(
         raise HTTPException(status_code=404, detail="Session not found")
     
     try:
-        session_manager.apply_intervention(
+        await session_manager.apply_intervention(
             session,
             request.intervention_id,
             request.parameters,

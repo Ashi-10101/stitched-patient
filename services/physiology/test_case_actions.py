@@ -135,7 +135,7 @@ async def test_case_needle_decompression_beats_untreated_fork():
         original = session.current_branch
 
         await manager.step(session, 150)
-        manager.apply_intervention(session, "needle-decompression-left")
+        await manager.apply_intervention(session, "needle-decompression-left")
         vitals_dec = await manager.step(session, 120)
         assert vitals_dec.simulation_time == 270.0
 

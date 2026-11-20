@@ -240,6 +240,18 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795181155923
       }
+    ],
+    "6.2 Update `_save_checkpoint` and `apply_intervention` with locking and thread pool": [
+      {
+        "executionId": "e6b97076-2718-4768-b42a-7516994a7086",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795181230290
+      },
+      {
+        "executionId": "e6b97076-2718-4768-b42a-7516994a7086",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795181454823
+      }
     ]
   }
 }
