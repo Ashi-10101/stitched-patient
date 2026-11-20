@@ -88,6 +88,8 @@ alarms:
 interventions:
   - id: needle-decompression-left
     label: "Needle decompression - left"
+    # TODO(author): Play label wording for the left needle decompression - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    playLabel: "Let the trapped air out - left side (needle)"
     action: SENeedleDecompression
     parameters:
       side: Left
@@ -95,10 +97,68 @@ interventions:
   
   - id: needle-decompression-right
     label: "Needle decompression - right"
+    # TODO(author): Play label wording for the right needle decompression - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    playLabel: "Let the trapped air out - right side (needle)"
     action: SENeedleDecompression
     parameters:
       side: Right
       state: "On"
+
+play:
+  # TODO(author): goal text wording - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+  goalText: "Keep him breathing until he's out of danger."
+  # TODO(author): diagnosis terms list - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+  diagnosisTerms: ["pneumothorax", "tension"]
+  avatar:
+    # TODO(author): reference tidal volume for the breathing-depth display (engine baseline), verify and cite - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    referenceTidalVolumeMl: 535
+  endings:
+    rescued:
+      conditions:
+        # TODO(author): rescue SpO2 threshold - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        - { vital: "spO2", op: ">=", value: 0.95 }
+        # TODO(author): rescue heart rate threshold - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        - { vital: "heartRate", op: "<=", value: 110 }
+      # TODO(author): rescue hold duration - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+      holdSeconds: 30
+    lost:
+      groups:
+        - conditions:
+            # TODO(author): lost SpO2 threshold - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+            - { vital: "spO2", op: "<", value: 0.85 }
+          # TODO(author): lost hold duration - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+          holdSeconds: 30
+      # TODO(author): time limit - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+      timeLimitSeconds: 600
+  hints:
+    # TODO(author): hint 1 text - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    - text: "Watch his chest. Does one side move differently from the other?"
+    # TODO(author): hint 2 text - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    - text: "The trouble is on his left side. On your screen, that's the right."
+    # TODO(author): hint 3 text - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    - text: 'Press "Let the trapped air out - left side (needle)".'
+  status:
+    rules:
+      - when: [{ vital: "spO2", band: "critical" }]
+        # TODO(author): status sentence for critical SpO2 - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        sentence: "His lips are turning blue and he is fighting for breath."
+      - when: [{ vital: "spO2", band: "warning" }]
+        # TODO(author): status sentence for warning SpO2 - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        sentence: "He looks pale and is struggling to breathe."
+      - when: [{ vital: "heartRate", band: "critical", direction: "high" }]
+        # TODO(author): status sentence for critical high heart rate - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        sentence: "His heart is racing and he looks frightened."
+      - when: [{ vital: "heartRate", band: "warning", direction: "high" }]
+        # TODO(author): status sentence for warning high heart rate - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        sentence: "His heart is beating fast and he looks uneasy."
+      - when: [{ vital: "respiratoryRate", band: "warning", direction: "high" }]
+        # TODO(author): status sentence for warning high respiratory rate - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        sentence: "He is breathing faster than normal."
+      - when: [{ vital: "meanArterialPressure", band: "warning", direction: "low" }]
+        # TODO(author): status sentence for warning low mean arterial pressure - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+        sentence: "He looks clammy and a little faint."
+    # TODO(author): default status sentence - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
+    defaultSentence: "He is breathing calmly and looks comfortable."
 
 references:
   # TODO(author): Add specific ATLS or other trauma guideline references for tension pneumothorax recognition and management

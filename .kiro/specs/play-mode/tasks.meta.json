@@ -269,6 +269,25 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795190038792
       }
+    ],
+    "7.2 Add the draft Play_Section and Play_Labels to `cases/adult-tension-pneumothorax.yaml`, with case-content tests": [
+      {
+        "executionId": "3292cf0c-948e-4ffd-826e-3d8447518d57",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795190195664
+      },
+      {
+        "executionId": "3292cf0c-948e-4ffd-826e-3d8447518d57",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795190769476
+      }
+    ],
+    "7. Add Play mode to the case schema and the case file": [
+      {
+        "executionId": "3292cf0c-948e-4ffd-826e-3d8447518d57",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795190769532
+      }
     ]
   }
 }

@@ -213,7 +213,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.11, 7.10, 8.8, 10.10, 11.13, 12.11_
 
-- [ ] 7. Add Play mode to the case schema and the case file
+- [x] 7. Add Play mode to the case schema and the case file
   - [x] 7.1 Extend `cases/case-schema.json`
     - Add the Draft-07 `definitions` from the design: `vitalName`, `citationList`, `vitalCondition` (with the SpO2 `maximum: 1` rule), `conditionGroup`, `statusWhen` (no `direction` on a `normal` band)
     - Add the optional top-level `play` object exactly as in the design, with `additionalProperties: false` on `play` and every object nested in it, and the `anyOf` on `endings.lost` (at least one group or a `timeLimitSeconds`)
@@ -227,7 +227,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.17, 2.18, 2.20, 9.10_
 
-  - [ ] 7.2 Add the draft Play_Section and Play_Labels to `cases/adult-tension-pneumothorax.yaml`, with case-content tests
+  - [x] 7.2 Add the draft Play_Section and Play_Labels to `cases/adult-tension-pneumothorax.yaml`, with case-content tests
     - The author is away. Use exactly the draft values below; do not choose or change any value. Every draft value gets its own `TODO(author)` comment, on the same line or the line directly above, that names what needs review and ends with the text `draft from engine runs on 2026-11-20 (commit 1e71454), pending author review`. Example: `# TODO(author): rescue SpO2 threshold - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review`. Write one condition per line so each number has its own marker. Do not add a `play.references` field (no citation exists yet)
     - Interventions: add `playLabel: "Let the trapped air out - left side (needle)"` to `needle-decompression-left` and `playLabel: "Let the trapped air out - right side (needle)"` to `needle-decompression-right`. Leave every other existing field unchanged, including the quoted `state: "On"`
     - `play` section:
