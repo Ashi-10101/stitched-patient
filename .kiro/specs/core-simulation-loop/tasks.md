@@ -60,7 +60,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 5.7, 9.4_
     - _Deviations: 6_
 
-- [ ] 3. Implement correct scheduled insults algorithm
+- [x] 3. Implement correct scheduled insults algorithm
   - [x] 3.1 Rewrite `_advance_tick` method with correct insult application
     - Acquire session.lock for entire operation
     - Collect all unapplied insults with `timeSeconds <= target`
@@ -86,7 +86,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: Testing Strategy - Acceptance Tests_
     - _Deviations: 16_
   
-  - [ ] 3.3 Write unit tests for insult algorithm
+  - [x] 3.3 Write unit tests for insult algorithm
     - Use fake engine that records advance_time() and apply_action() calls
     - Test single insult applied at exact scheduled time
     - Test multiple insults with different times applied in order
