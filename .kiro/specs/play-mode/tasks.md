@@ -335,7 +335,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 1.7, 1.11, 7.8, 8.4, 15.7, 15.8_
 
 - [ ] 10. Build the Play components
-  - [ ] 10.1 Create the `StitchedPatient` Avatar and its styles
+  - [x] 10.1 Create the `StitchedPatient` Avatar and its styles
     - In `apps/web/src/app/globals.css`: Play palette variables (background `#2E1A47`, accent `#FF7A1A`, text `#FFF7EC`, focus ring `#FFD166`), the `:focus-visible` ring (`3px solid #FFD166`, offset 2px) for Play controls, and the animation stylesheet from the design (`sp-breathe`, `sp-beat`, stopped classes, `sp-unstitch`, `sp-rate-static`, and the `prefers-reduced-motion: reduce` block)
     - `apps/web/src/components/StitchedPatient.tsx` with the props in the design: speech-bubble headroom band always reserved; a bubble only for text with a non-whitespace character, wrapped with `overflow-wrap: anywhere`; exactly one `<svg role="img" aria-label={statusSentence} viewBox="0 0 200 280">`; no `<image>`, no `href`, no `url(`, no `id`; static HR/RR rate icons (`slow`/`normal`/`fast`) with class `sp-rate-static`
     - Artwork drawn for this project only, per the design: round head, friendly eyes and smile, 3 to 4 skin patches with at least three cross-stitch marks, exactly two neck bolts, light blue gown `#A9D6F5`, stitched-heart patch; Skin_Tone fills from the design table; sweat drops; `variant='lost'` adds `sp-unstitch` to the patch groups. No blood, wounds, bone, fangs or skulls; skin never green; head never flat. Copy no third-party artwork or paths

@@ -26,3 +26,57 @@ body {
   @apply bg-gray-950 text-white;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
+
+/* ------------------------------------------------------------------ */
+/* Play mode (play-mode spec, task 10.1)                              */
+/* ------------------------------------------------------------------ */
+
+/* Play palette (UI constants). */
+:root {
+  --sp-bg: #2E1A47;
+  --sp-accent: #FF7A1A;
+  --sp-text: #FFF7EC;
+  --sp-focus: #FFD166;
+}
+
+/* Focus ring for Play controls only. Play components must sit inside a
+   `.sp-play` container; the Clinician view is not affected. */
+.sp-play:focus-visible,
+.sp-play :focus-visible {
+  outline: 3px solid #FFD166;
+  outline-offset: 2px;
+}
+
+/* Avatar animations. Periods are wall-clock seconds set by the component. */
+.sp-breathe { transform-box: fill-box; transform-origin: center bottom;
+  animation: sp-breathe var(--sp-breath-period, 4s) ease-in-out infinite; }
+@keyframes sp-breathe { 50% { transform: scale(calc(1 + 0.05 * var(--sp-breath-depth, 1))); } }
+.sp-beat { transform-box: fill-box; transform-origin: center;
+  animation: sp-beat var(--sp-beat-period, 1s) ease-out infinite; }
+@keyframes sp-beat { 15% { transform: scale(1.15); } 30% { transform: scale(1); } }
+.sp-breath-stopped, .sp-beat-stopped { animation: none; }
+
+/* Lost ending: patch groups drift apart and hold the last frame.
+   `--sp-unstitch-final` (e.g. `translate(dx, dy)`) is set per patch group
+   by the component. */
+.sp-unstitch { animation: sp-unstitch 2.5s ease-out forwards; }
+@keyframes sp-unstitch {
+  from { transform: translate(0, 0); }
+  to { transform: var(--sp-unstitch-final); }
+}
+
+/* Slow sweat drip, only when motion is allowed (disabled below). */
+.sp-sweat { animation: sp-sweat 3s ease-in infinite; }
+@keyframes sp-sweat {
+  0% { transform: translate(0, 0); opacity: 1; }
+  80% { transform: translate(0, 4px); opacity: 1; }
+  100% { transform: translate(0, 6px); opacity: 0; }
+}
+
+.sp-rate-static { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-avatar *, .sp-ending * { animation: none !important; transition: none !important; }
+  .sp-unstitch { transform: var(--sp-unstitch-final); }   /* stitches already apart (7.12) */
+  .sp-rate-static { display: flex; }                        /* slow / normal / fast icons (4.21) */
+}
