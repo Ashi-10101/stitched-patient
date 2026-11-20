@@ -6,6 +6,8 @@ import fc from 'fast-check';
 import type {
   AlarmThreshold,
   AvatarParameters,
+  ComparisonOp,
+  ConditionGroup,
   InterventionRecordEntry,
   PlaySection,
   ScheduledInsult,
@@ -13,6 +15,7 @@ import type {
   StatusRule,
   StatusWhen,
   VitalBand,
+  VitalCondition,
   VitalName,
   VitalSigns,
 } from '@/types';
@@ -238,14 +241,11 @@ const arbSentence: fc.Arbitrary<string> = fc.oneof(
 );
 
 /**
- * Play_Section with a generated `status` part: 0 to 20 Status_Rules with 1 to
- * 6 `when` items each, and a `defaultSentence`. All rule sentences and the
+ * Status part of a Play_Section: 0 to 20 Status_Rules with 1 to 6 `when`
+ * items each, and a `defaultSentence`. All rule sentences and the
  * `defaultSentence` are distinct, so the returned string identifies the rule.
- *
- * The other fields hold fixed minimal valid test values (not case content);
- * task 4.2 extends the generator with endings.
  */
-export const arbPlaySection: fc.Arbitrary<PlaySection> = fc
+const arbStatus: fc.Arbitrary<PlaySection['status']> = fc
   .uniqueArray(
     fc.record({
       when: fc.array(arbStatusWhen, { minLength: 1, maxLength: 6 }),
@@ -256,16 +256,105 @@ export const arbPlaySection: fc.Arbitrary<PlaySection> = fc
   .chain((rules) =>
     arbSentence
       .filter((s) => !rules.some((r) => r.sentence === s))
-      .map(
-        (defaultSentence): PlaySection => ({
-          goalText: 'Test goal.',
-          diagnosisTerms: ['test-diagnosis-term'],
-          endings: {
-            rescued: { conditions: [{ vital: 'heartRate', op: '<', value: 1 }], holdSeconds: 1 },
-            lost: { timeLimitSeconds: 60 },
-          },
-          hints: [{ text: 'Test hint.' }],
-          status: { rules, defaultSentence },
-        }),
-      ),
+      .map((defaultSentence) => ({ rules, defaultSentence })),
   );
+
+/**
+ * Vital_Condition on any case vital with any operator. The value is a case
+ * boundary or boundary ± the per-vital offset (so generated samples land on
+ * both sides of it), or a value from `THRESHOLD_GRID`.
+ */
+const arbVitalCondition: fc.Arbitrary<VitalCondition> = fc
+  .constantFrom<VitalName>(...VITAL_NAMES)
+  .chain((vital) => {
+    const bounds = caseBounds(vital);
+    const offset = VITAL_OFFSETS[vital];
+    const nearBoundary = bounds.length
+      ? fc.constantFrom(...bounds).chain((b) => fc.constantFrom(b - offset, b, b + offset))
+      : fc.constantFrom(...THRESHOLD_GRID);
+    return fc.record({
+      vital: fc.constant(vital),
+      op: fc.constantFrom<ComparisonOp>('<', '<=', '>=', '>'),
+      value: fc.oneof({ weight: 3, arbitrary: nearBoundary }, { weight: 1, arbitrary: fc.constantFrom(...THRESHOLD_GRID) }),
+    });
+  });
+
+/** Hold time in half-second steps from 0.5 to 30 s (always > 0, as the schema requires). */
+const arbHoldSeconds = fc.integer({ min: 1, max: 60 }).map((n) => n / 2);
+
+const arbConditionGroup = (maxConditions: number): fc.Arbitrary<ConditionGroup> =>
+  fc.record({
+    conditions: fc.array(arbVitalCondition, { minLength: 1, maxLength: maxConditions }),
+    holdSeconds: arbHoldSeconds,
+  });
+
+/**
+ * Endings part of a Play_Section: 1 to 6 rescue conditions, 0 to 5 Lost_Condition
+ * groups, and an optional Time_Limit (1 to 80 s), with at least one group or a
+ * Time_Limit. An empty group list is sometimes `[]` and sometimes omitted.
+ */
+const arbEndings: fc.Arbitrary<PlaySection['endings']> = fc
+  .record({
+    rescued: arbConditionGroup(6),
+    groups: fc.array(arbConditionGroup(6), { maxLength: 5 }),
+    omitEmptyGroups: fc.boolean(),
+    timeLimitSeconds: fc.option(fc.integer({ min: 1, max: 80 }), { nil: undefined }),
+  })
+  .filter(({ groups, timeLimitSeconds }) => groups.length > 0 || timeLimitSeconds !== undefined)
+  .map(({ rescued, groups, omitEmptyGroups, timeLimitSeconds }) => ({
+    rescued,
+    lost: {
+      ...(groups.length === 0 && omitEmptyGroups ? {} : { groups }),
+      ...(timeLimitSeconds === undefined ? {} : { timeLimitSeconds }),
+    },
+  }));
+
+/**
+ * Play_Section with generated `status` and `endings` parts (see `arbStatus` and
+ * `arbEndings`). The other fields hold fixed minimal valid test values (not case content).
+ */
+export const arbPlaySection: fc.Arbitrary<PlaySection> = fc
+  .record({ status: arbStatus, endings: arbEndings })
+  .map(
+    ({ status, endings }): PlaySection => ({
+      goalText: 'Test goal.',
+      diagnosisTerms: ['test-diagnosis-term'],
+      endings,
+      hints: [{ text: 'Test hint.' }],
+      status,
+    }),
+  );
+
+/** Non-finite Simulation_Times that the Ending_Evaluator must ignore. */
+const NON_FINITE_TIMES = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY] as const;
+
+/**
+ * Ordered VitalSigns samples (0 to 60) with vitals as in `arbSample`.
+ * Simulation_Times start between 0 and 20 s and mostly increase by 1 s, with
+ * injected repeats (+0), decreases (−1 to −5 s) and non-finite times
+ * (`NaN`, `±Infinity`; the running time is unchanged by them).
+ */
+export const arbSampleSequence: fc.Arbitrary<(Partial<VitalSigns> & { simulation_time: number })[]> = fc
+  .record({
+    start: fc.integer({ min: 0, max: 20 }),
+    items: fc.array(
+      fc.record({
+        sample: arbSample,
+        step: fc.oneof(
+          { weight: 12, arbitrary: fc.constant(1) },
+          { weight: 1, arbitrary: fc.constant(0) },
+          { weight: 1, arbitrary: fc.integer({ min: -5, max: -1 }) },
+          { weight: 1, arbitrary: fc.constantFrom(...NON_FINITE_TIMES) },
+        ),
+      }),
+      { maxLength: 60 },
+    ),
+  })
+  .map(({ start, items }) => {
+    let t = start;
+    return items.map(({ sample, step }, i) => {
+      if (!Number.isFinite(step)) return { ...sample, simulation_time: step };
+      if (i > 0) t += step;
+      return { ...sample, simulation_time: t };
+    });
+  });

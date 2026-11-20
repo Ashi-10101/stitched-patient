@@ -23,6 +23,10 @@
     "4.1 Implement `apps/web/src/lib/playCase.ts`": {
       "status": "passed",
       "lastRunTimestamp": 1795186443340
+    },
+    "4.2 Implement `apps/web/src/lib/endingEvaluator.ts`": {
+      "status": "passed",
+      "lastRunTimestamp": 1795187094018
     }
   },
   "executionHistory": {
@@ -151,6 +155,25 @@
         "executionId": "b97a06f8-f331-4545-8f11-59878287033a",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795186480768
+      }
+    ],
+    "4.2 Implement `apps/web/src/lib/endingEvaluator.ts`": [
+      {
+        "executionId": "842ffad2-e4d8-476d-b504-660cc91e5427",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795186605625
+      },
+      {
+        "executionId": "842ffad2-e4d8-476d-b504-660cc91e5427",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795187147595
+      }
+    ],
+    "4. Implement case helpers and Ending evaluation": [
+      {
+        "executionId": "842ffad2-e4d8-476d-b504-660cc91e5427",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795187147629
       }
     ]
   }

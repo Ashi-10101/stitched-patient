@@ -115,7 +115,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 12.3, 12.14_
     - _Properties: 10, 11_
 
-- [ ] 4. Implement case helpers and Ending evaluation
+- [x] 4. Implement case helpers and Ending evaluation
   - [x] 4.1 Implement `apps/web/src/lib/playCase.ts`
     - `playButtonText(i)`: `playLabel` when it has a non-whitespace character, else `label`
     - `conditionsDisjoint(a, b)`: same vital and no number satisfies both, using the half-line rule in the design (strict operators at equal values make them disjoint; same-direction bounds are never disjoint)
@@ -131,7 +131,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 6.14, 8.2, 8.3, 8.4_
     - _Properties: 15, 18_
 
-  - [ ] 4.2 Implement `apps/web/src/lib/endingEvaluator.ts`
+  - [x] 4.2 Implement `apps/web/src/lib/endingEvaluator.ts`
     - `buildEndingContext`, `initialEndingState`, `stepEnding`, `evaluateEnding` (defined as the fold of `stepEnding`) and `conditionHolds`, following the 7-step algorithm in the design. A missing `endings.lost.groups` counts as `[]`. Rescue wins over lost on the same sample. `endedAt` is set when the Ending leaves `none`
     - Extend `arbPlaySection` with endings (1 to 6 rescue conditions, 0 to 5 lost groups, optional Time_Limit, at least one group or a Time_Limit) and add `arbSampleSequence` (times mostly +1 s, with repeats, decreases and non-finite times) to `src/test/generators.ts`
     - Create `apps/web/src/lib/endingEvaluator.test.ts` with fixed sequences:
