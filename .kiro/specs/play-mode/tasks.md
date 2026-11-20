@@ -64,7 +64,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 4.1, 4.2, 4.19, 12.6, 15.7_
     - _Properties: 2_
 
-- [ ] 3. Implement Avatar and status logic
+- [x] 3. Implement Avatar and status logic
   - [x] 3.1 Implement `apps/web/src/lib/sides.ts`
     - `computeSides`, `viewerHalf` and `sideGeometry` as in the design. Results are sorted in `['Left', 'Right']` order without duplicates. `sideGeometry('Left')` lies in x `[100, 200]` and `sideGeometry('Right')` in x `[0, 100]` of the 200 × 280 viewBox; each swollen chest rectangle is wider and taller than the normal one on the same side and stays in the same half
     - Add `arbInsults` and `arbActiveInterventions` to `src/test/generators.ts`
@@ -99,7 +99,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 4.1, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11, 4.12, 4.13, 4.15, 4.19, 4.22, 4.24, 4.25, 12.1, 12.13, 12.14_
     - _Properties: 3, 4, 5_
 
-  - [ ] 3.3 Implement `apps/web/src/lib/statusSelector.ts`
+  - [x] 3.3 Implement `apps/web/src/lib/statusSelector.ts`
     - `selectStatus(sample, alarms, play)` as in the design: `defaultSentence` for a `null` sample; rules in Case_Definition order; an item matches only when the vital has thresholds and a finite value, the band state equals `band`, and `direction` is absent or equal; first matching rule's sentence unchanged; else `defaultSentence`
     - Add `arbPlaySection` (status part: 0 to 20 rules with 1 to 6 `when` items and optional directions, never on `normal`) to `src/test/generators.ts`
     - Create `apps/web/src/lib/statusSelector.test.ts`:

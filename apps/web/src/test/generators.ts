@@ -7,8 +7,11 @@ import type {
   AlarmThreshold,
   AvatarParameters,
   InterventionRecordEntry,
+  PlaySection,
   ScheduledInsult,
   Side,
+  StatusRule,
+  StatusWhen,
   VitalBand,
   VitalName,
   VitalSigns,
@@ -198,3 +201,71 @@ export const arbAvatarParameters: fc.Arbitrary<AvatarParameters> = fc.record({
     )
     .map((b) => b as Partial<Record<VitalName, VitalBand>>),
 });
+
+/**
+ * Status_Rule `when` item: any case vital, band `warning` or `critical`
+ * (never `normal`), and a direction that is absent (key omitted), `low` or `high`.
+ */
+const arbStatusWhen: fc.Arbitrary<StatusWhen> = fc
+  .record(
+    {
+      vital: fc.constantFrom<VitalName>(...VITAL_NAMES),
+      band: fc.constantFrom<StatusWhen['band']>('warning', 'critical'),
+      direction: fc.constantFrom<'low' | 'high'>('low', 'high'),
+    },
+    { requiredKeys: ['vital', 'band'] },
+  )
+  .map((w) => w as StatusWhen);
+
+/**
+ * Sentence text: arbitrary strings plus fixed strings with leading/trailing
+ * spaces, unusual punctuation, non-ASCII characters and the empty string, so
+ * tests can check that the selector returns the text unchanged.
+ */
+const arbSentence: fc.Arbitrary<string> = fc.oneof(
+  { weight: 3, arbitrary: fc.string({ maxLength: 40 }) },
+  {
+    weight: 1,
+    arbitrary: fc.constantFrom(
+      '  Leading and trailing spaces.  ',
+      '\tTabbed\u00a0and non-breaking\n',
+      'Breathing… fast?!',
+      '"Quoted" — dash; semi:colon (parens) [brackets] {braces}',
+      'Ünïcödé 😮 text',
+      '',
+    ),
+  },
+);
+
+/**
+ * Play_Section with a generated `status` part: 0 to 20 Status_Rules with 1 to
+ * 6 `when` items each, and a `defaultSentence`. All rule sentences and the
+ * `defaultSentence` are distinct, so the returned string identifies the rule.
+ *
+ * The other fields hold fixed minimal valid test values (not case content);
+ * task 4.2 extends the generator with endings.
+ */
+export const arbPlaySection: fc.Arbitrary<PlaySection> = fc
+  .uniqueArray(
+    fc.record({
+      when: fc.array(arbStatusWhen, { minLength: 1, maxLength: 6 }),
+      sentence: arbSentence,
+    }),
+    { maxLength: 20, selector: (r: StatusRule) => r.sentence },
+  )
+  .chain((rules) =>
+    arbSentence
+      .filter((s) => !rules.some((r) => r.sentence === s))
+      .map(
+        (defaultSentence): PlaySection => ({
+          goalText: 'Test goal.',
+          diagnosisTerms: ['test-diagnosis-term'],
+          endings: {
+            rescued: { conditions: [{ vital: 'heartRate', op: '<', value: 1 }], holdSeconds: 1 },
+            lost: { timeLimitSeconds: 60 },
+          },
+          hints: [{ text: 'Test hint.' }],
+          status: { rules, defaultSentence },
+        }),
+      ),
+  );
