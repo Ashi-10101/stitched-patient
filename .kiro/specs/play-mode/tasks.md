@@ -153,7 +153,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Properties: 12, 13, 14_
 
 - [ ] 5. Implement time format, lineage, rewind selection and the Intervention_Record
-  - [ ] 5.1 Implement `apps/web/src/lib/timeFormat.ts`
+  - [x] 5.1 Implement `apps/web/src/lib/timeFormat.ts`
     - `formatMSS(seconds)`: floor; minutes unpadded; seconds two digits; negative and non-finite give `"0:00"`
     - `remainingSeconds(limit, latest)`: `max(0, limit - (latest ?? 0))`
     - Create `apps/web/src/lib/timeFormat.test.ts`: `"0:00"` for 0, `"1:30"` for 90, `"10:05"` for 605, `"12:05"` for 725, fractional seconds floored, negative input; `remainingSeconds` with `null`, below, at and above the limit. Property 17 is tested in task 5.3
