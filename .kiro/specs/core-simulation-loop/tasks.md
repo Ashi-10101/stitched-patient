@@ -110,7 +110,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 6.5, 6.6, 11.5, 11.6, 11.7_
 
 - [ ] 4. Implement single clock per session with thread pool
-  - [ ] 4.1 Add `_clock_task` background task method
+  - [x] 4.1 Add `_clock_task` background task method
     - Infinite loop: if playing, call _advance_tick and broadcast; if paused, broadcast cached
     - DO NOT acquire session.lock in clock task (_advance_tick acquires it internally)
     - Wrap all engine calls with `asyncio.to_thread(...)` (in _advance_tick, not here)

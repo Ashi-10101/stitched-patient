@@ -1,5 +1,6 @@
 """Session and branch management."""
 import asyncio
+import logging
 import tempfile
 import uuid
 from dataclasses import dataclass, field
@@ -15,6 +16,8 @@ from models import (
     VitalSigns, InterventionEvent, CheckpointMetadata, 
     BranchMetadata, PlaybackSpeed
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -278,6 +281,55 @@ class SessionManager:
         for _ in range(num_ticks):
             vitals = await self._advance_tick(session)
         return vitals
+    
+    async def _clock_task(self, session: Session) -> None:
+        """
+        Background clock for one session; runs for the session's lifetime.
+        
+        There is a single clock per session. It is started by create_session
+        (task 5.1) and ends only when the task is cancelled.
+        
+        While playing, each iteration advances the current branch by one
+        simulated second via _advance_tick() (which takes session.lock and
+        runs engine calls in a worker thread), broadcasts the vitals, then
+        sleeps for the rest of the 1/speed-second period (1, 2 or 4 Hz).
+        While paused, it re-broadcasts the branch's cached vitals at 1 Hz.
+        
+        An engine error marks the current branch failed, pauses the session,
+        logs and broadcasts the error, and the loop continues in the paused
+        path. Only Exception is caught, so asyncio.CancelledError ends the
+        loop.
+        """
+        while True:
+            # Read fresh every iteration: a fork switches the current branch.
+            branch = session.current_branch
+            
+            if session.playing:
+                loop = asyncio.get_running_loop()
+                tick_start = loop.time()
+                try:
+                    vitals = await self._advance_tick(session)
+                except Exception as e:
+                    branch.failed = True
+                    branch.failure_reason = str(e)
+                    session.playing = False
+                    logger.error(
+                        "Engine error in session %s branch %s: %s",
+                        session.session_id, branch.branch_id, e,
+                        exc_info=True,
+                    )
+                    await self._broadcast_error(session, str(e))
+                    continue
+                
+                await self._broadcast_vitals(session, vitals)
+                
+                multiplier = {"1x": 1, "2x": 2, "4x": 4}[session.speed.value]
+                await asyncio.sleep(
+                    max(0.0, tick_start + 1.0 / multiplier - asyncio.get_running_loop().time())
+                )
+            else:
+                await self._broadcast_vitals(session, branch.last_vitals)
+                await asyncio.sleep(1.0)
     
     def apply_intervention(
         self,
