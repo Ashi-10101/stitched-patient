@@ -331,6 +331,79 @@ class SessionManager:
                 await self._broadcast_vitals(session, branch.last_vitals)
                 await asyncio.sleep(1.0)
     
+    async def _broadcast_vitals(
+        self, session: Session, vitals: Optional[VitalSigns]
+    ) -> None:
+        """
+        Send vitals to every subscriber of the session. Never raises.
+        
+        If vitals is None (no tick has run yet), nothing is sent. Otherwise
+        the payload is built once with vitals.model_dump() and sent to each
+        WebSocket in session.vitals_subscribers.
+        
+        Iterates over a snapshot of the subscriber set, because each send
+        awaits and a client can connect or disconnect during the await.
+        
+        Exceptions are caught per subscriber (Exception only, so
+        asyncio.CancelledError still propagates). A failed send removes that
+        subscriber and updates session.last_activity. If that removal leaves
+        the set empty, session.playing is set to False. An empty subscriber
+        set at the start never touches session.playing. A client problem
+        never stops the clock and never marks the branch failed.
+        """
+        if vitals is None:
+            return
+        
+        payload = vitals.model_dump()
+        
+        for ws in list(session.vitals_subscribers):
+            try:
+                await ws.send_json(payload)
+            except Exception as e:
+                was_subscribed = ws in session.vitals_subscribers
+                session.vitals_subscribers.discard(ws)
+                session.last_activity = datetime.utcnow()
+                logger.info(
+                    "Dropped vitals subscriber in session %s after send failure: %s",
+                    session.session_id, e,
+                )
+                # Pause only when this discard removed the last subscriber.
+                if was_subscribed and not session.vitals_subscribers:
+                    session.playing = False
+    
+    async def _broadcast_error(self, session: Session, message: str) -> None:
+        """
+        Send an error message to every subscriber of the session. Never raises.
+        
+        The payload {"error": "Simulation error: <message>"} is built once and
+        sent to each WebSocket in session.vitals_subscribers. This is the shape
+        the web client reads (data.error).
+        
+        Follows the same rules as _broadcast_vitals: iterates over a snapshot
+        of the subscriber set; catches Exception per subscriber (so
+        asyncio.CancelledError still propagates); a failed send removes that
+        subscriber and updates session.last_activity; if that removal leaves
+        the set empty, session.playing is set to False. An empty subscriber
+        set at the start never touches session.playing. Never marks the
+        branch failed.
+        """
+        payload = {"error": f"Simulation error: {message}"}
+        
+        for ws in list(session.vitals_subscribers):
+            try:
+                await ws.send_json(payload)
+            except Exception as e:
+                was_subscribed = ws in session.vitals_subscribers
+                session.vitals_subscribers.discard(ws)
+                session.last_activity = datetime.utcnow()
+                logger.info(
+                    "Dropped error subscriber in session %s after send failure: %s",
+                    session.session_id, e,
+                )
+                # Pause only when this discard removed the last subscriber.
+                if was_subscribed and not session.vitals_subscribers:
+                    session.playing = False
+    
     def apply_intervention(
         self,
         session: Session,

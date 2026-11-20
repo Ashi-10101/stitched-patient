@@ -154,6 +154,30 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795170906827
       }
+    ],
+    "4.2 Implement `_broadcast_vitals` helper function": [
+      {
+        "executionId": "87a10e5c-23c4-4b2c-aa2f-be67b6065691",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795170978365
+      },
+      {
+        "executionId": "87a10e5c-23c4-4b2c-aa2f-be67b6065691",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795171160567
+      }
+    ],
+    "4.3 Implement `_broadcast_error` helper function": [
+      {
+        "executionId": "87a10e5c-23c4-4b2c-aa2f-be67b6065691",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795171167127
+      },
+      {
+        "executionId": "87a10e5c-23c4-4b2c-aa2f-be67b6065691",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795179203842
+      }
     ]
   }
 }

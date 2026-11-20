@@ -119,7 +119,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 3.9, 3.10, 3.11, 4.1, 4.2, 10.10, 10.11, 10.12_
     - _Deviations: 1, 2, 3_
   
-  - [ ] 4.2 Implement `_broadcast_vitals` helper function
+  - [x] 4.2 Implement `_broadcast_vitals` helper function
     - Send vitals.model_dump() to all subscribers in session.vitals_subscribers
     - On send failure: remove subscriber, update session.last_activity
     - If last subscriber removed: set session.playing = False
@@ -127,7 +127,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 4.1, 4.2, 10.13_
     - _Deviations: 1, 10_
   
-  - [ ] 4.3 Implement `_broadcast_error` helper function
+  - [x] 4.3 Implement `_broadcast_error` helper function
     - Send error message to all subscribers
     - Same exception handling as _broadcast_vitals
     - _Requirements: 10.1, 10.2_
