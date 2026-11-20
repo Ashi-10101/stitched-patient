@@ -252,6 +252,25 @@
         "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
         "timestamp": 1795181454823
       }
+    ],
+    "6.3 Write unit tests for checkpoint eviction and intervention application": [
+      {
+        "executionId": "1067f117-3613-4de4-839a-f0d477a7a5cd",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795181528067
+      },
+      {
+        "executionId": "1067f117-3613-4de4-839a-f0d477a7a5cd",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795181974872
+      }
+    ],
+    "6. Implement intervention application with manual checkpoints": [
+      {
+        "executionId": "1067f117-3613-4de4-839a-f0d477a7a5cd",
+        "chatSessionId": "sess_f095c062-6fab-4edb-8c64-afeff604e388",
+        "timestamp": 1795181974910
+      }
     ]
   }
 }

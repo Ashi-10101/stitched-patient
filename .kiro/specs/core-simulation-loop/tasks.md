@@ -170,7 +170,7 @@ The approach follows dependency order: configuration → data models → clock a
     - Quote pytest summary (passed/failed/skipped) in task report
     - _Requirements: 10.7_
 
-- [ ] 6. Implement intervention application with manual checkpoints
+- [x] 6. Implement intervention application with manual checkpoints
   - [x] 6.1 Rewrite existing `Branch.add_checkpoint` method with explicit eviction and file deletion
     - Replace `checkpoints: deque` with `checkpoints: List[Checkpoint]`
     - Remove maxlen constraint (eviction will be explicit)
@@ -199,7 +199,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 7.1, 7.3, 7.4_
     - _Deviations: 2, 3, 6, 7_
   
-  - [ ] 6.3 Write unit tests for checkpoint eviction and intervention application
+  - [x] 6.3 Write unit tests for checkpoint eviction and intervention application
     - Test adding checkpoint when under cap appends normally
     - Test adding checkpoint at cap evicts oldest automatic (keeps t=0)
     - Test when no automatic checkpoints, evicts oldest manual (keeps t=0)
