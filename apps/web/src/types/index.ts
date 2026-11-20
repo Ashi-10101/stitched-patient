@@ -31,7 +31,7 @@ export interface AlarmThreshold {
     low?: number;
     high?: number;
   };
-  normal: {
+  normal?: {
     low: number;
     high: number;
   };

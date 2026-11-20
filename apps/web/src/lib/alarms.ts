@@ -1,31 +1,39 @@
 /**
- * Alarm state calculation.
+ * Alarm state calculation (play-mode Requirement 15).
+ *
+ * Both views compute every Alarm_State with `getAlarmState`.
  */
 
 import { AlarmState, AlarmThreshold } from '@/types';
 
+/** Strictly below a present bound; a value equal to the bound is inside it (15.4). */
+const below = (value: number, bound?: number): boolean => bound !== undefined && value < bound;
+/** Strictly above a present bound (15.4). */
+const above = (value: number, bound?: number): boolean => bound !== undefined && value > bound;
+
+/**
+ * Pure function of `value` and `threshold` (15.6). Any of `critical`, `warning`
+ * and `normal`, and any bound inside them, may be absent; absent bounds are skipped (15.5).
+ */
 export function getAlarmState(value: number, threshold: AlarmThreshold): AlarmState {
-  // Check critical ranges first
-  if (threshold.critical) {
-    if (threshold.critical.low !== undefined && value < threshold.critical.low) {
-      return 'critical';
-    }
-    if (threshold.critical.high !== undefined && value > threshold.critical.high) {
-      return 'critical';
-    }
+  const c = threshold.critical;
+  const w = threshold.warning;
+  const n = threshold.normal;
+
+  // 15.1: beyond a critical limit
+  if (below(value, c?.low) || above(value, c?.high)) return 'critical';
+
+  // 15.2: outside the normal range or beyond a warning limit
+  if (
+    below(value, n?.low) ||
+    above(value, n?.high) ||
+    below(value, w?.low) ||
+    above(value, w?.high)
+  ) {
+    return 'warning';
   }
 
-  // Check warning ranges
-  if (threshold.warning) {
-    if (threshold.warning.low !== undefined && value < threshold.warning.low) {
-      return 'warning';
-    }
-    if (threshold.warning.high !== undefined && value > threshold.warning.high) {
-      return 'warning';
-    }
-  }
-
-  // Otherwise normal
+  // 15.3
   return 'normal';
 }
 

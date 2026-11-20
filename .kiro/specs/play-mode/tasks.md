@@ -34,7 +34,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 4.25, 5.4, 6.15, 6.16_
 
 - [ ] 2. Implement alarm band semantics
-  - [ ] 2.1 Rewrite the Alarm_Function in `apps/web/src/lib/alarms.ts`
+  - [x] 2.1 Rewrite the Alarm_Function in `apps/web/src/lib/alarms.ts`
     - This spec owns `alarms.ts`. Keep this task one small change: `alarms.ts`, its new test file, the `AlarmThreshold` type and the shared test helpers below. The core-simulation-loop session rebases onto it
     - Rewrite `getAlarmState` as in the design's "Alarm_Function change": `critical` when strictly beyond a present critical bound; otherwise `warning` when strictly outside a present `normal` or `warning` bound; otherwise `normal`. Each absent object or bound is skipped. `getAlarmColor` and `getAlarmBgColor` stay unchanged
     - Make `AlarmThreshold.normal` optional in `src/types/index.ts`. Fix any existing reader of `threshold.normal` that no longer type-checks, without changing its behaviour
