@@ -264,7 +264,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 2.12, 2.14, 2.15, 2.16, 2.17, 2.19, 5.9, 5.10, 6.14, 9.7, 9.8, 12.7, 12.8, 12.9, 13.10_
 
-- [ ] 8. Implement session state and the session hook
+- [x] 8. Implement session state and the session hook
   - [x] 8.1 Implement the session reducer core in `apps/web/src/lib/sessionState.ts`
     - Define `View`, `SessionUiState`, `SessionAction`, `initialSessionState()` and `sessionReducer` as in the design. Export `HISTORY_LIMIT = 300` and `STALE_TOLERANCE_S = 5`
     - Implement these transitions: `caseLoaded` (stored view if the case has a Play_Section, `clinician` without one, else `play`; builds `endingCtx`), `caseFailed` (`clinician`, session/branch/connection fields untouched), `sessionLoaded`, `checkpointsLoaded` (recompute lineage), `connectionChanged`, `sampleReceived` (stale guard, history capped at 300, first positive tidal volume, `mapAvatar` with the previous parameters, `stepEnding`, `endingSnapshot` when the Ending leaves `none`), `viewSelected`, `playbackChanged`
@@ -292,7 +292,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 1.4, 4.14, 4.15, 4.20, 6.11, 6.17, 8.6, 9.2, 9.3, 9.4, 9.5, 10.8, 10.9, 12.4_
     - _Properties: 20, 21_
 
-  - [ ] 8.3 Implement `apps/web/src/hooks/useSimulationSession.ts`
+  - [x] 8.3 Implement `apps/web/src/hooks/useSimulationSession.ts`
     - Create the new `src/hooks/` folder. The hook owns all I/O: the effects in the design's table (load case with the 10 s timeout and the stored view, load session then lineage Checkpoints, restore the Intervention_Record before first use, one Vitals_Stream keyed by `sessionId` only, pause on Ending once per Branch, default 2x once per Session in the tab)
     - Actions: `selectView`, `setPlaying`, `setSpeed`, `applyIntervention` (pending guard, 10 s timeout, entry from `buildInterventionEntry`, save to sessionStorage), `revealHint` (wall-clock time passed into the action), `loadLineageCheckpoints` (10 s timeout), `fork` (30 s timeout; on a failed session reload after success, dispatch `forkSucceeded` with the previous metadata plus the returned Branch). Return `state`, memoised `activeInterventions`, `statusSentence` (`null` without a Play_Section), `actions` and `notices` (`pauseFailed`, plus the existing stream error message)
     - Export pure helpers and use them inside the hook: `runPauseWithRetry(send, sleep)` (1 attempt + at most 2 retries, 2 s apart), `shouldSendDefaultSpeed(storage, sessionId, view, caseStatus)`, `markDefaultSpeedSent(storage, sessionId)` (written before the request) and `persistViewSelection(storage, sessionId, view)`

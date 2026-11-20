@@ -322,6 +322,25 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795192313884
       }
+    ],
+    "8.3 Implement `apps/web/src/hooks/useSimulationSession.ts`": [
+      {
+        "executionId": "a2a642cc-35ac-48e5-afe3-c91b9589615e",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795192422346
+      },
+      {
+        "executionId": "a2a642cc-35ac-48e5-afe3-c91b9589615e",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795192943914
+      }
+    ],
+    "8. Implement session state and the session hook": [
+      {
+        "executionId": "a2a642cc-35ac-48e5-afe3-c91b9589615e",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795192943974
+      }
     ]
   }
 }
