@@ -365,6 +365,35 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795193631839
       }
+    ],
+    "9.3 Create `EndingBanner` and `ClinicianView`": [
+      {
+        "executionId": "4f358e14-564f-4568-b1b0-bcba001826e8",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795193711924
+      },
+      {
+        "executionId": "4f358e14-564f-4568-b1b0-bcba001826e8",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795193996603
+      },
+      {
+        "executionId": "e19027dd-b0cb-40e9-8855-5bd4f30a3b9d",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795194075900
+      },
+      {
+        "executionId": "e19027dd-b0cb-40e9-8855-5bd4f30a3b9d",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795194265965
+      }
+    ],
+    "9. Build the shared shell and the Clinician view": [
+      {
+        "executionId": "4f358e14-564f-4568-b1b0-bcba001826e8",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795193996658
+      }
     ]
   }
 }

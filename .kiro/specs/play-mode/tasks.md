@@ -305,7 +305,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.4, 1.5, 1.9, 1.11, 7.1, 7.10, 8.5, 8.6, 8.8, 8.11, 8.12, 8.13, 8.14, 9.6, 10.6, 10.8, 10.10, 10.11, 11.12, 11.13_
 
-- [ ] 9. Build the shared shell and the Clinician view
+- [x] 9. Build the shared shell and the Clinician view
   - [x] 9.1 Create `SafetyNotice` and `ViewSwitcher` components
     - `apps/web/src/components/SafetyNotice.tsx`: sticky top bar with the text "Educational simulation, not for clinical use", `z-50`, height exposed as the CSS variable `--notice-h`, readable from 320 px to 1920 px
     - `apps/web/src/components/ViewSwitcher.tsx`: `role="radiogroup"` with "Play" and "Clinician" options, `aria-checked` on the selected one, a visible selected marker that is not only colour; Play disabled with `aria-disabled="true"` and the text "Play mode is not available for this case" (no Play_Section) or "Play mode is unavailable: the case could not be loaded." (case load failed); both options disabled while loading; activating a disabled option does nothing
@@ -325,7 +325,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.7, 1.11, 8.1, 8.2, 8.3, 8.4, 11.9, 11.11_
 
-  - [ ] 9.3 Create `EndingBanner` and `ClinicianView`
+  - [x] 9.3 Create `EndingBanner` and `ClinicianView`
     - `apps/web/src/components/EndingBanner.tsx`: "Ending: Rescued" or "Ending: Lost" and a button "Open Play view" that calls `selectView('play')`
     - `apps/web/src/components/ClinicianView.tsx`: move the current monitor body of `src/app/session/[sessionId]/page.tsx` here (header without the old warning chip, playback controls, vitals grid with `getAlarmState`, trend chart, intervention panel with clinical labels, Timeline), reading all data and actions from the `useSimulationSession` result. Show `EndingBanner` while the Ending is not `none`. When `caseData` is `null` after a failed load, show the six readouts neutral and replace the intervention panel with "The case could not be loaded." Do not change `page.tsx` yet (task 11.2 wires it)
     - Create `apps/web/src/components/ClinicianView.test.tsx` with `renderToStaticMarkup` and a state built from `initialSessionState` and `sessionReducer`: clinical labels and no Play_Label; a warning-band value (for example SpO2 0.93) uses the warning colour; banner shown only with an Ending; failed case shows neutral readouts and the message
