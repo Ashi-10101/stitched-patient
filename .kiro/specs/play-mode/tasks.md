@@ -315,7 +315,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.2, 1.3, 1.8, 1.10, 1.11, 7.9, 11.8_
 
-  - [ ] 9.2 Extend `VitalSign`, `InterventionPanel` and `PlaybackControls`
+  - [x] 9.2 Extend `VitalSign`, `InterventionPanel` and `PlaybackControls`
     - `VitalSign`: optional `alarmState`; without it, a neutral grey style with no alarm colour
     - `InterventionPanel`: optional `getLabel(intervention)` (default: clinical `label`) and optional `disabledReason`; disabled buttons show a lock icon and "Not available right now"; buttons in Case_Definition order
     - `PlaybackControls`: optional `variant="play"` for the Play palette; the selected speed gets `aria-pressed="true"` and a check mark; play/pause keep their text labels; the same `onPlay`/`onPause`/`onSpeedChange` callbacks as today
