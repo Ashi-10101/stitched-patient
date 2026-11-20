@@ -11,7 +11,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
 ## Tasks
 
 - [ ] 1. Set up web test tooling and shared types
-  - [ ] 1.1 Add test dependencies, Vitest config and shared property-test settings
+  - [x] 1.1 Add test dependencies, Vitest config and shared property-test settings
     - From `apps/web/`, run `npm install --save-dev fast-check@^3 yaml@^2`. These are the only new dependencies the design names (`vite-node` ships with Vitest, `react-dom/server` is already a dependency)
     - This creates `apps/web/package-lock.json`, which does not exist today. Keep the lockfile and commit it with this change. Do not delete it or add it to `.gitignore`. The web Dockerfile's `npm ci` and the core spec's deployment work rely on it
     - Create `apps/web/vitest.config.ts`: `environment: 'node'`, `include: ['src/**/*.test.ts', 'src/**/*.test.tsx']`, `resolve.alias` `@` → `./src`, `esbuild: { jsx: 'automatic' }`. `scripts/` stays outside `include`
