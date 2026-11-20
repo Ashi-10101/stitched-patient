@@ -370,7 +370,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 7.10, 8.7, 8.8, 9.1, 9.2, 9.3, 9.6, 9.9, 11.3, 11.11_
 
-  - [ ] 10.4 Create `apps/web/src/hooks/useFocusTrap.ts`
+  - [x] 10.4 Create `apps/web/src/hooks/useFocusTrap.ts`
     - Moves focus to the first focusable control on open, wraps Tab and Shift+Tab, calls `onEscape` on Escape, and returns focus to a given element on close
     - Export the pure helper `nextFocusIndex(current, count, shiftKey)` and use it in the hook
     - Create `apps/web/src/hooks/useFocusTrap.test.ts`: forward and backward wrap, single control, current index outside the list
