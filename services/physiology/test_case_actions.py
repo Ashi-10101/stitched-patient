@@ -145,7 +145,7 @@ async def test_case_needle_decompression_beats_untreated_fork():
         ]
         assert len(auto_150) == 1, f"expected one automatic t=150 checkpoint, got {auto_150}"
 
-        manager.fork_branch(session, auto_150[0].checkpoint_id)
+        await manager.fork_branch(session, auto_150[0].checkpoint_id)
         assert session.current_branch is not original
         vitals_fork = await manager.step(session, 120)
         assert vitals_fork.simulation_time == 270.0

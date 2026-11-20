@@ -208,7 +208,7 @@ async def fork_branch(
         raise HTTPException(status_code=404, detail="Session not found")
     
     try:
-        new_branch_id = session_manager.fork_branch(
+        new_branch_id = await session_manager.fork_branch(
             session,
             request.checkpoint_id,
             request.description,

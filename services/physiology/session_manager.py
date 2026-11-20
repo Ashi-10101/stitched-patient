@@ -1,6 +1,7 @@
 """Session and branch management."""
 import asyncio
 import logging
+import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass, field
@@ -70,11 +71,6 @@ class Branch:
         deletion raises OSError (e.g. the file is already gone), a warning is
         logged and the new checkpoint is still appended, so saving never
         fails because of an old file.
-        
-        Known gap until task 7.1: fork_branch reuses the source checkpoint's
-        file for the new branch's first checkpoint, so evicting that source
-        checkpoint deletes a file another branch still points to. Task 7.1
-        copies the file on fork and closes this gap.
         """
         cap = settings.max_checkpoints_per_branch
         if len(self.checkpoints) >= cap:
@@ -252,6 +248,13 @@ class SessionManager:
         each at its exact time (or at the current position if already past).
         The advance_time durations within one tick sum to exactly 1.0.
         
+        The branch is read inside session.lock, so a concurrent fork cannot
+        switch it mid-tick. If any engine work (insults, advance, vitals,
+        automatic checkpoint) raises an Exception, the branch that was read
+        under the lock is marked failed (failed=True, failure_reason set),
+        the error is logged with the session and branch ids, and the
+        exception is re-raised. asyncio.CancelledError is not caught.
+        
         Args:
             session: Active session (operates on session.current_branch)
             
@@ -262,46 +265,56 @@ class SessionManager:
             branch = session.current_branch
             engine = branch.engine
             
-            target = branch.tick_counter + 1.0
-            
-            # 1. Collect unapplied insults due at or before the target time
-            pending = [
-                (idx, insult)
-                for idx, insult in enumerate(session.scheduled_insults)
-                if insult["timeSeconds"] <= target
-                and idx not in branch.applied_insults
-            ]
-            
-            # 2. Sort by (timeSeconds, case file order)
-            pending.sort(key=lambda item: (item[1]["timeSeconds"], item[0]))
-            
-            # 3. Apply each insult at its exact time
-            last_advance = branch.tick_counter
-            for idx, insult in pending:
-                insult_time = insult["timeSeconds"]
-                if insult_time > last_advance:
-                    await asyncio.to_thread(engine.advance_time, insult_time - last_advance)
-                    last_advance = insult_time
+            try:
+                target = branch.tick_counter + 1.0
                 
-                await asyncio.to_thread(
-                    engine.apply_action, insult["action"], insult["parameters"]
+                # 1. Collect unapplied insults due at or before the target time
+                pending = [
+                    (idx, insult)
+                    for idx, insult in enumerate(session.scheduled_insults)
+                    if insult["timeSeconds"] <= target
+                    and idx not in branch.applied_insults
+                ]
+                
+                # 2. Sort by (timeSeconds, case file order)
+                pending.sort(key=lambda item: (item[1]["timeSeconds"], item[0]))
+                
+                # 3. Apply each insult at its exact time
+                last_advance = branch.tick_counter
+                for idx, insult in pending:
+                    insult_time = insult["timeSeconds"]
+                    if insult_time > last_advance:
+                        await asyncio.to_thread(engine.advance_time, insult_time - last_advance)
+                        last_advance = insult_time
+                    
+                    await asyncio.to_thread(
+                        engine.apply_action, insult["action"], insult["parameters"]
+                    )
+                    branch.applied_insults.add(idx)
+                
+                # 4. Advance the remaining time to the target
+                if target > last_advance:
+                    await asyncio.to_thread(engine.advance_time, target - last_advance)
+                
+                # 5. Query vitals once, stamped with the branch clock
+                vitals = await asyncio.to_thread(engine.get_vitals)
+                vitals = vitals.model_copy(update={"simulation_time": target})
+                branch.vitals_history.append(vitals)
+                branch.last_vitals = vitals
+                branch.tick_counter = target
+                
+                # 6. Automatic checkpoint
+                if target - branch.last_checkpoint_time >= self.CHECKPOINT_INTERVAL:
+                    await self._save_checkpoint(session, branch, is_automatic=True)
+            except Exception as e:
+                branch.failed = True
+                branch.failure_reason = str(e)
+                logger.error(
+                    "Engine error in session %s branch %s: %s",
+                    session.session_id, branch.branch_id, e,
+                    exc_info=True,
                 )
-                branch.applied_insults.add(idx)
-            
-            # 4. Advance the remaining time to the target
-            if target > last_advance:
-                await asyncio.to_thread(engine.advance_time, target - last_advance)
-            
-            # 5. Query vitals once, stamped with the branch clock
-            vitals = await asyncio.to_thread(engine.get_vitals)
-            vitals = vitals.model_copy(update={"simulation_time": target})
-            branch.vitals_history.append(vitals)
-            branch.last_vitals = vitals
-            branch.tick_counter = target
-            
-            # 6. Automatic checkpoint
-            if target - branch.last_checkpoint_time >= self.CHECKPOINT_INTERVAL:
-                await self._save_checkpoint(session, branch, is_automatic=True)
+                raise
             
             return vitals
     
@@ -352,10 +365,12 @@ class SessionManager:
         sleeps for the rest of the 1/speed-second period (1, 2 or 4 Hz).
         While paused, it re-broadcasts the branch's cached vitals at 1 Hz.
         
-        An engine error marks the current branch failed, pauses the session,
-        logs and broadcasts the error, and the loop continues in the paused
-        path. Only Exception is caught, so asyncio.CancelledError ends the
-        loop.
+        An engine error is handled in two places. _advance_tick marks the
+        branch it read under session.lock as failed and logs the error with
+        a traceback, then re-raises. This loop then pauses the session,
+        broadcasts the error, and continues in the paused path; it does not
+        touch the branch and does not log a second traceback. Only Exception
+        is caught, so asyncio.CancelledError ends the loop.
         """
         while True:
             # Read fresh every iteration: a fork switches the current branch.
@@ -367,14 +382,8 @@ class SessionManager:
                 try:
                     vitals = await self._advance_tick(session)
                 except Exception as e:
-                    branch.failed = True
-                    branch.failure_reason = str(e)
+                    # _advance_tick already recorded the error on the branch and logged it.
                     session.playing = False
-                    logger.error(
-                        "Engine error in session %s branch %s: %s",
-                        session.session_id, branch.branch_id, e,
-                        exc_info=True,
-                    )
                     await self._broadcast_error(session, str(e))
                     continue
                 
@@ -544,14 +553,39 @@ class SessionManager:
                 description=f"After {intervention['label']}",
             )
     
-    def fork_branch(
+    async def fork_branch(
         self,
         session: Session,
         checkpoint_id: str,
         description: Optional[str] = None,
     ) -> str:
         """
-        Create a new branch from a checkpoint.
+        Create a new branch from a checkpoint and make it the current branch.
+        
+        All work runs inside session.lock, so the fork lands between clock
+        ticks and cannot interleave with an intervention. The checkpoint is
+        searched for in every branch of the session.
+        
+        The source checkpoint file is copied with shutil.copy to
+        session.temp_dir / "<new_branch_id>_fork.json", and the new engine
+        is loaded from the copy in a worker thread. The copy becomes the new
+        branch's first checkpoint (manual), so no second save is made and no
+        two branches share a checkpoint file; evicting a checkpoint in one
+        branch never deletes a file another branch uses.
+        
+        The new branch takes applied_insults, the event log prefix
+        (parent.events[:event_count]) and tick_counter from the checkpoint.
+        Its last_vitals are queried from the new engine and stamped with
+        tick_counter. The source branch's failed flag is neither checked nor
+        copied, so forking from a failed branch works and yields a healthy
+        branch. session.playing and session.speed are left unchanged.
+        
+        Errors:
+            An unknown checkpoint_id raises ValueError naming the id (the
+            endpoint maps it to 404). Any other failure, such as an engine
+            load error, propagates unchanged (the endpoint maps it to 500).
+            If the engine load fails, the copied file is deleted and no
+            branch is registered.
         
         Args:
             session: Active session
@@ -561,66 +595,79 @@ class SessionManager:
         Returns:
             New branch ID
         """
-        # Find the checkpoint in any branch
-        source_checkpoint = None
-        source_branch = None
-        
-        for branch in session.branches.values():
-            for cp in branch.checkpoints:
-                if cp.checkpoint_id == checkpoint_id:
-                    source_checkpoint = cp
-                    source_branch = branch
+        async with session.lock:
+            # Find the checkpoint in any branch
+            source_checkpoint: Optional[Checkpoint] = None
+            source_branch: Optional[Branch] = None
+            
+            for branch in session.branches.values():
+                for cp in branch.checkpoints:
+                    if cp.checkpoint_id == checkpoint_id:
+                        source_checkpoint = cp
+                        source_branch = branch
+                        break
+                if source_checkpoint is not None:
                     break
-            if source_checkpoint:
-                break
-        
-        if not source_checkpoint:
-            raise ValueError(f"Checkpoint not found: {checkpoint_id}")
-        
-        # Create new engine from checkpoint
-        new_engine = PulseEngineWrapper.load_from_checkpoint(source_checkpoint.path)
-        
-        # Create new branch
-        new_branch_id = str(uuid.uuid4())
-        new_branch = Branch(
-            branch_id=new_branch_id,
-            parent_branch_id=source_branch.branch_id,
-            forked_from_checkpoint=checkpoint_id,
-            engine=new_engine,
-        )
-        
-        # Copy checkpoint to new branch
-        initial_checkpoint = Checkpoint(
-            checkpoint_id=str(uuid.uuid4()),
-            simulation_time=source_checkpoint.simulation_time,
-            path=source_checkpoint.path,  # Reuse same checkpoint file
-            created_at=datetime.utcnow(),
-            is_automatic=False,
-            applied_insults=source_checkpoint.applied_insults,
-            event_count=source_checkpoint.event_count,
-            tick_counter=source_checkpoint.tick_counter,
-            description=description or f"Forked from {source_branch.branch_id[:8]}",
-        )
-        new_branch.add_checkpoint(initial_checkpoint)
-        new_branch.last_checkpoint_time = source_checkpoint.simulation_time
-        new_branch.tick_counter = source_checkpoint.simulation_time
-        
-        # Copy events up to the checkpoint time
-        for event in source_branch.events:
-            if event.simulation_time <= source_checkpoint.simulation_time:
-                new_branch.events.append(event)
-        
-        # New branch inherits only the source branch's insults applied at or
-        # before the checkpoint time. Source branch and session are untouched.
-        new_branch.applied_insults = {
-            idx for idx in source_branch.applied_insults
-            if session.scheduled_insults[idx]["timeSeconds"] <= source_checkpoint.simulation_time
-        }
-        
-        session.branches[new_branch_id] = new_branch
-        session.current_branch_id = new_branch_id
-        
-        return new_branch_id
+            
+            if source_checkpoint is None or source_branch is None:
+                raise ValueError(f"Checkpoint not found: {checkpoint_id}")
+            
+            new_branch_id = str(uuid.uuid4())
+            
+            # Copy the checkpoint file so the new branch owns its own file
+            copy_path = session.temp_dir / f"{new_branch_id}_fork.json"
+            shutil.copy(source_checkpoint.path, copy_path)
+            
+            # Load the new engine from the copy; clean up the copy on failure
+            try:
+                new_engine = await asyncio.to_thread(
+                    PulseEngineWrapper.load_from_checkpoint, copy_path
+                )
+            except Exception:
+                try:
+                    copy_path.unlink()
+                except OSError as e:
+                    logger.warning(
+                        "Could not delete fork checkpoint copy %s: %s",
+                        copy_path, e,
+                    )
+                raise
+            
+            new_branch = Branch(
+                branch_id=new_branch_id,
+                parent_branch_id=source_branch.branch_id,
+                forked_from_checkpoint=checkpoint_id,
+                engine=new_engine,
+                events=list(source_branch.events[:source_checkpoint.event_count]),
+                applied_insults=set(source_checkpoint.applied_insults),
+                tick_counter=source_checkpoint.tick_counter,
+            )
+            
+            # The copied file is the new branch's first checkpoint
+            initial_checkpoint = Checkpoint(
+                checkpoint_id=str(uuid.uuid4()),
+                simulation_time=source_checkpoint.simulation_time,
+                path=copy_path,
+                created_at=datetime.utcnow(),
+                is_automatic=False,
+                applied_insults=source_checkpoint.applied_insults,
+                event_count=source_checkpoint.event_count,
+                tick_counter=source_checkpoint.tick_counter,
+                description=description or f"Forked from {source_branch.branch_id[:8]}",
+            )
+            new_branch.add_checkpoint(initial_checkpoint)
+            new_branch.last_checkpoint_time = source_checkpoint.tick_counter
+            
+            # Cached vitals for the paused path, stamped with the branch clock
+            vitals = await asyncio.to_thread(new_engine.get_vitals)
+            new_branch.last_vitals = vitals.model_copy(
+                update={"simulation_time": new_branch.tick_counter}
+            )
+            
+            session.branches[new_branch_id] = new_branch
+            session.current_branch_id = new_branch_id
+            
+            return new_branch_id
     
     async def _save_checkpoint(
         self,

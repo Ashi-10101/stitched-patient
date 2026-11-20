@@ -213,7 +213,7 @@ The approach follows dependency order: configuration → data models → clock a
     - _Requirements: 6.11, 6.12, 7.2, 7.11, 7.12_
 
 - [ ] 7. Implement branch forking with checkpoint copying
-  - [ ] 7.1 Update `fork_branch` to copy checkpoint files
+  - [x] 7.1 Update `fork_branch` to copy checkpoint files
     - Acquire session.lock for entire operation
     - Find checkpoint in any branch (404 if not found)
     - Copy checkpoint file to new path with shutil.copy
