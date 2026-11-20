@@ -80,7 +80,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 3.7, 4.13, 4.14, 4.16, 4.17, 4.18, 4.23, 12.2_
     - _Properties: 6_
 
-  - [ ] 3.2 Implement `apps/web/src/lib/avatarMapper.ts`
+  - [x] 3.2 Implement `apps/web/src/lib/avatarMapper.ts`
     - Export the UI constants `BREATH_DEPTH_MIN` (0.25), `BREATH_DEPTH_MAX` (1.75), `BREATH_DEPTH_DEFAULT` (1.0), `DEFAULT_BREATH_PERIOD_S` (4) and `DEFAULT_BEAT_PERIOD_S` (1). These are display constants, not clinical values
     - Implement `mapAvatar(input: AvatarInput)` with the rules table in the design: bands, Skin_Tone, breathing period and stopped flag, breathing depth (reference tidal volume, else first positive tidal volume, else default; clamped), heartbeat, sweat flag, sides through `computeSides`, Overall_Status. Missing or non-finite vitals keep the previous value or the default. The function has no Playback_Speed input
     - Add `arbSample` (each vital present, absent, `NaN`, ±Infinity, zero, negative or near a boundary) and `arbAvatarParameters` to `src/test/generators.ts`
