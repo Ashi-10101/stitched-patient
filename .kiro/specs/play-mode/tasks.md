@@ -152,7 +152,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.12, 6.13, 6.15, 6.16, 12.4, 12.14_
     - _Properties: 12, 13, 14_
 
-- [ ] 5. Implement time format, lineage, rewind selection and the Intervention_Record
+- [x] 5. Implement time format, lineage, rewind selection and the Intervention_Record
   - [x] 5.1 Implement `apps/web/src/lib/timeFormat.ts`
     - `formatMSS(seconds)`: floor; minutes unpadded; seconds two digits; negative and non-finite give `"0:00"`
     - `remainingSeconds(limit, latest)`: `max(0, limit - (latest ?? 0))`
@@ -190,7 +190,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 10.2, 10.3, 10.4, 10.5, 10.12, 10.13, 5.15, 12.5_
     - _Properties: 16, 17_
 
-  - [ ] 5.4 Implement `apps/web/src/lib/interventionRecord.ts`
+  - [x] 5.4 Implement `apps/web/src/lib/interventionRecord.ts`
     - `recordKey`, `serializeRecord` (`{"v":1,"entries":[...]}`), `parseRecord` (returns `[]` for `null`, bad JSON, a wrong version or any invalid entry), `loadRecord` and `saveRecord` (catch storage exceptions; save failures leave the in-memory record in use)
     - `buildInterventionEntry(intervention, simulationTime, branchId)`: `interventionId`, `action`, `side` from `interventionSide` (omitted when the Intervention has none), `simulationTime`, `branchId`
     - Create `apps/web/src/lib/interventionRecord.test.ts`:
