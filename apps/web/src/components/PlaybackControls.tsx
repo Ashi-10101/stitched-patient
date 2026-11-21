@@ -20,10 +20,18 @@ interface PlaybackControlsProps {
   variant?: 'clinician' | 'play';
 }
 
+/**
+ * The play variant wraps so it fits a 320 px viewport: the container and every
+ * group are `flex-wrap`, and the groups are `min-w-0`. Groups are separated by
+ * the container's gap only (no left border or padding), because CSS cannot
+ * tell which group starts a wrapped line; a border there would be a stray
+ * line at the left edge. The "Speed:" and "Sim Time:" labels mark the groups.
+ */
 const STYLES = {
   clinician: {
     container: 'flex items-center gap-4 bg-gray-800 p-4 rounded-lg border border-gray-700',
     playButton: 'px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded font-semibold transition-colors',
+    firstGroup: 'flex items-center gap-2',
     group: 'border-l border-gray-600 pl-4 flex items-center gap-2',
     label: 'text-sm text-gray-400',
     speedSelected: 'bg-blue-600 text-white',
@@ -32,10 +40,11 @@ const STYLES = {
   },
   play: {
     container:
-      'flex items-center gap-4 bg-[#2E1A47] text-[#FFF7EC] p-4 rounded-lg border border-[#FF7A1A]',
+      'flex flex-wrap items-center gap-x-6 gap-y-2 bg-[#2E1A47] text-[#FFF7EC] p-4 rounded-lg border border-[#FF7A1A]',
     playButton:
       'px-6 py-2 bg-[#FF7A1A] text-[#2E1A47] hover:bg-[#FF8F3D] rounded font-semibold text-base transition-colors',
-    group: 'border-l border-[#FF7A1A]/50 pl-4 flex items-center gap-2',
+    firstGroup: 'flex min-w-0 flex-wrap items-center gap-2',
+    group: 'flex min-w-0 flex-wrap items-center gap-2',
     label: 'text-base text-[#FFF7EC]',
     speedSelected: 'bg-[#FF7A1A] text-[#2E1A47] font-semibold',
     speedOther: 'bg-[#3D2560] text-[#FFF7EC] hover:bg-[#4A2E73]',
@@ -61,7 +70,7 @@ export function PlaybackControls({
 
   return (
     <div className={styles.container}>
-      <div className="flex items-center gap-2">
+      <div className={styles.firstGroup}>
         <button
           onClick={onPlayPause}
           className={styles.playButton}

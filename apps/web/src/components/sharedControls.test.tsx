@@ -207,6 +207,37 @@ describe('PlaybackControls', () => {
     });
   }
 
+  it('variant="clinician" equals the old markup apart from aria-pressed and the check mark', () => {
+    for (const playing of [true, false]) {
+      for (const speed of SPEEDS) {
+        const html = render(playing, speed, 'clinician');
+        expect(html).toBe(render(playing, speed));
+        const stripped = html.replace(/ aria-pressed="(true|false)"/g, '').replace(CHECK, '');
+        expect(stripped).toBe(oldPlayback(playing, speed));
+      }
+    }
+  });
+
+  it('variant="play": container and groups wrap, groups have no left-border separator', () => {
+    for (const playing of [true, false]) {
+      for (const speed of SPEEDS) {
+        const divs = [...render(playing, speed, 'play').matchAll(/<div class="([^"]*)"/g)].map((m) =>
+          m[1].split(/\s+/),
+        );
+        expect(divs).toHaveLength(4);
+        const [container, ...groups] = divs;
+        expect(container).toContain('flex');
+        expect(container).toContain('flex-wrap');
+        for (const group of groups) {
+          expect(group).toContain('flex');
+          expect(group).toContain('flex-wrap');
+          expect(group).toContain('min-w-0');
+          for (const t of group) expect(t).not.toMatch(/^(border-l|pl-)/);
+        }
+      }
+    }
+  });
+
   it('variant="play" uses the Play palette instead of the clinician palette', () => {
     const tokens = classTokens(render(false, '2x', 'play'));
     expect(tokens.has('bg-[#2E1A47]')).toBe(true);
