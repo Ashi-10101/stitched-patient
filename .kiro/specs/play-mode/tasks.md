@@ -334,7 +334,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.7, 1.11, 7.8, 8.4, 15.7, 15.8_
 
-- [ ] 10. Build the Play components
+- [x] 10. Build the Play components
   - [x] 10.1 Create the `StitchedPatient` Avatar and its styles
     - In `apps/web/src/app/globals.css`: Play palette variables (background `#2E1A47`, accent `#FF7A1A`, text `#FFF7EC`, focus ring `#FFD166`), the `:focus-visible` ring (`3px solid #FFD166`, offset 2px) for Play controls, and the animation stylesheet from the design (`sp-breathe`, `sp-beat`, stopped classes, `sp-unstitch`, `sp-rate-static`, and the `prefers-reduced-motion: reduce` block)
     - `apps/web/src/components/StitchedPatient.tsx` with the props in the design: speech-bubble headroom band always reserved; a bubble only for text with a non-whitespace character, wrapped with `overflow-wrap: anywhere`; exactly one `<svg role="img" aria-label={statusSentence} viewBox="0 0 200 280">`; no `<image>`, no `href`, no `url(`, no `id`; static HR/RR rate icons (`slow`/`normal`/`fast`) with class `sp-rate-static`
@@ -389,7 +389,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 10.2, 10.5, 10.6, 10.7, 10.10, 10.11, 10.12, 11.2, 11.5, 11.6, 11.10_
 
-  - [ ] 10.6 Create `EndingScreen`
+  - [x] 10.6 Create `EndingScreen`
     - `apps/web/src/components/EndingScreen.tsx`: overlay starting at `top: var(--notice-h)` with a `z-index` below the Safety_Notice; dark background with an original inline-SVG corner cobweb (no ids); no moon or bats of its own, because the Avatar's scene already has the window, moon and bats; `<h2>` "Rescued" or "Lost"
     - `rescued`: "He's breathing again." and `StitchedPatient` with `endingSnapshot`, `variant="rescued"`; a "Rewind" control
     - `lost`: `StitchedPatient` with `variant="lost"` and a "Rewind and try again" button present in the first render

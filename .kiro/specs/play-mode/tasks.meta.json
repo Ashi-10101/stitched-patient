@@ -526,6 +526,25 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795227686968
       }
+    ],
+    "10.6 Create `EndingScreen`": [
+      {
+        "executionId": "31b3f9e5-44c0-4a38-b56b-ca146aca2f8c",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795228543210
+      },
+      {
+        "executionId": "31b3f9e5-44c0-4a38-b56b-ca146aca2f8c",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795228891492
+      }
+    ],
+    "10. Build the Play components": [
+      {
+        "executionId": "31b3f9e5-44c0-4a38-b56b-ca146aca2f8c",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795228891533
+      }
     ]
   }
 }

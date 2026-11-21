@@ -1028,7 +1028,7 @@ Every fill in the scene and the Quilt has a relative luminance no higher than th
 ### Ending screen (`EndingScreen.tsx`)
 
 - An overlay over the Play_View starting below the Safety_Notice (`top: var(--notice-h)`, `z-index` below the notice), so the notice is never covered (1.8, 7.9).
-- Dark background with an original moon, bats and a corner cobweb drawn as inline SVG (7.3, 7.4).
+- Dark background with an original corner cobweb drawn as inline SVG; no moon or bats of its own, because the Avatar's scene already has the window, moon and bats (7.3, 7.4).
 - Heading `<h2>` "Rescued" or "Lost" (11.11).
 - `rescued`: the text "He's breathing again." and `StitchedPatient` with `params = endingSnapshot`, `variant="rescued"` (7.3).
 - `lost`: `StitchedPatient` with `variant="lost"` and a "Rewind and try again" button visible from the first frame (7.4).
