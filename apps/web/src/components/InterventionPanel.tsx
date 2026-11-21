@@ -23,9 +23,38 @@ interface InterventionPanelProps {
    * the reason is shown as visible text below the buttons.
    */
   disabledReason?: string;
+  /**
+   * 'clinician' (default): the grey panel with its "Interventions" heading.
+   * 'play': no box and no heading; buttons styled like the Play view's Hint and
+   * Rewind buttons, and a disabled button is drawn like the exhausted Hint
+   * button (dashed border, lock icon) with "Not available right now" inside.
+   */
+  variant?: 'clinician' | 'play';
 }
 
 const clinicalLabel = (intervention: Intervention): string => intervention.label;
+
+const PLAY_BUTTON_CLASS =
+  'flex w-full items-start gap-2 whitespace-normal break-words rounded-lg border-2 border-[var(--sp-accent)] px-4 py-2 text-left text-base font-semibold text-[var(--sp-text)]';
+const PLAY_BUTTON_ENABLED_CLASS = 'hover:bg-[var(--sp-accent)] hover:text-[var(--sp-bg)]';
+const PLAY_BUTTON_DISABLED_CLASS = 'cursor-not-allowed border-dashed';
+
+/** Same drawing as the exhausted Hint button's lock (HintPanel); decorative only. */
+function PlayLockIcon() {
+  return (
+    <svg
+      data-part="intervention-lock"
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width={20}
+      height={20}
+      className="mt-0.5 shrink-0"
+    >
+      <rect x={5} y={11} width={14} height={10} rx={2} fill="none" stroke="currentColor" strokeWidth={2} />
+      <path d="M 8 11 V 7.5 a 4 4 0 0 1 8 0 V 11" fill="none" stroke="currentColor" strokeWidth={2} />
+    </svg>
+  );
+}
 
 export function InterventionPanel({
   interventions,
@@ -33,9 +62,33 @@ export function InterventionPanel({
   disabled = false,
   getLabel = clinicalLabel,
   disabledReason,
+  variant = 'clinician',
 }: InterventionPanelProps) {
   const hasReason = typeof disabledReason === 'string' && /\S/.test(disabledReason);
   const isDisabled = disabled || hasReason;
+
+  if (variant === 'play') {
+    return (
+      <div data-part="intervention-panel" className="flex flex-col gap-2 text-base text-[var(--sp-text)]">
+        {interventions.map((intervention) => (
+          <button
+            key={intervention.id}
+            type="button"
+            onClick={() => onApply(intervention.id)}
+            disabled={isDisabled}
+            className={`${PLAY_BUTTON_CLASS} ${isDisabled ? PLAY_BUTTON_DISABLED_CLASS : PLAY_BUTTON_ENABLED_CLASS}`}
+          >
+            {isDisabled && <PlayLockIcon />}
+            <span className="min-w-0">
+              {getLabel(intervention)}
+              {isDisabled && <span className="block text-base font-normal">{NOT_AVAILABLE_TEXT}</span>}
+            </span>
+          </button>
+        ))}
+        {hasReason && <p className="text-base">{disabledReason}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">

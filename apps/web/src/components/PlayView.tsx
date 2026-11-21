@@ -22,15 +22,16 @@
  *   Avatar is 136 (speech band) + 360 (drawing) = 496 px; StatusLine mt-3 (12)
  *   + two text-lg lines (49.5) = 61.5; total 557.5 <= 566.
  * - Action column (columns 2fr / 3fr, so about 734 px wide), gap-2 (8):
- *   GoalBar 56.75 + heading 28 + InterventionPanel (disabled, with reason) 266
- *   + Hint row 171 (Hint button 44 + 12 + three Hints in four lines 115)
- *   + 3 gaps 24 = 545.75 <= 566. With the buttons enabled the panel is 182 and
- *   the column 461.75.
+ *   GoalBar 56.75 + heading 28 + InterventionPanel (play variant, two disabled
+ *   buttons: 2 x (border 4 + py-2 16 + two 24 px lines) 68 + gap 8 = 144)
+ *   + Hint row 171 (Hint button 44 + 12 + three Hints in at most four
+ *   full-width lines 115) + 3 gaps 24 = 423.75 <= 566. With the buttons enabled
+ *   each is 44, the panel 96 and the column 375.75.
  */
 
 'use client';
 
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties } from 'react';
 import type { SimulationSession, SimulationSessionActions } from '@/hooks/useSimulationSession';
 import type { Ending } from '@/lib/endingEvaluator';
 import { playButtonText } from '@/lib/playCase';
@@ -105,7 +106,35 @@ export interface PlayViewProps {
   sim: Pick<SimulationSession, 'state' | 'statusSentence' | 'actions' | 'notices'>;
 }
 
-type RewindOrigin = 'view' | 'ending';
+/** Which Rewind button opened the Rewind_Panel. */
+export type RewindOrigin = 'view' | 'ending';
+
+/**
+ * Whether the Rewind_Panel is open and which button opened it. `origin` is kept
+ * on close, so the render that closes the panel still hands it the opener's
+ * ref and focus returns to that button (not to the main one behind the
+ * Ending_Screen).
+ */
+export interface RewindOpenerState {
+  open: boolean;
+  origin: RewindOrigin;
+}
+
+export type RewindOpenerEvent = { type: 'open'; origin: RewindOrigin } | { type: 'close' };
+
+export const initialRewindOpener: RewindOpenerState = { open: false, origin: 'view' };
+
+/** Pure: 'open' sets open and the origin; 'close' clears open and keeps the origin. */
+export function rewindPanelOpenerReducer(state: RewindOpenerState, event: RewindOpenerEvent): RewindOpenerState {
+  switch (event.type) {
+    case 'open':
+      return { open: true, origin: event.origin };
+    case 'close':
+      return state.open ? { open: false, origin: state.origin } : state;
+    default:
+      return state;
+  }
+}
 
 interface ToastMessage {
   id: number;
@@ -118,8 +147,7 @@ export function PlayView({ sim }: PlayViewProps) {
   const [forkPending, setForkPending] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const toastIdRef = useRef(0);
-  /** Which button opened the Rewind_Panel; null while it is closed. */
-  const [rewindOrigin, setRewindOrigin] = useState<RewindOrigin | null>(null);
+  const [opener, dispatchOpener] = useReducer(rewindPanelOpenerReducer, initialRewindOpener);
   const rewindButtonRef = useRef<HTMLButtonElement>(null);
   const endingRewindButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -166,9 +194,9 @@ export function PlayView({ sim }: PlayViewProps) {
   const rewindActions = useMemo<SimulationSessionActions>(() => ({ ...actions, fork }), [actions, fork]);
   const rewindSim = useMemo(() => ({ state, actions: rewindActions }), [state, rewindActions]);
 
-  const openRewindFromView = useCallback(() => setRewindOrigin('view'), []);
-  const openRewindFromEnding = useCallback(() => setRewindOrigin('ending'), []);
-  const closeRewind = useCallback(() => setRewindOrigin(null), []);
+  const openRewindFromView = useCallback(() => dispatchOpener({ type: 'open', origin: 'view' }), []);
+  const openRewindFromEnding = useCallback(() => dispatchOpener({ type: 'open', origin: 'ending' }), []);
+  const closeRewind = useCallback(() => dispatchOpener({ type: 'close' }), []);
   const showMonitor = useCallback(() => actions.selectView('clinician'), [actions]);
 
   const caseData = state.caseData;
@@ -217,27 +245,35 @@ export function PlayView({ sim }: PlayViewProps) {
 
           <h2 className="text-lg font-semibold">{WHAT_CAN_YOU_DO_TEXT}</h2>
 
-          {/* The panel's small "Not available right now" text is raised to 1rem in Play (11.8). */}
-          <div data-part="play-interventions" className="[&_.text-sm]:text-base">
+          {/* Each disabled button shows "Not available right now" itself, at 1rem (11.8, 11.11). */}
+          <div data-part="play-interventions">
             <InterventionPanel
+              variant="play"
               interventions={caseData.interventions}
               onApply={(id) => void handleIntervention(id)}
               getLabel={playButtonText}
               disabled={disabled}
-              disabledReason={disabled ? NOT_AVAILABLE_TEXT : undefined}
             />
           </div>
 
-          {/* Hint button and Rewind button share a row (design layout); the revealed
-              Hints follow the Hint button. The panel's own top margin is dropped here. */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 [&>[data-part=hint-panel]]:mt-0">
-            <HintPanel hints={play.hints} hintsRevealed={state.hintsRevealed} onReveal={actions.revealHint} />
+          {/* Hint button and Rewind button share a row with the same top (design layout).
+              The Hint panel spans both columns of row 1 and the Rewind button sits in
+              column 2 of the same row, so the revealed Hints, which start below the
+              Hint button (44 px + gap 12 px, the Rewind button is 44 px), run under both
+              buttons at full width. DOM and focus order stay Hint button, Hints, Rewind. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 [&>[data-part=hint-panel]]:col-span-2 [&>[data-part=hint-panel]]:col-start-1 [&>[data-part=hint-panel]]:row-start-1">
+            <HintPanel
+              hints={play.hints}
+              hintsRevealed={state.hintsRevealed}
+              onReveal={actions.revealHint}
+              noTopMargin
+            />
             <button
               ref={rewindButtonRef}
               type="button"
               data-control="rewind"
               onClick={openRewindFromView}
-              className={REWIND_BUTTON_CLASS}
+              className={`col-start-2 row-start-1 ${REWIND_BUTTON_CLASS}`}
             >
               <span aria-hidden="true">⟲</span>
               <span>{REWIND_BUTTON_TEXT}</span>
@@ -246,10 +282,16 @@ export function PlayView({ sim }: PlayViewProps) {
         </div>
       </div>
 
-      {toast !== null && <Toast key={toast.id} message={toast.message} onClose={closeToast} />}
-
-      {(notices.pauseFailed || streamStopped) && (
-        <div data-part="play-notices" className="fixed bottom-6 left-4 z-50 flex max-w-sm flex-col gap-2">
+      {/* One fixed stack, centred at the bottom, so the toast and the lasting notices
+          never overlap. The Toast positions itself as fixed; inside the stack it is
+          made static and its centring shift is cancelled. The toast sits above the
+          notices, so the lasting notices stay put when a toast appears. */}
+      {(toast !== null || notices.pauseFailed || streamStopped) && (
+        <div
+          data-part="play-messages"
+          className="fixed bottom-6 left-1/2 z-50 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col items-center gap-2 [&>[data-part=toast]]:static [&>[data-part=toast]]:translate-x-0"
+        >
+          {toast !== null && <Toast key={toast.id} message={toast.message} onClose={closeToast} />}
           {notices.pauseFailed && (
             <p role="status" className={NOTICE_CLASS}>
               {PAUSE_FAILED_TEXT}
@@ -275,9 +317,9 @@ export function PlayView({ sim }: PlayViewProps) {
       )}
 
       <RewindPanel
-        open={rewindOrigin !== null}
+        open={opener.open}
         sim={rewindSim}
-        rewindButtonRef={rewindOrigin === 'ending' ? endingRewindButtonRef : rewindButtonRef}
+        rewindButtonRef={opener.origin === 'ending' ? endingRewindButtonRef : rewindButtonRef}
         onClose={closeRewind}
       />
     </div>

@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { AlarmState, Intervention, PlaybackSpeed } from '@/types';
+import type { AlarmState, Hint, Intervention, PlaybackSpeed } from '@/types';
 import { getAlarmBgColor, getAlarmColor } from '@/lib/alarms';
 import { playButtonText } from '@/lib/playCase';
 import { VitalSign } from './VitalSign';
 import { InterventionPanel } from './InterventionPanel';
 import { PlaybackControls } from './PlaybackControls';
+import { HintPanel } from './HintPanel';
 
 const STATES: AlarmState[] = ['normal', 'warning', 'critical'];
 const SPEEDS: PlaybackSpeed[] = ['1x', '2x', '4x'];
@@ -212,5 +213,142 @@ describe('PlaybackControls', () => {
     expect(tokens.has('bg-[#FF7A1A]')).toBe(true);
     expect(tokens.has('bg-blue-600')).toBe(false);
     expect(tokens.has('bg-gray-800')).toBe(false);
+  });
+});
+
+describe('InterventionPanel variant="play"', () => {
+  /** Class tokens used only by the clinician panel. */
+  const CLINICIAN_TOKENS = [
+    'bg-gray-800',
+    'bg-gray-700',
+    'border-gray-700',
+    'hover:bg-gray-600',
+    'p-4',
+    'grid-cols-1',
+    'disabled:bg-gray-800',
+    'text-gray-300',
+  ];
+  const PLAY_NOT_AVAILABLE = '<span class="block text-base font-normal">Not available right now</span>';
+  const buttonTags = (html: string): string[] => [...html.matchAll(/<button[^>]*>/g)].map((m) => m[0]);
+  const tagTokens = (tag: string): string[] => /class="([^"]*)"/.exec(tag)?.[1].split(/\s+/) ?? [];
+  const text = (markup: string): string => markup.replace(/<[^>]+>/g, '');
+
+  const renderPlay = (props: { disabled?: boolean; disabledReason?: string } = {}) =>
+    renderToStaticMarkup(
+      <InterventionPanel
+        variant="play"
+        interventions={INTERVENTIONS}
+        onApply={noop}
+        getLabel={playButtonText}
+        {...props}
+      />,
+    );
+
+  it('has no heading and none of the clinician box classes', () => {
+    for (const props of [{}, { disabled: true }, { disabledReason: 'Waiting for the simulation' }]) {
+      const html = renderPlay(props);
+      expect(html).not.toContain('<h3');
+      expect(text(html)).not.toContain('Interventions');
+      const tokens = classTokens(html);
+      for (const t of CLINICIAN_TOKENS) expect(tokens.has(t)).toBe(false);
+    }
+  });
+
+  it('enabled: buttons in array order with getLabel text and the play button classes', () => {
+    const html = renderPlay();
+    expect(buttonBodies(html).map(text)).toEqual(INTERVENTIONS.map(playButtonText));
+    const tags = buttonTags(html);
+    expect(tags).toHaveLength(INTERVENTIONS.length);
+    for (const tag of tags) {
+      expect(tag).not.toContain('disabled=""');
+      const tokens = tagTokens(tag);
+      expect(tokens).toContain('border-[var(--sp-accent)]');
+      expect(tokens).toContain('text-left');
+      expect(tokens).toContain('w-full');
+      expect(tokens).not.toContain('border-dashed');
+    }
+    expect(html).not.toContain('intervention-lock');
+    expect(html).not.toContain('Not available right now');
+  });
+
+  it('disabled: each button is disabled, dashed, with a decorative lock and "Not available right now"', () => {
+    const html = renderPlay({ disabled: true });
+    const tags = buttonTags(html);
+    const bodies = buttonBodies(html);
+    expect(tags).toHaveLength(INTERVENTIONS.length);
+    tags.forEach((tag, k) => {
+      expect(tag).toContain('disabled=""');
+      expect(tagTokens(tag)).toContain('border-dashed');
+      expect(bodies[k]).toMatch(/<svg data-part="intervention-lock" aria-hidden="true"/);
+      expect(bodies[k]).toContain(PLAY_NOT_AVAILABLE);
+      expect(bodies[k].split('Not available right now')).toHaveLength(2);
+      expect(text(bodies[k])).toBe(`${playButtonText(INTERVENTIONS[k])}Not available right now`);
+    });
+    expect(html).not.toMatch(/<p[\s>]/);
+  });
+
+  it('disabledReason: shown once, below the buttons', () => {
+    const reason = 'Waiting for the simulation';
+    const html = renderPlay({ disabledReason: reason });
+    expect(html.split(reason)).toHaveLength(2);
+    expect(html.indexOf(reason)).toBeGreaterThan(html.lastIndexOf('</button>'));
+    expect(html).toContain(`<p class="text-base">${reason}</p>`);
+    for (const tag of buttonTags(html)) expect(tag).toContain('disabled=""');
+  });
+});
+
+describe('InterventionPanel default variant', () => {
+  it('renders byte-identical markup to variant="clinician"', () => {
+    const cases: Array<{ disabled?: boolean; disabledReason?: string }> = [
+      {},
+      { disabled: true },
+      { disabledReason: 'Waiting for the simulation' },
+    ];
+    for (const props of cases) {
+      for (const getLabel of [undefined, playButtonText]) {
+        const byDefault = renderToStaticMarkup(
+          <InterventionPanel interventions={INTERVENTIONS} onApply={noop} getLabel={getLabel} {...props} />,
+        );
+        const clinician = renderToStaticMarkup(
+          <InterventionPanel
+            variant="clinician"
+            interventions={INTERVENTIONS}
+            onApply={noop}
+            getLabel={getLabel}
+            {...props}
+          />,
+        );
+        expect(byDefault).toBe(clinician);
+      }
+    }
+  });
+});
+
+describe('HintPanel noTopMargin', () => {
+  const HINTS: Hint[] = [{ text: 'First hint' }, { text: 'Second hint' }, { text: 'Third hint' }];
+  const DEFAULT_ROOT_CLASS = 'mt-4 flex flex-col gap-3 text-base text-[var(--sp-text)]';
+  const rootClass = (html: string): string | undefined =>
+    /^<section data-part="hint-panel"[^>]*class="([^"]*)"/.exec(html)?.[1];
+  const renderHints = (hintsRevealed: number, noTopMargin?: boolean) =>
+    renderToStaticMarkup(
+      <HintPanel hints={HINTS} hintsRevealed={hintsRevealed} onReveal={noop} noTopMargin={noTopMargin} />,
+    );
+
+  it('default output is unchanged and equals noTopMargin={false}', () => {
+    for (const revealed of [0, 2, 3]) {
+      const byDefault = renderHints(revealed);
+      expect(rootClass(byDefault)).toBe(DEFAULT_ROOT_CLASS);
+      expect(renderHints(revealed, false)).toBe(byDefault);
+    }
+  });
+
+  it('noTopMargin drops only mt-4 from the root', () => {
+    for (const revealed of [0, 2, 3]) {
+      const byDefault = renderHints(revealed);
+      const flush = renderHints(revealed, true);
+      expect(rootClass(flush)?.split(/\s+/)).not.toContain('mt-4');
+      expect(rootClass(flush)).toBe('flex flex-col gap-3 text-base text-[var(--sp-text)]');
+      expect(flush).toBe(byDefault.replace(`class="${DEFAULT_ROOT_CLASS}"`, `class="${rootClass(flush)}"`));
+    }
   });
 });

@@ -17,6 +17,8 @@ import {
   WHAT_CAN_YOU_DO_TEXT,
   interventionDoneText,
   interventionsDisabled,
+  initialRewindOpener,
+  rewindPanelOpenerReducer,
 } from './PlayView';
 
 const SESSION: SessionMetadata = {
@@ -280,5 +282,117 @@ describe('PlayView', () => {
     expect(STREAM_STOPPED_TEXT).toBe('The simulation stopped. Please reload the page.');
     expect(WHAT_CAN_YOU_DO_TEXT).toBe('What can you do?');
     expect(render(build(...LOADED))).toContain(WHAT_CAN_YOU_DO_TEXT);
+  });
+});
+
+describe('rewindPanelOpenerReducer', () => {
+  it('starts closed with origin view', () => {
+    expect(initialRewindOpener).toEqual({ open: false, origin: 'view' });
+  });
+
+  it('open sets open and the origin', () => {
+    for (const origin of ['view', 'ending'] as const) {
+      expect(rewindPanelOpenerReducer(initialRewindOpener, { type: 'open', origin })).toEqual({ open: true, origin });
+    }
+  });
+
+  it('close keeps the origin', () => {
+    const opened = rewindPanelOpenerReducer(initialRewindOpener, { type: 'open', origin: 'ending' });
+    expect(rewindPanelOpenerReducer(opened, { type: 'close' })).toEqual({ open: false, origin: 'ending' });
+  });
+
+  it('close when already closed returns the same object', () => {
+    expect(rewindPanelOpenerReducer(initialRewindOpener, { type: 'close' })).toBe(initialRewindOpener);
+    const closedEnding = { open: false, origin: 'ending' } as const;
+    expect(rewindPanelOpenerReducer(closedEnding, { type: 'close' })).toBe(closedEnding);
+  });
+
+  it('a later open with view switches the origin', () => {
+    let s = rewindPanelOpenerReducer(initialRewindOpener, { type: 'open', origin: 'ending' });
+    s = rewindPanelOpenerReducer(s, { type: 'close' });
+    s = rewindPanelOpenerReducer(s, { type: 'open', origin: 'view' });
+    expect(s).toEqual({ open: true, origin: 'view' });
+  });
+});
+
+describe('PlayView messages stack, Intervention variant and Hint row', () => {
+  const STACK = 'data-part="play-messages"';
+  const count = (html: string, needle: string): number => html.split(needle).length - 1;
+
+  /** Markup of the single messages stack (it holds only <p> notices here; no toast in a static render). */
+  function stackOf(html: string): string {
+    const start = html.indexOf(STACK);
+    expect(start).toBeGreaterThanOrEqual(0);
+    return html.slice(start, html.indexOf('</div>', start));
+  }
+
+  const connected = build(...LOADED);
+  const disconnected = build(...LOADED, { type: 'connectionChanged', connected: false });
+
+  it('shows only the stream-stopped notice when only that condition holds', () => {
+    const html = render(disconnected, { streamError: 'closed', pauseFailed: false });
+    expect(count(html, STACK)).toBe(1);
+    const stack = stackOf(html);
+    expect(stack).toContain(STREAM_STOPPED_TEXT);
+    expect(html).not.toContain(PAUSE_FAILED_TEXT);
+  });
+
+  it('shows only the pause-failed notice when only pauseFailed holds', () => {
+    const html = render(connected, { pauseFailed: true, streamError: null });
+    expect(count(html, STACK)).toBe(1);
+    const stack = stackOf(html);
+    expect(stack).toContain(PAUSE_FAILED_TEXT);
+    expect(html).not.toContain(STREAM_STOPPED_TEXT);
+  });
+
+  it('shows both notices in the one stack when both conditions hold', () => {
+    const html = render(disconnected, { pauseFailed: true, streamError: 'closed' });
+    expect(count(html, STACK)).toBe(1);
+    const stack = stackOf(html);
+    expect(stack).toContain(PAUSE_FAILED_TEXT);
+    expect(stack).toContain(STREAM_STOPPED_TEXT);
+    expect(count(html, PAUSE_FAILED_TEXT)).toBe(1);
+    expect(count(html, STREAM_STOPPED_TEXT)).toBe(1);
+  });
+
+  it('renders no messages stack when no message shows', () => {
+    expect(render(connected)).not.toContain(STACK);
+    expect(render(disconnected)).not.toContain(STACK);
+  });
+
+  it('when disconnected, "Not available right now" appears once per Intervention button and nowhere else', () => {
+    const html = render(disconnected);
+    expect(count(html, NOT_AVAILABLE_TEXT)).toBe(CASE.interventions.length);
+    const buttons = interventionButtons(html);
+    expect(buttons).toHaveLength(CASE.interventions.length);
+    for (const b of buttons) {
+      expect(b).toMatch(/^<button[^>]*\sdisabled=""/);
+      expect(count(b, NOT_AVAILABLE_TEXT)).toBe(1);
+    }
+    expect(html).not.toMatch(new RegExp(`<p[\\s>][^<]*${NOT_AVAILABLE_TEXT}`));
+  });
+
+  it('uses the play variant of the InterventionPanel: no heading, no clinician box classes', () => {
+    for (const state of [connected, disconnected]) {
+      const html = render(state);
+      const start = html.indexOf('data-part="play-interventions"');
+      const wrapper = html.slice(start, html.indexOf('data-part="hint-panel"', start));
+      expect(wrapper).toContain('data-part="intervention-panel"');
+      expect(wrapper).not.toContain('<h3');
+      expect(textOf(wrapper)).not.toContain('Interventions');
+      const tokens = new Set(
+        [...wrapper.matchAll(/class="([^"]*)"/g)].flatMap((m) => m[1].split(/\s+/).filter(Boolean)),
+      );
+      for (const cls of ['bg-gray-800', 'bg-gray-700', 'border-gray-700', 'hover:bg-gray-600', 'p-4', 'grid-cols-1']) {
+        expect(tokens.has(cls)).toBe(false);
+      }
+    }
+  });
+
+  it('renders the HintPanel without its top margin (noTopMargin)', () => {
+    const html = render(connected);
+    const cls = /<section[^>]*data-part="hint-panel"[^>]*class="([^"]*)"/.exec(html)?.[1];
+    expect(cls).toBeDefined();
+    expect(cls?.split(/\s+/)).not.toContain('mt-4');
   });
 });

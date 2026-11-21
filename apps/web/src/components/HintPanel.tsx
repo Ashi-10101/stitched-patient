@@ -53,6 +53,11 @@ export interface HintPanelProps {
   hints: Hint[] | undefined;
   hintsRevealed: number;
   onReveal: () => void;
+  /**
+   * Drops the panel's own top margin (`mt-4`), so a parent can line the Hint
+   * button up with a neighbour. Omitted or false: unchanged output.
+   */
+  noTopMargin?: boolean;
 }
 
 function LockIcon() {
@@ -64,7 +69,7 @@ function LockIcon() {
   );
 }
 
-export function HintPanel({ hints, hintsRevealed, onReveal }: HintPanelProps) {
+export function HintPanel({ hints, hintsRevealed, onReveal, noTopMargin = false }: HintPanelProps) {
   if (!hints || hints.length === 0) return null;
 
   const shown = shownHintCount(hints, hintsRevealed);
@@ -72,7 +77,11 @@ export function HintPanel({ hints, hintsRevealed, onReveal }: HintPanelProps) {
   const exhausted = remaining === 0;
 
   return (
-    <section data-part="hint-panel" aria-label="Hints" className="mt-4 flex flex-col gap-3 text-base text-[var(--sp-text)]">
+    <section
+      data-part="hint-panel"
+      aria-label="Hints"
+      className={`${noTopMargin ? '' : 'mt-4 '}flex flex-col gap-3 text-base text-[var(--sp-text)]`}
+    >
       <button
         type="button"
         disabled={exhausted}
