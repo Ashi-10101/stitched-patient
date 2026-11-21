@@ -471,7 +471,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 3.2, 3.20, 3.21, 3.29, 3.30, 3.32, 3.34, 3.35, 3.36, 3.37, 3.38, 3.39, 3.40, 3.41, 3.42, 3.43, 3.44, 3.45, 3.46, 3.47, 3.48, 3.49, 3.50, 3.51, 3.52, 3.53, 3.54, 3.55, 3.56, 3.57, 3.58, 3.59, 3.60, 3.61, 3.62, 3.63, 3.64, 3.65, 3.66, 3.67, 3.68, 3.69, 12.15, 12.16_
     - _Properties: 8, 9, 22, 23_
 
-- [ ] 11. Wire the Play view and the session page
+- [x] 11. Wire the Play view and the session page
   - [x] 11.1 Create `PlayView`
     - `apps/web/src/components/PlayView.tsx`: the two-column layout from the design (`height: calc(100vh - var(--notice-h))`, `overflow: hidden` at widths ≥ 1024 px, stacked and scrolling below 1024 px), with `StitchedPatient`, `StatusLine`, `GoalBar`, `PlaybackControls variant="play"`, `InterventionPanel` with `getLabel = playButtonText`, `HintPanel`, Rewind button with `RewindPanel`, `Toast`s (success "Done: <button text>.", error "That didn't work. Please try again.", "The simulation could not be paused.", stream stopped "The simulation stopped. Please reload the page.") and `EndingScreen` while the Ending is not `none`. DOM order equals the visual and focus order in the design. Text at least `1rem`
     - Export the pure helper `interventionsDisabled({ connected, interventionPending, forkPending, ending })` and use it for the buttons
@@ -485,7 +485,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 5.1, 7.2, 7.7, 7.11, 8.1, 8.2, 8.3, 8.7, 8.8, 8.9, 8.10, 8.11, 10.1, 11.2, 11.3, 11.7, 11.8, 11.9_
 
-  - [ ] 11.2 Refactor `apps/web/src/app/session/[sessionId]/page.tsx`
+  - [x] 11.2 Refactor `apps/web/src/app/session/[sessionId]/page.tsx`
     - Replace the page body with the design's structure: `useSimulationSession(sessionId)` once; `SafetyNotice`; `ViewSwitcher` (Play availability and reason from the case state, disabled while loading); a loading indicator while the case loads; otherwise `PlayView` or `ClinicianView` from `state.view`
     - Keep the existing "Connecting to simulation..." screen while the Vitals_Stream is not open; it replaces only the view content
     - Remove the page-local state, effects and WebSocket code that the hook now owns, so the page opens exactly one Vitals_Stream. The Safety_Notice appears exactly once

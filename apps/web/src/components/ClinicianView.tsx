@@ -8,7 +8,7 @@
 
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getAlarmState } from '@/lib/alarms';
 import type { SessionUiState } from '@/lib/sessionState';
 import type { SimulationSession } from '@/hooks/useSimulationSession';
@@ -21,6 +21,11 @@ import { VitalSign } from './VitalSign';
 import { VitalsTrendChart } from './VitalsTrendChart';
 
 export const CASE_NOT_LOADED_TEXT = 'The case could not be loaded.';
+export const ACTION_ERROR_TEXT = "That didn't work. Please try again.";
+export const PAUSE_FAILED_TEXT = 'The simulation could not be paused.';
+
+/** Result of an Intervention or fork request from this view; 'skipped' means no request was sent. */
+export type ActionOutcome = 'ok' | 'error' | 'skipped';
 
 const NO_CHECKPOINTS: CheckpointMetadata[] = [];
 
@@ -56,6 +61,33 @@ export function forkFromTimeline(
   return true;
 }
 
+/**
+ * Forks at a Checkpoint of the current Branch, chosen on the Timeline, and
+ * waits for the result. Returns 'skipped' without calling `fork` when the
+ * Checkpoint is not in the current Branch's list; otherwise the outcome of
+ * `fork(checkpointId, simulation_time)`, or 'error' when it throws.
+ */
+export async function runTimelineFork(
+  state: SessionUiState,
+  fork: (checkpointId: string, forkTime: number) => Promise<'ok' | 'error'>,
+  checkpointId: string,
+): Promise<ActionOutcome> {
+  const forkTime = forkTimeFor(state, checkpointId);
+  if (forkTime === undefined) return 'skipped';
+  try {
+    return await fork(checkpointId, forkTime);
+  } catch {
+    return 'error';
+  }
+}
+
+/** Whether the action error box shows after an outcome: set on 'error', cleared on 'ok', unchanged on 'skipped'. */
+export function nextActionError(previous: boolean, outcome: ActionOutcome): boolean {
+  if (outcome === 'error') return true;
+  if (outcome === 'ok') return false;
+  return previous;
+}
+
 export interface ClinicianViewProps {
   sim: Pick<SimulationSession, 'state' | 'actions' | 'notices'>;
 }
@@ -64,24 +96,43 @@ export function ClinicianView({ sim }: ClinicianViewProps) {
   const { state, actions, notices } = sim;
   const { caseData, latestSample } = state;
   const [pending, setPending] = useState(false);
+  const [actionError, setActionError] = useState(false);
+
+  // State updates after an awaited request are skipped once the view is gone.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const recordOutcome = useCallback((outcome: ActionOutcome) => {
+    if (!mountedRef.current) return;
+    setActionError((previous) => nextActionError(previous, outcome));
+  }, []);
 
   const handleIntervention = useCallback(
     async (id: string) => {
       setPending(true);
+      let outcome: ActionOutcome = 'error';
       try {
-        await actions.applyIntervention(id);
+        outcome = await actions.applyIntervention(id);
+      } catch {
+        outcome = 'error';
       } finally {
-        setPending(false);
+        if (mountedRef.current) setPending(false);
       }
+      recordOutcome(outcome);
     },
-    [actions],
+    [actions, recordOutcome],
   );
 
   const handleFork = useCallback(
-    (checkpointId: string) => {
-      forkFromTimeline(state, actions.fork, checkpointId);
+    async (checkpointId: string) => {
+      recordOutcome(await runTimelineFork(state, actions.fork, checkpointId));
     },
-    [state, actions],
+    [state, actions, recordOutcome],
   );
 
   // Alarm colours need the case's thresholds and a real sample; otherwise the
@@ -118,6 +169,18 @@ export function ClinicianView({ sim }: ClinicianViewProps) {
         <div className="p-3 bg-red-500/10 border border-red-500 rounded text-red-400">
           {notices.streamError}
         </div>
+      )}
+
+      {actionError && (
+        <div role="alert" className="p-3 bg-red-500/10 border border-red-500 rounded text-red-400">
+          {ACTION_ERROR_TEXT}
+        </div>
+      )}
+
+      {notices.pauseFailed && (
+        <p role="status" className="p-3 bg-gray-800 border border-gray-700 rounded text-gray-300">
+          {PAUSE_FAILED_TEXT}
+        </p>
       )}
 
       <EndingBanner ending={state.ending.ending} onSelectView={actions.selectView} />
@@ -192,7 +255,7 @@ export function ClinicianView({ sim }: ClinicianViewProps) {
             branches={state.session?.branches ?? []}
             currentBranchId={state.currentBranchId ?? ''}
             checkpoints={currentCheckpoints(state)}
-            onFork={handleFork}
+            onFork={(checkpointId) => void handleFork(checkpointId)}
           />
         </div>
       </div>

@@ -396,3 +396,38 @@ describe('PlayView messages stack, Intervention variant and Hint row', () => {
     expect(cls?.split(/\s+/)).not.toContain('mt-4');
   });
 });
+
+describe('PlayView toolbarStart', () => {
+  const TOOLBAR = 'data-part="play-toolbar"';
+
+  function renderWith(state: SessionUiState, props: Partial<Pick<Parameters<typeof PlayView>[0], 'toolbarStart'>>): string {
+    return renderToStaticMarkup(
+      <PlayView
+        sim={{ state, statusSentence: null, actions: stubActions(), notices: { pauseFailed: false, streamError: null } }}
+        {...props}
+      />,
+    );
+  }
+
+  const state = build(...LOADED, { type: 'sampleReceived', sample: sample(10) });
+
+  it('renders toolbarStart inside the playback row, before the play button', () => {
+    const html = renderWith(state, { toolbarStart: <span data-test="tb">X</span> });
+    const toolbar = html.indexOf(TOOLBAR);
+    const start = html.indexOf('<span data-test="tb">X</span>');
+    const controlsWrapper = html.indexOf('<div class="min-w-0 flex-1">', toolbar);
+    const playButton = html.indexOf('aria-label="Play"');
+    expect(toolbar).toBeGreaterThan(html.indexOf('data-part="play-view"'));
+    expect(start).toBeGreaterThan(toolbar);
+    expect(controlsWrapper).toBeGreaterThan(start);
+    expect(playButton).toBeGreaterThan(controlsWrapper);
+  });
+
+  it('without toolbarStart renders no toolbar, the same as undefined or null', () => {
+    const without = renderWith(state, {});
+    expect(without).not.toContain(TOOLBAR);
+    expect(without).toContain('aria-label="Play"');
+    expect(renderWith(state, { toolbarStart: undefined })).toBe(without);
+    expect(renderWith(state, { toolbarStart: null })).toBe(without);
+  });
+});

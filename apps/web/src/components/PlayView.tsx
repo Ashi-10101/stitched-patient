@@ -31,7 +31,7 @@
 
 'use client';
 
-import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { SimulationSession, SimulationSessionActions } from '@/hooks/useSimulationSession';
 import type { Ending } from '@/lib/endingEvaluator';
 import { playButtonText } from '@/lib/playCase';
@@ -104,6 +104,12 @@ const NOTICE_CLASS =
 
 export interface PlayViewProps {
   sim: Pick<SimulationSession, 'state' | 'statusSentence' | 'actions' | 'notices'>;
+  /**
+   * Optional content at the start of the playback-controls row (e.g. the
+   * View_Switcher). When given, it and the playback controls share one flex
+   * row; when absent, the playback controls render exactly as before.
+   */
+  toolbarStart?: ReactNode;
 }
 
 /** Which Rewind button opened the Rewind_Panel. */
@@ -141,7 +147,7 @@ interface ToastMessage {
   message: string;
 }
 
-export function PlayView({ sim }: PlayViewProps) {
+export function PlayView({ sim, toolbarStart }: PlayViewProps) {
   const { state, actions, notices } = sim;
   const [interventionPending, setInterventionPending] = useState(false);
   const [forkPending, setForkPending] = useState(false);
@@ -214,19 +220,30 @@ export function PlayView({ sim }: PlayViewProps) {
   });
   const streamStopped = notices.streamError !== null && notices.streamError !== '' && !state.connected;
 
+  const playbackControls = (
+    <PlaybackControls
+      variant="play"
+      playing={state.playing}
+      speed={state.speed}
+      simulationTime={state.latestSample?.simulation_time ?? 0}
+      onPlayPause={() => void actions.setPlaying(!state.playing)}
+      onSpeedChange={(speed) => void actions.setSpeed(speed)}
+    />
+  );
+
   return (
     <div
       data-part="play-view"
       className="sp-play flex min-h-[calc(100vh-var(--notice-h))] flex-col gap-2 bg-[var(--sp-bg)] px-4 py-2 text-base text-[var(--sp-text)] lg:h-[calc(100vh-var(--notice-h))] lg:overflow-hidden"
     >
-      <PlaybackControls
-        variant="play"
-        playing={state.playing}
-        speed={state.speed}
-        simulationTime={state.latestSample?.simulation_time ?? 0}
-        onPlayPause={() => void actions.setPlaying(!state.playing)}
-        onSpeedChange={(speed) => void actions.setSpeed(speed)}
-      />
+      {toolbarStart === undefined || toolbarStart === null ? (
+        playbackControls
+      ) : (
+        <div data-part="play-toolbar" className="flex flex-wrap items-center gap-2">
+          {toolbarStart}
+          <div className="min-w-0 flex-1">{playbackControls}</div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div data-part="patient-column" className="flex min-w-0 flex-col">

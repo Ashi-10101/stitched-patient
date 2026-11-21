@@ -6,11 +6,15 @@ import type { SimulationSessionActions, SimulationSessionNotices } from '@/hooks
 import { CASE } from '@/test/caseFixtures';
 import type { SessionMetadata, VitalSigns } from '@/types';
 import {
+  ACTION_ERROR_TEXT,
   CASE_NOT_LOADED_TEXT,
   ClinicianView,
+  PAUSE_FAILED_TEXT,
   forkFromTimeline,
   forkTimeFor,
   interventionsDisabled,
+  nextActionError,
+  runTimelineFork,
 } from './ClinicianView';
 import { EndingBanner, openPlayView } from './EndingBanner';
 
@@ -246,5 +250,65 @@ describe('EndingBanner', () => {
     openPlayView(select);
     expect(select).toHaveBeenCalledTimes(1);
     expect(select).toHaveBeenCalledWith('play');
+  });
+});
+
+describe('nextActionError', () => {
+  it('is true after an error, false after ok, and unchanged after skipped', () => {
+    for (const previous of [false, true]) {
+      expect(nextActionError(previous, 'error')).toBe(true);
+      expect(nextActionError(previous, 'ok')).toBe(false);
+      expect(nextActionError(previous, 'skipped')).toBe(previous);
+    }
+  });
+});
+
+describe('runTimelineFork', () => {
+  const state = build(...LOADED);
+
+  it.each(['ok', 'error'] as const)('forks once at a known Checkpoint and returns its outcome (%s)', async (result) => {
+    const fork = vi.fn(async () => result);
+    await expect(runTimelineFork(state, fork, 'c1')).resolves.toBe(result);
+    expect(fork).toHaveBeenCalledTimes(1);
+    expect(fork).toHaveBeenCalledWith('c1', 42);
+  });
+
+  it('returns error when the fork throws', async () => {
+    const fork = vi.fn(async (): Promise<'ok' | 'error'> => {
+      throw new Error('network down');
+    });
+    await expect(runTimelineFork(state, fork, 'c1')).resolves.toBe('error');
+    expect(fork).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns skipped without forking for an unknown Checkpoint', async () => {
+    const fork = vi.fn(async () => 'ok' as const);
+    await expect(runTimelineFork(state, fork, 'missing')).resolves.toBe('skipped');
+    expect(fork).not.toHaveBeenCalled();
+  });
+});
+
+describe('ClinicianView action error and pause notice', () => {
+  const PAUSE_NOTICE = /<p role="status"[^>]*>The simulation could not be paused\.<\/p>/;
+
+  it('exports the spec texts', () => {
+    expect(ACTION_ERROR_TEXT).toBe("That didn't work. Please try again.");
+    expect(PAUSE_FAILED_TEXT).toBe('The simulation could not be paused.');
+  });
+
+  it('shows the pause notice only when notices.pauseFailed is true', () => {
+    const state = build(...LOADED, { type: 'sampleReceived', sample: sample(10) });
+    expect(render(state, { pauseFailed: true })).toMatch(PAUSE_NOTICE);
+    expect(render(state, { pauseFailed: false })).not.toContain(PAUSE_FAILED_TEXT);
+  });
+
+  it('shows no action error box before any action', () => {
+    // The role="alert" box with ACTION_ERROR_TEXT appears only after a failed
+    // Intervention or fork, which sets state inside the component. A static
+    // render cannot trigger that, so its behaviour is covered through
+    // nextActionError and runTimelineFork above, and here only its absence.
+    const html = render(build(...LOADED, { type: 'sampleReceived', sample: sample(10) }), { pauseFailed: true });
+    expect(html).not.toContain('role="alert"');
+    expect(html).not.toContain('That didn&#x27;t work. Please try again.');
   });
 });

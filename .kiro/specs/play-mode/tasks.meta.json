@@ -577,6 +577,25 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795230789808
       }
+    ],
+    "11.2 Refactor `apps/web/src/app/session/[sessionId]/page.tsx`": [
+      {
+        "executionId": "66e7d8fc-1e32-49ad-9d3a-8358886f01c7",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795231031007
+      },
+      {
+        "executionId": "66e7d8fc-1e32-49ad-9d3a-8358886f01c7",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795231569967
+      }
+    ],
+    "11. Wire the Play view and the session page": [
+      {
+        "executionId": "66e7d8fc-1e32-49ad-9d3a-8358886f01c7",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795231570045
+      }
     ]
   }
 }
