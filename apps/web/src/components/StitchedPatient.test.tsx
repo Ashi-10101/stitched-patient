@@ -850,7 +850,7 @@ describe('StitchedPatient stylesheet', () => {
   });
 });
 
-// Cohesive redraw checks (Requirements 3.34 to 3.56, 12.16, Property 23).
+// Cohesive redraw checks (Requirements 3.34 to 3.56 and 3.58 to 3.68, 12.16, Property 23).
 
 /**
  * Vertices of a shape: the end point of each command of an absolute
@@ -941,6 +941,31 @@ function halfOf(b: BBox): 'viewer-left' | 'viewer-right' | 'both' {
 }
 
 const describeEl = (e: Element) => `<${e.name} ${JSON.stringify(e.attrs)}>`;
+
+/**
+ * Sleeve_Hem_Centre of one arm group: the mean x of the vertices of its path
+ * and polygon shapes that lie within 0.5 units of a vertex of the gown panel
+ * in the same half (3.60).
+ */
+function sleeveHemCentreX(els: Element[], arm: Element): number {
+  const half = halfOf(groupBox(els, arm));
+  const gown = byPart(els, 'gown').filter((g) => halfOf(shapeBox(g)) === half);
+  expect(gown, `gown panel in the ${half} half`).toHaveLength(1);
+  const gownVertices = vertices(gown[0]);
+  const xs = descendants(els, arm)
+    .filter((e) => e.name === 'path' || e.name === 'polygon')
+    .flatMap((s) => vertices(s))
+    .filter(([x, y]) => gownVertices.some(([gx, gy]) => Math.hypot(x - gx, y - gy) <= 0.5))
+    .map(([x]) => x);
+  expect(xs.length, `${half} arm vertices on the sleeve hem`).toBeGreaterThanOrEqual(2);
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+/** Width of the head circle's chord at height y, or 0 outside the circle. */
+function headChord(cy: number, r: number, y: number): number {
+  const dy = y - cy;
+  return Math.abs(dy) >= r ? 0 : 2 * Math.sqrt(r * r - dy * dy);
+}
 
 /** Parts whose strokes (with their descendants') keep their own colour and width (3.34). */
 const OUTLINE_EXEMPT_PARTS = new Set([
@@ -1118,11 +1143,11 @@ const COHESION_RULES: Record<string, (c: CohesionCase) => void> = {
       const gown = gowns.filter((g) => halfOf(shapeBox(g)) === half);
       expect(gown, `gown panel in the ${half} half`).toHaveLength(1);
       const gownVertices = vertices(gown[0]);
-      const shapes = childrenOf(els, arm).filter((e) => e.name !== 'g' && e.attrs['data-part'] !== 'seam');
-      const joined = shapes.some(
-        (s) => vertices(s).filter(([x, y]) => gownVertices.some(([gx, gy]) => Math.hypot(x - gx, y - gy) <= 0.5)).length >= 2,
-      );
-      expect(joined, `${half} arm shares two vertices with its gown panel`).toBe(true);
+      const kids = childrenOf(els, arm);
+      expect(byPart(kids, 'forearm'), `${half} forearm`).toHaveLength(1);
+      const upperArm = only(kids, 'upper-arm');
+      const shared = vertices(upperArm).filter(([x, y]) => gownVertices.some(([gx, gy]) => Math.hypot(x - gx, y - gy) <= 0.5));
+      expect(shared.length, `${half} upper arm shares two vertices with its gown panel`).toBeGreaterThanOrEqual(2);
 
       const inside = descendants(els, arm);
       const seams = byPart(inside, 'seam').map((s) => groupBox(els, s));
@@ -1247,6 +1272,109 @@ const COHESION_RULES: Record<string, (c: CohesionCase) => void> = {
     }
     expect(unstitched.map((e) => e.attrs['data-patch']).sort()).toEqual(SKIN_PATCH_NAMES);
   },
+
+  'soft chest stroke when normal, dashed orange outline when swollen (3.58, 3.59)': ({ els, params }) => {
+    for (const side of SIDES) {
+      const chests = els.filter(
+        (e) => e.attrs['data-side'] === side && (e.attrs['data-part'] === 'chest' || e.attrs['data-part'] === 'chest-swollen'),
+      );
+      expect(chests).toHaveLength(1);
+      const chest = chests[0];
+      if (params.swollenSides.includes(side)) {
+        expect(chest.attrs['data-part'], side).toBe('chest-swollen');
+        expect(chest.attrs.stroke, `${side} swollen stroke`).toBe('#FF7A1A');
+        expect(num(chest, 'stroke-width'), `${side} swollen stroke width`).toBe(2);
+        expect(chest.attrs['stroke-dasharray'], `${side} swollen dash`).toBe('4 3');
+      } else {
+        expect(chest.attrs['data-part'], side).toBe('chest');
+        expect(chest.attrs.stroke, `${side} chest stroke`).toBe(SKIN_PALETTES[params.skinTone].shade);
+        expect(num(chest, 'stroke-width'), `${side} chest stroke width`).toBe(1);
+        expect('stroke-dasharray' in chest.attrs, `${side} chest has no dash`).toBe(false);
+      }
+    }
+  },
+
+  'arms bent at the elbow, mittens inward, inward shapes below the chest region (3.60, 3.61)': ({ els }) => {
+    const arms = byPart(els, 'arm');
+    expect(arms).toHaveLength(2);
+    const chestBottom = CHEST_REGION.y + CHEST_REGION.height;
+    for (const arm of arms) {
+      const half = halfOf(groupBox(els, arm));
+      expect(half, 'arm in one half').not.toBe('both');
+      const hemX = sleeveHemCentreX(els, arm);
+      const mitten = only(descendants(els, arm), 'mitten');
+      const mb = groupBox(els, mitten);
+      const mittenX = (mb.minX + mb.maxX) / 2;
+      expect(Math.abs(hemX - 100) - Math.abs(mittenX - 100), `${half} mitten x ${mittenX} vs hem x ${hemX}`).toBeGreaterThanOrEqual(12);
+
+      const inward = descendants(els, arm)
+        .filter((e) => e.name !== 'g')
+        .filter((s) => (half === 'viewer-left' ? shapeBox(s).maxX >= 43 : shapeBox(s).minX <= 157));
+      expect(inward.length, `${half} arm reaches inward`).toBeGreaterThan(0);
+      for (const s of inward) expect(shapeBox(s).minY, `${describeEl(s)} top`).toBeGreaterThan(chestBottom);
+    }
+  },
+
+  'patchwork quilt with varied widths and fold shades (3.62, 3.63)': ({ els }) => {
+    const quilt = only(els, 'quilt');
+    const inQuilt = descendants(els, quilt);
+    const patches = byPart(inQuilt, 'quilt-patch');
+    expect(patches.length).toBeGreaterThanOrEqual(12);
+    const widths = new Set(patches.map((p) => {
+      const b = shapeBox(p);
+      return b.maxX - b.minX;
+    }));
+    expect(widths.size, `patch widths ${[...widths].join(', ')}`).toBeGreaterThanOrEqual(3);
+    const folds = byPart(inQuilt, 'shade').filter((s) => {
+      if (s.name !== 'path' || s.attrs.fill !== QUILT_SHADE || !/[QC]/.test(s.attrs.d ?? '')) return false;
+      const b = shapeBox(s);
+      return b.maxX - b.minX >= 60 && b.minY >= 204;
+    });
+    expect(folds.length, 'Quilt_Fold_Shades').toBeGreaterThanOrEqual(2);
+  },
+
+  'beanie pulled over the head top with a brim as wide as the head (3.64, 3.65)': ({ els }) => {
+    const head = only(els, 'head');
+    const [cy, r] = [num(head, 'cy'), num(head, 'r')];
+    const hatGroup = only(els, 'hat');
+    const hat = groupBox(els, hatGroup);
+    expect(hat.maxY, 'hat bottom at most y 38').toBeLessThanOrEqual(38);
+    expect(hat.maxY, 'hat bottom 14 below the head top').toBeGreaterThanOrEqual(cy - r + 14);
+    const brims = byPart(els, 'brim');
+    expect(brims).toHaveLength(1);
+    expect(brims[0].ancestors.some((a) => a.attrs === hatGroup.attrs), 'brim in the hat').toBe(true);
+    const b = shapeBox(brims[0]);
+    expect(b.maxX - b.minX, `brim ${JSON.stringify(b)} vs head chord`).toBeGreaterThanOrEqual(headChord(cy, r, b.maxY));
+  },
+
+  'nothing hidden under the hat or the hair (3.66, 3.67)': ({ els, params }) => {
+    const hat = asLayout(groupBox(els, only(els, 'hat')));
+    const drops = byPart(els, 'sweat');
+    expect(drops).toHaveLength(params.sweating ? 3 : 0);
+    for (const d of drops) expect(boxDisjoint(shapeBox(d), hat), `sweat ${describeEl(d)} clear of the hat`).toBe(true);
+    const locks = byPart(els, 'hair-lock').map((l) => asLayout(groupBox(els, l)));
+    expect(locks.length).toBeGreaterThan(0);
+    const stitches = byPart(els, 'stitch');
+    expect(stitches.length).toBeGreaterThanOrEqual(3);
+    for (const st of stitches) {
+      const sb = groupBox(els, st);
+      expect(boxDisjoint(sb, hat), `stitch ${JSON.stringify(sb)} clear of the hat`).toBe(true);
+      for (const l of locks) expect(boxDisjoint(sb, l), `stitch ${JSON.stringify(sb)} clear of lock ${JSON.stringify(l)}`).toBe(true);
+    }
+  },
+
+  'fuller side hair, at least two locks per half below the hat (3.68)': ({ els }) => {
+    const hatBottom = groupBox(els, only(els, 'hat')).maxY;
+    const boxes = byPart(els, 'hair-lock').map((l) => groupBox(els, l));
+    for (const [half, inHalf] of [
+      ['viewer-left', (x: number) => x < 100],
+      ['viewer-right', (x: number) => x > 100],
+    ] as const) {
+      const locks = boxes.filter((b) => inHalf((b.minX + b.maxX) / 2));
+      expect(locks.length, `${half} hair locks`).toBeGreaterThanOrEqual(4);
+      expect(locks.filter((b) => b.maxY > hatBottom).length, `${half} locks below the hat`).toBeGreaterThanOrEqual(2);
+    }
+  },
 };
 
 describe('StitchedPatient cohesive illustration (12.16)', () => {
@@ -1275,6 +1403,7 @@ describe('StitchedPatient cohesive illustration (12.16)', () => {
     expect(new Set(CASES.map((c) => c.params.skinTone))).toEqual(new Set(TONES));
     expect(new Set(CASES.map((c) => c.expression))).toEqual(new Set(['calm', 'worried', 'alarmed', 'joyful', 'sleepy']));
     expect(new Set(CASES.map((c) => c.params.swollenSides.length))).toEqual(new Set([0, 2]));
+    expect(new Set(CASES.map((c) => c.params.sweating)), 'with and without sweat (3.66)').toEqual(new Set([false, true]));
   });
 
   it.each(Object.keys(COHESION_RULES))('%s', (rule) => {
@@ -1473,7 +1602,7 @@ describe('StitchedPatient properties', () => {
   });
 
   // Feature: play-mode, Property 23: The Avatar is one cohesive illustration
-  /** **Validates: Requirements 3.2, 3.20, 3.29, 3.34, 3.35, 3.36, 3.37, 3.38, 3.39, 3.40, 3.41, 3.42, 3.43, 3.44, 3.45, 3.46, 3.47, 3.49, 3.50, 3.51, 3.52, 3.53, 3.54, 3.55, 3.56** */
+  /** **Validates: Requirements 3.2, 3.20, 3.29, 3.34, 3.35, 3.36, 3.37, 3.38, 3.39, 3.40, 3.41, 3.42, 3.43, 3.44, 3.45, 3.46, 3.47, 3.49, 3.50, 3.51, 3.52, 3.53, 3.54, 3.55, 3.56, 3.58, 3.59, 3.60, 3.61, 3.62, 3.63, 3.64, 3.65, 3.66, 3.67, 3.68** */
   it('Property 23: The Avatar is one cohesive illustration', () => {
     fc.assert(
       fc.property(arbAvatarParameters, arbVariant, (params, variant) => {

@@ -152,8 +152,8 @@ export interface LayoutBox {
 export const FACE_FEATURE_BOX: LayoutBox = { x: 72, y: 52, width: 56, height: 48 };
 /** Chest_Region: chest halves, swollen outlines, needles and bandages (x 40–160, y 112–184). */
 export const CHEST_REGION: LayoutBox = { x: 40, y: 112, width: 120, height: 72 };
-/** Hat on the head (x 70–130, y 2–32). */
-export const HAT_BOX: LayoutBox = { x: 70, y: 2, width: 60, height: 30 };
+/** Beanie pulled down over the top of the head (x 60–140, y 0–38) (3.43, 3.64). */
+export const HAT_BOX: LayoutBox = { x: 60, y: 0, width: 80, height: 38 };
 /** Bats inside the window glass, each over the moon: x 10–30, y 30–42 and x 28–48, y 14–26 (3.54). */
 export const BAT_BOXES: readonly [LayoutBox, LayoutBox] = [
   { x: 10, y: 30, width: 20, height: 12 },
@@ -217,11 +217,14 @@ const HEAD_STITCHES: readonly { x: number; y: number }[] = [
   { x: 79, y: 92 },
 ];
 
-/** Sweat drop centres on the forehead. */
+/**
+ * Sweat drop centres on the forehead. Each drop box spans x ± 4 and y − 5 to
+ * y + 3, so every drop starts at y ≥ 39, below HAT_BOX (bottom y 38) (3.66).
+ */
 const SWEAT_DROPS: readonly { x: number; y: number }[] = [
   { x: 76, y: 48 },
-  { x: 88, y: 38 },
-  { x: 124, y: 40 },
+  { x: 88, y: 44 },
+  { x: 124, y: 46 },
 ];
 
 function cssVars(vars: Record<string, string>): CSSProperties {
@@ -274,8 +277,11 @@ function SweatDrop({ x, y }: { x: number; y: number }) {
   );
 }
 
-/** Chest half for one side: the swollen outline when the side is swollen (4.17). */
-function ChestHalf({ side, swollen, fill }: { side: Side; swollen: boolean; fill: string }) {
+/**
+ * Chest half for one side: the swollen outline when the side is swollen (4.17,
+ * 3.59); otherwise a soft 1-unit stroke in the Skin_Tone's shade (3.58).
+ */
+function ChestHalf({ side, swollen, fill, stroke }: { side: Side; swollen: boolean; fill: string; stroke: string }) {
   const g = sideGeometry(side);
   const r = swollen ? g.swollenChest : g.chest;
   return (
@@ -288,7 +294,7 @@ function ChestHalf({ side, swollen, fill }: { side: Side; swollen: boolean; fill
       height={r.height}
       rx={12}
       fill={fill}
-      stroke={swollen ? AVATAR_COLOURS.swollenOutline : AVATAR_COLOURS.gown}
+      stroke={swollen ? AVATAR_COLOURS.swollenOutline : stroke}
       strokeWidth={swollen ? 2 : 1}
       strokeDasharray={swollen ? '4 3' : undefined}
     />
@@ -533,27 +539,44 @@ const identity = (x: number, y: number): [number, number] => [x, y];
 /** Mirror about the centre line x = 100. */
 const mirrorX = (x: number, y: number): [number, number] => [200 - x, y];
 
-/** Beanie rib lines across the brim (x, from y 25 to 31). */
-const BEANIE_RIBS: readonly number[] = [78, 86, 94, 102, 110, 118, 126];
+/** Beanie rib lines across the brim, as [x, y1, y2]; each lies inside the brim. */
+const BEANIE_RIBS: readonly (readonly [number, number, number])[] = [
+  [72, 26, 36],
+  [80, 25, 34],
+  [88, 24, 33],
+  [96, 23, 33],
+  [104, 23, 33],
+  [112, 24, 33],
+  [120, 25, 34],
+  [128, 26, 36],
+];
 /** Pumpkin ridges on the dome, ending under the brim. */
-const BEANIE_RIDGES: readonly string[] = ['M 90 13 Q 85 18 86 26', 'M 110 13 Q 115 18 114 26'];
+const BEANIE_RIDGES: readonly string[] = ['M 90 13 Q 82 20 84 25', 'M 110 13 Q 118 20 116 25'];
+/**
+ * Brim with rounded ends over the side hair (box x 62–138, y 18–38): upper
+ * edge from y 26 at the ends to y 22 in the middle, lower edge following the
+ * head's curve, y 38 at the ends and y 34 in the middle. At y 38 the head
+ * chord is x 67–133, so the brim covers it (3.65).
+ */
+const BEANIE_BRIM =
+  'M 66 38 Q 62 38 62 33 Q 62 27 68 26 Q 100 18 132 26 Q 138 27 138 33 Q 138 38 134 38 Q 100 30 66 38 Z';
 
 /**
- * A snug knitted pumpkin beanie on top of the head, inside HAT_BOX
- * (x 70–130, y 2–32): stem, dome, two ridges, brim and ribs. Its bottom
- * (y 32) is 10 units below the head top (y 22), so it sits on the head (3.43).
+ * A round knitted pumpkin beanie pulled down over the top of the head, inside
+ * HAT_BOX (x 60–140, y 0–38): stem, dome, two ridges, brim and ribs. Its
+ * bottom (y 38) is 16 units below the head top (y 22) (3.43, 3.64).
  */
 function Beanie() {
   return (
     <g data-part="hat">
-      <path d="M 97 2 L 103 2 L 102 12 L 98 12 Z" fill={BEANIE_STEM} {...OUTLINE} />
-      <path d="M 72 30 C 70 4 130 4 128 30 Z" fill={BEANIE} {...OUTLINE} />
+      <path d="M 97 0 L 103 0 L 102 13 L 98 13 Z" fill={BEANIE_STEM} {...OUTLINE} />
+      <path d="M 66 30 C 60 4 140 4 134 30 Z" fill={BEANIE} {...OUTLINE} />
       {BEANIE_RIDGES.map((d) => (
         <path key={d} d={d} fill="none" {...OUTLINE} />
       ))}
-      <rect x={70} y={24} width={60} height={8} rx={4} fill={BEANIE} {...OUTLINE} />
-      {BEANIE_RIBS.map((x) => (
-        <line key={x} x1={x} y1={25} x2={x} y2={31} {...OUTLINE} />
+      <path data-part="brim" d={BEANIE_BRIM} fill={BEANIE} {...OUTLINE} />
+      {BEANIE_RIBS.map(([x, y1, y2]) => (
+        <line key={x} x1={x} y1={y1} x2={x} y2={y2} {...OUTLINE} />
       ))}
     </g>
   );
@@ -567,17 +590,23 @@ const CHEEK_PATCH = 'M 60 80 Q 64 96 80 100 L 78 84 Z';
 const BACK_HAIR = 'M 60 46 Q 58 18 100 14 Q 142 18 140 46 L 132 40 Q 100 26 68 40 Z';
 
 /**
- * Curled yarn hair locks from under the brim: three on the viewer's left in
- * x 60–80, y 28–46 and three on the viewer's right in x 120–140, y 28–43.
- * All lie above FACE_FEATURE_BOX (y ≥ 52) and end below the brim (y 32) (3.44).
+ * Curled yarn hair locks from under the brim, fuller at the sides: four per
+ * half. Viewer's left boxes x 70–78 / y 33–40, x 58–66 / y 34–49,
+ * x 57–65 / y 36–56 and x 58–66 / y 37–62; the right half mirrors them
+ * (x → 200 − x). Every lock ends below the hat (y 38) (3.44, 3.68). The inner
+ * locks end at y 40, above the stitches at (118, 48) and (130, 47); the others
+ * lie in x ≤ 66 or x ≥ 134, so no lock touches a stitch, a sweat drop or
+ * FACE_FEATURE_BOX (3.67).
  */
 const HAIR_LOCKS: readonly string[] = [
-  'M 68 30 Q 60 36 61 42 Q 64 38 70 34 Z',
-  'M 72 28 Q 64 34 66 44 Q 70 40 74 32 Z',
-  'M 77 30 Q 71 37 74 46 Q 78 40 80 32 Z',
-  'M 123 30 Q 129 36 127 43 Q 122 39 120 32 Z',
-  'M 128 28 Q 136 34 134 42 Q 130 39 126 32 Z',
-  'M 132 30 Q 140 36 139 42 Q 136 38 130 34 Z',
+  'M 76 33 Q 70 36 71 40 Q 74 38 78 35 Z',
+  'M 66 34 Q 58 41 59 49 Q 62 43 66 39 Z',
+  'M 64 36 Q 57 46 59 56 Q 61 49 65 42 Z',
+  'M 66 37 Q 58 50 60 62 Q 62 54 66 46 Z',
+  'M 124 33 Q 130 36 129 40 Q 126 38 122 35 Z',
+  'M 134 34 Q 142 41 141 49 Q 138 43 134 39 Z',
+  'M 136 36 Q 143 46 141 56 Q 139 49 135 42 Z',
+  'M 134 37 Q 142 50 140 62 Q 138 54 134 46 Z',
 ];
 
 /** Viewer's-left gown panel: shoulder, short sleeve (hem (20, 150)–(42, 150)) and side; box x 18–90, y 108–196. */
@@ -608,16 +637,36 @@ const GOWN_DOTS: readonly { x: number; y: number }[] = [
 ];
 
 /**
- * Viewer's-left arm: forearm sharing the sleeve hem vertices (20, 150) and
- * (42, 150) (3.45), mitten and thumb from y 188, so every arm shape stays
- * clear of the chest boxes (swollen Right chest x 43–99, y 115–181) (3.46).
+ * Viewer's-left arm, bent at the elbow. The upper arm (box x 20–42, y 150–192)
+ * shares the sleeve hem vertices (20, 150) and (42, 150) (3.45) and ends left
+ * of the swollen Right chest (x 43–99). The forearm (x 22–52, y 186–204),
+ * mitten (x 48–74, y 186–210) and thumb (x 70–77, y 188–200) reach inward but
+ * start below CHEST_REGION (bottom y 184), so no arm shape touches a
+ * data-side box (3.46, 3.61). Mitten group centre x 62.5, 31.5 units inward of
+ * the Sleeve_Hem_Centre x 31 (3.60).
  */
-const FOREARM: readonly PathSegment[] = [['M', 20, 150], ['L', 42, 150], ['L', 40, 188], ['L', 22, 188], ['Z']];
+const UPPER_ARM: readonly PathSegment[] = [
+  ['M', 20, 150],
+  ['L', 42, 150],
+  ['L', 42, 180],
+  ['Q', 42, 192, 31, 192],
+  ['Q', 20, 192, 20, 180],
+  ['Z'],
+];
+const FOREARM: readonly PathSegment[] = [
+  ['M', 28, 188],
+  ['Q', 42, 186, 52, 190],
+  ['L', 52, 204],
+  ['Q', 40, 204, 30, 202],
+  ['Q', 22, 200, 24, 192],
+  ['Q', 25, 188, 28, 188],
+  ['Z'],
+];
 /** Arm seam along the sleeve hem, as a <line> so it carries no fill inside the hands Patch. */
 const ARM_SEAM = { x1: 20, y1: 150, x2: 42, y2: 150 } as const;
 const ARM_STITCH = { x: 31, y: 150 } as const;
-const MITTEN: readonly PathSegment[] = [['M', 20, 188], ['Q', 18, 206, 30, 206], ['Q', 42, 206, 40, 188], ['Z']];
-const THUMB: readonly PathSegment[] = [['M', 40, 192], ['Q', 46, 192, 44, 199], ['Q', 42, 201, 40, 199], ['Z']];
+const MITTEN: readonly PathSegment[] = [['M', 50, 190], ['Q', 48, 210, 61, 210], ['Q', 74, 210, 72, 192], ['Q', 61, 186, 50, 190], ['Z']];
+const THUMB: readonly PathSegment[] = [['M', 70, 192], ['Q', 76, 188, 77, 195], ['Q', 76, 200, 71, 199], ['Z']];
 
 /** One gown panel with its shades and print dots; `mirrored` draws the viewer's-right panel. */
 function GownPanel({ mirrored }: { mirrored: boolean }) {
@@ -636,7 +685,10 @@ function GownPanel({ mirrored }: { mirrored: boolean }) {
   );
 }
 
-/** One arm: forearm, seam with a cross-stitch at the sleeve hem, and a mitten hand. */
+/**
+ * One arm: upper arm, forearm (after the upper arm, so its rounded end shows as
+ * the elbow), seam with a cross-stitch at the sleeve hem, and a mitten hand.
+ */
 function Arm({ mirrored, skin, mitten }: { mirrored: boolean; skin: string; mitten: string }) {
   const map = mirrored ? mirrorX : identity;
   const [sx, sy] = map(ARM_STITCH.x, ARM_STITCH.y);
@@ -644,7 +696,8 @@ function Arm({ mirrored, skin, mitten }: { mirrored: boolean; skin: string; mitt
   const [x2, y2] = map(ARM_SEAM.x2, ARM_SEAM.y2);
   return (
     <g data-part="arm">
-      <path d={pathFrom(FOREARM, map)} fill={skin} {...OUTLINE} />
+      <path data-part="upper-arm" d={pathFrom(UPPER_ARM, map)} fill={skin} {...OUTLINE} />
+      <path data-part="forearm" d={pathFrom(FOREARM, map)} fill={skin} {...OUTLINE} />
       <line
         data-part="seam"
         x1={x1}
@@ -744,22 +797,22 @@ const FRECKLES: readonly { x: number; y: number }[] = [
   { x: 132, y: 79 },
 ];
 
-/** Checked-fabric lines inside the quilt patch x 52–100, y 200–240, ending 1 unit inside its edge. */
+/** Checked-fabric lines inside the row-2 quilt patch x 48–92, y 226–254, ending 1 unit inside its edge. */
 const FABRIC_CHECK_LINES: readonly (readonly [number, number, number, number])[] = [
-  [64, 201, 64, 239],
-  [76, 201, 76, 239],
-  [88, 201, 88, 239],
-  [53, 210, 99, 210],
-  [53, 220, 99, 220],
-  [53, 230, 99, 230],
+  [59, 227, 59, 253],
+  [70, 227, 70, 253],
+  [81, 227, 81, 253],
+  [49, 233, 91, 233],
+  [49, 240, 91, 240],
+  [49, 247, 91, 247],
 ];
 
-/** Striped-fabric lines inside the quilt patch x 100–148, y 240–280, ending 1 unit inside its edge. */
+/** Striped-fabric lines inside the row-3 quilt patch x 76–116, y 254–280, ending 1 unit inside its edge. */
 const FABRIC_STRIPE_LINES: readonly (readonly [number, number, number, number])[] = [
-  [101, 248, 147, 248],
-  [101, 256, 147, 256],
-  [101, 264, 147, 264],
-  [101, 272, 147, 272],
+  [77, 259, 115, 259],
+  [77, 264, 115, 264],
+  [77, 269, 115, 269],
+  [77, 274, 115, 274],
 ];
 
 function FabricLines({ part, lines }: { part: string; lines: readonly (readonly [number, number, number, number])[] }) {
@@ -825,27 +878,93 @@ function Scene() {
   );
 }
 
-/** Quilt patch grid: four columns by two rows, each 48 × 40, below the hem at y 200. */
-const QUILT_PATCHES: readonly { x: number; y: number; fill: string }[] = [200, 240].flatMap((y, row) =>
-  [4, 52, 100, 148].map((x, col) => ({ x, y, fill: QUILT_COLOURS[(col + row * 2) % QUILT_COLOURS.length] })),
-);
-/** Dashed seams on the hem fold and the grid lines. */
+/** Quilt rows below the hem at y 200: [top y, bottom y, [left x, right x, QUILT_COLOURS index][]]. */
+const QUILT_ROWS: readonly (readonly [number, number, readonly (readonly [number, number, number])[]])[] = [
+  [
+    200,
+    226,
+    [
+      [4, 40, 0],
+      [40, 84, 1],
+      [84, 124, 2],
+      [124, 160, 3],
+      [160, 196, 0],
+    ],
+  ],
+  [
+    226,
+    254,
+    [
+      [4, 48, 2],
+      [48, 92, 3],
+      [92, 140, 0],
+      [140, 196, 1],
+    ],
+  ],
+  [
+    254,
+    280,
+    [
+      [4, 36, 1],
+      [36, 76, 0],
+      [76, 116, 2],
+      [116, 156, 3],
+      [156, 196, 0],
+    ],
+  ],
+];
+/**
+ * Fourteen patches in three staggered rows, widths 32 to 56 (3.62); no two
+ * patches that share an edge have the same colour.
+ */
+const QUILT_PATCHES: readonly { x: number; y: number; width: number; height: number; fill: string }[] =
+  QUILT_ROWS.flatMap(([top, bottom, cells]) =>
+    cells.map(([left, right, colour]) => ({
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top,
+      fill: QUILT_COLOURS[colour],
+    })),
+  );
+/** Dashed seams on the hem and row lines and on every patch edge inside a row. */
 const QUILT_SEAMS: readonly string[] = [
   'M 4 200 H 196',
-  'M 4 240 H 196',
-  'M 52 200 V 280',
-  'M 100 200 V 280',
-  'M 148 200 V 280',
+  'M 4 226 H 196',
+  'M 4 254 H 196',
+  'M 40 200 V 226',
+  'M 84 200 V 226',
+  'M 124 200 V 226',
+  'M 160 200 V 226',
+  'M 48 226 V 254',
+  'M 92 226 V 254',
+  'M 140 226 V 254',
+  'M 36 254 V 280',
+  'M 76 254 V 280',
+  'M 116 254 V 280',
+  'M 156 254 V 280',
 ];
+/** Cross-stitches on the seams x 84 (row 1), x 140 (row 2) and x 156 (row 3). */
 const QUILT_STITCHES: readonly { x: number; y: number }[] = [
-  { x: 52, y: 220 },
-  { x: 148, y: 260 },
-  { x: 100, y: 240 },
+  { x: 84, y: 213 },
+  { x: 140, y: 240 },
+  { x: 156, y: 267 },
 ];
-/** Shade ellipses under the two mittens. */
+/**
+ * Quilt_Fold_Shades: thin curved crescents, each at least 60 wide with its top
+ * at y ≥ 204 (3.63). Fold 1 runs from the left edge to just below the left
+ * mitten (box x 6–78, y 206–222), fold 2 is its mirror image, fold 3 crosses
+ * the lower quilt (box x 30–170, y 252–266).
+ */
+const QUILT_FOLD_SHADES: readonly string[] = [
+  'M 6 214 Q 40 206 78 222 Q 40 212 6 218 Z',
+  'M 194 214 Q 160 206 122 222 Q 160 212 194 218 Z',
+  'M 30 266 Q 100 252 170 266 Q 100 258 30 266 Z',
+];
+/** Shade ellipses under the two mittens (rx 11, ry 2). */
 const MITTEN_SHADES: readonly { x: number; y: number }[] = [
-  { x: 30, y: 208 },
-  { x: 170, y: 208 },
+  { x: 61, y: 211 },
+  { x: 139, y: 211 },
 ];
 
 /**
@@ -869,11 +988,14 @@ function Quilt() {
           data-part="quilt-patch"
           x={p.x}
           y={p.y}
-          width={48}
-          height={40}
+          width={p.width}
+          height={p.height}
           fill={p.fill}
           {...outline}
         />
+      ))}
+      {QUILT_FOLD_SHADES.map((d) => (
+        <path key={d} data-part="shade" d={d} fill={QUILT_SHADE} />
       ))}
       <FabricLines part="fabric-check" lines={FABRIC_CHECK_LINES} />
       <FabricLines part="fabric-stripe" lines={FABRIC_STRIPE_LINES} />
@@ -892,7 +1014,7 @@ function Quilt() {
         <CrossStitch key={`${s.x},${s.y}`} x={s.x} y={s.y} />
       ))}
       {MITTEN_SHADES.map((m) => (
-        <ellipse key={m.x} data-part="shade" cx={m.x} cy={m.y} rx={10} ry={2} fill={QUILT_SHADE} />
+        <ellipse key={m.x} data-part="shade" cx={m.x} cy={m.y} rx={11} ry={2} fill={QUILT_SHADE} />
       ))}
     </g>
   );
@@ -1017,8 +1139,8 @@ export function StitchedPatient({ params, statusSentence, speech, variant = 'liv
               <path data-part="seam" d={CHEEK_PATCH} fill={palette.patches[2]} stroke={c.seam} strokeWidth={1.2} strokeDasharray="3 2" />
             </Patch>
 
-            {/* Shade under the beanie brim. */}
-            <path data-part="shade" d="M 74 32 Q 100 40 126 32 Z" fill={palette.shade} />
+            {/* Shade under the beanie brim: the brim's lower edge covers its upper curve (box x 68–132, y 30–38). */}
+            <path data-part="shade" d="M 68 38 Q 100 30 132 38 Q 100 36 68 38 Z" fill={palette.shade} />
 
             {/* Craft details; drawn before the stitches so every stitch stays on top. */}
             {BLUSH_CENTRES.map((b) => (
@@ -1049,7 +1171,13 @@ export function StitchedPatient({ params, statusSentence, speech, variant = 'liv
 
           {/* Side-specific chest elements: direct children of <svg>, no transforms here or on any ancestor. */}
           {SIDES.map((side) => (
-            <ChestHalf key={side} side={side} swollen={params.swollenSides.includes(side)} fill={palette.patches[1]} />
+            <ChestHalf
+              key={side}
+              side={side}
+              swollen={params.swollenSides.includes(side)}
+              fill={palette.patches[1]}
+              stroke={palette.shade}
+            />
           ))}
           {SIDES.filter((side) => params.decompressedSides.includes(side)).map((side) => (
             <DecompressionMarks key={side} side={side} />

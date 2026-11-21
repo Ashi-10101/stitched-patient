@@ -78,6 +78,8 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 - **IV_Region**: A rectangle in the Avatar's viewBox, defined as the design constant `IV_BOX`, that contains the IV pole, the IV bag and the IV tube
 - **Gown_Opening**: A rectangle in the Avatar's viewBox, defined as the design constant `GOWN_OPENING`, that spans the gap between the inner edges of the two chest halves over their height
 - **Conservative_Bounding_Box**: The smallest axis-aligned rectangle that contains every coordinate of a shape, including the control points of path curves, so that it is never smaller than the drawn shape
+- **Sleeve_Hem_Centre**: For one arm group, the mean x coordinate of the vertices of that group's shapes that lie within 0.5 viewBox units of a vertex of the gown panel in the same half, that is, the middle of the sleeve-hem join of Requirement 3.45
+- **Quilt_Fold_Shade**: A Shade_Shape inside the Quilt that is a `path` filled with the quilt shade colour, whose path data contains at least one `Q` or `C` command, and whose Conservative_Bounding_Box is at least 60 viewBox units wide with its top edge at or below y = 204, so that it lies across the quilt patches and not on the turned-down hem
 - **Skin_Tone**: One of `healthy`, `pale` or `cyanotic`. `cyanotic` means pale skin with blue lips
 - **Vital_Band**: The pair (Alarm_State, direction) for one vital sign. The direction is `low` or `high` when the Alarm_State is `warning` or `critical`, according to whether a low boundary or a high boundary was crossed. The direction is `none` when the Alarm_State is `normal`
 - **Overall_Status**: The most severe Alarm_State across the vital signs that have thresholds in the Case, with order `normal` < `warning` < `critical`
@@ -233,6 +235,18 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 55. THE Avatar SHALL give every fill colour inside the Avatar_Scene and the Quilt a relative luminance (WCAG 2.2 formula) no higher than the relative luminance of the darkest patch colour of the `healthy` Skin_Tone, so that the character stays the brightest part of the picture.
 56. WHILE the Avatar_Variant is `lost`, THE Avatar SHALL give the class `sp-unstitch` only to the skin piece groups (`data-part="patch"`: head, forehead, cheek and hands) and to no element inside the Avatar_Scene, the torso group or the Quilt.
 57. THE Avatar SHALL draw the character, the Avatar_Scene and the Quilt as one illustration lit from the window at the upper left, with every skin Shade_Shape on the viewer's-right side of, or below, the part it shades, verified through manual inspection during acceptance testing.
+58. WHILE a side is not in Swollen_Sides, THE Avatar SHALL draw that side's chest half (`data-part="chest"`) with a stroke equal to the current Skin_Tone's `shade` colour, a stroke width of 1 and no `stroke-dasharray` attribute, so that the two chest halves read as one torso with a soft centre line.
+59. WHILE a side is in Swollen_Sides, THE Avatar SHALL draw that side's chest half (`data-part="chest-swollen"`) with the stroke `#FF7A1A`, a stroke width of 2 and `stroke-dasharray="4 3"`, the values the swollen outline already uses.
+60. THE Avatar SHALL draw each arm group so that the x coordinate of the centre of its mitten hand's Conservative_Bounding_Box lies at least 12 viewBox units closer to x = 100 than the arm group's Sleeve_Hem_Centre, so that the arm bends at the elbow and the mitten rests on the Quilt in front of the belly.
+61. THE Avatar SHALL draw every shape element of the arm group in the viewer's left half whose Conservative_Bounding_Box reaches x = 43 or more, and every shape element of the arm group in the viewer's right half whose Conservative_Bounding_Box reaches x = 157 or less, with the top edge of that Conservative_Bounding_Box below y = 184, the bottom edge of the Chest_Region.
+62. THE Avatar SHALL draw the Quilt with at least twelve quilt patches (`data-part="quilt-patch"`) of at least three different widths.
+63. THE Avatar SHALL draw at least two Quilt_Fold_Shades inside the Quilt.
+64. THE Avatar SHALL draw the hat with a Conservative_Bounding_Box whose bottom edge has a y coordinate of at most 38 and lies at least 14 viewBox units below the top of the head circle, so that the hat covers the top of the head.
+65. THE Avatar SHALL draw, inside the hat group, exactly one brim (`data-part="brim"`) whose Conservative_Bounding_Box is at least as wide as the chord of the head circle at the y of that box's bottom edge.
+66. WHILE the sweat flag is true, THE Avatar SHALL draw every sweat drop (`data-part="sweat"`) with a Conservative_Bounding_Box disjoint from the hat's Conservative_Bounding_Box.
+67. THE Avatar SHALL draw every cross-stitch mark (`data-part="stitch"`) with a Conservative_Bounding_Box disjoint from the hat's Conservative_Bounding_Box and from the Conservative_Bounding_Box of every hair lock.
+68. THE Avatar SHALL draw at least four hair locks in each half of the viewBox, counted by the x coordinate of each lock's Conservative_Bounding_Box centre, and in each half at least two hair locks whose Conservative_Bounding_Box bottom edge lies below the bottom edge of the hat's Conservative_Bounding_Box.
+69. THE Avatar SHALL draw the arms bent at the elbow with the mittens resting on the Quilt, the Quilt as soft patchwork fabric with folds, and the beanie as a round knitted hat pulled down over the top of the head, with rounded brim ends over the side hair and a lower brim edge that follows the head's curve, verified through manual inspection during acceptance testing.
 
 ### Requirement 4: Avatar follows the live vitals
 
@@ -488,7 +502,7 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
    - exactly one `data-part="lips"` element in the Skin_Tone's lips colour for every Expression and every Skin_Tone;
    - no `id` attribute, gradient, `<pattern>`, `<clipPath>`, `<mask>`, `<filter>` or `<defs>` element in the markup;
    - a test that reads `apps/web/src/app/globals.css` and checks that the `prefers-reduced-motion: reduce` block stops every animation inside the Avatar, and that the classes `sp-blink`, `sp-tilt`, `sp-spark`, `sp-bat`, `sp-celebrate-bolt` and `sp-celebrate-heart` are defined, with an iteration count of 1 for the two celebration classes.
-16. THE web test suite SHALL include Vitest tests of the rendered Avatar markup for Requirements 3.34 to 3.56, run for every Skin_Tone, every Expression and both the normal and the swollen chest geometry, that cover each of these cases:
+16. THE web test suite SHALL include Vitest tests of the rendered Avatar markup for Requirements 3.34 to 3.56 and 3.58 to 3.68, run for every Skin_Tone, every Expression and both the normal and the swollen chest geometry, that cover each of these cases:
    - every stroked element outside the exempt parts uses the Outline_Colour and the Outline_Width, and the SVG element sets round line joins and caps that no descendant overrides (3.34);
    - the scene group is the first child of the SVG element and holds the window, moon, bats, IV pole, IV bag, IV tube, headboard and pillow in that order (3.35);
    - the Quilt comes after the torso, head-tilt, `data-side` and heart-hop elements, is followed only by the `hands` group, has at least four quilt patches with seams and stitches, and holds the checked and striped fabric looks inside quilt patches (3.29, 3.36, 3.37);
@@ -500,7 +514,12 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
    - the gown panels, the gown dots, the Gown_Opening and the skin-coloured chest halves (3.51 to 3.53);
    - both bats inside the Window_Region, after the moon and over it (3.54);
    - the relative luminance of every Avatar_Scene and Quilt fill (3.55);
-   - `sp-unstitch` only on the skin piece groups in the `lost` variant (3.56).
+   - `sp-unstitch` only on the skin piece groups in the `lost` variant (3.56);
+   - the normal chest-half stroke in the Skin_Tone's `shade` colour, width 1, with no dash, and the swollen chest-half stroke `#FF7A1A`, width 2, dash `4 3` (3.58, 3.59);
+   - each mitten centred at least 12 units closer to x = 100 than its Sleeve_Hem_Centre, and every arm shape that reaches x ≥ 43 (viewer's left) or x ≤ 157 (viewer's right) starting below y = 184 (3.60, 3.61);
+   - at least twelve quilt patches of at least three widths, and at least two Quilt_Fold_Shades (3.62, 3.63);
+   - the hat's bottom edge at y 36 to 38, and the brim at least as wide as the head chord at its bottom edge (3.64, 3.65);
+   - no sweat drop intersecting the hat, no cross-stitch mark intersecting the hat or a hair lock, and at least four hair locks per half with at least two per half below the hat (3.66 to 3.68).
 
 ### Requirement 13: Engine calibration of the Play thresholds
 
