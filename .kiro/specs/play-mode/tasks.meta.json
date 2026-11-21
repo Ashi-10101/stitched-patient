@@ -39,6 +39,10 @@
     "10.1 Create the `StitchedPatient` Avatar and its styles": {
       "status": "passed",
       "lastRunTimestamp": 1795195200984
+    },
+    "10.8 Redraw the Avatar as one cohesive scene": {
+      "status": "passed",
+      "lastRunTimestamp": 1795223633374
     }
   },
   "executionHistory": {
@@ -499,6 +503,18 @@
         "executionId": "ff48d3fe-2e1c-4172-904f-b169f7615853",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795220674528
+      }
+    ],
+    "10.8 Redraw the Avatar as one cohesive scene": [
+      {
+        "executionId": "c703f671-9d4f-4084-a8b2-a75cb880ce5f",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795222243431
+      },
+      {
+        "executionId": "c703f671-9d4f-4084-a8b2-a75cb880ce5f",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795223696565
       }
     ]
   }

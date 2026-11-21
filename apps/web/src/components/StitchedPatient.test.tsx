@@ -12,11 +12,18 @@ import {
   CHEST_REGION,
   expressionFor,
   FACE_FEATURE_BOX,
+  GOWN_OPENING,
+  GOWN_SHADE,
   HAT_BOX,
+  IV_BOX,
+  OUTLINE_COLOUR,
+  OUTLINE_WIDTH,
+  QUILT_SHADE,
   rateLabel,
   SPARK_BOXES,
   SKIN_PALETTES,
   StitchedPatient,
+  WINDOW_BOX,
   type AvatarVariant,
   type Expression,
   type LayoutBox,
@@ -718,9 +725,10 @@ describe('StitchedPatient dress-up, motion and craft details', () => {
     const tilted = within(els, 'head-tilt');
     const patches = tilted.filter((e) => e.attrs['data-part'] === 'patch').map((e) => e.attrs['data-patch']);
     expect(patches).toEqual(['head', 'forehead', 'cheek']);
-    for (const part of ['blush', 'freckle', 'plaster', 'sweat', 'hat', 'sparkle', 'stitch']) {
+    for (const part of ['blush', 'freckle', 'sweat', 'hat', 'sparkle', 'stitch']) {
       expect(tilted.some((e) => e.attrs['data-part'] === part), part).toBe(true);
     }
+    expect(byPart(els, 'plaster')).toHaveLength(0);
   });
 
   it.each(TONES)('draws the craft details with the %s blush colour', (skinTone) => {
@@ -729,27 +737,29 @@ describe('StitchedPatient dress-up, motion and craft details', () => {
     expect(blush).toHaveLength(2);
     for (const b of blush) expect(b.attrs.fill).toBe(SKIN_PALETTES[skinTone].blush);
     expect(byPart(els, 'freckle').length).toBeGreaterThanOrEqual(3);
-    expect(byPart(els, 'plaster')).toHaveLength(1);
+    expect(byPart(els, 'plaster')).toHaveLength(0);
 
-    const check = byPart(els, 'fabric-check');
-    expect(check).toHaveLength(1);
-    expect(check[0].ancestors.some((a) => a.attrs['data-part'] === 'patch' && a.attrs['data-patch'] === 'forehead')).toBe(true);
-    expect(descendants(els, check[0]).filter((e) => e.name === 'line').length).toBeGreaterThan(0);
-
-    const stripe = byPart(els, 'fabric-stripe');
-    expect(stripe).toHaveLength(1);
-    expect(stripe[0].ancestors.some((a) => a.attrs['data-part'] === 'patch' && a.attrs['data-patch'] === 'hands')).toBe(true);
-    expect(descendants(els, stripe[0]).filter((e) => e.name === 'line').length).toBeGreaterThan(0);
+    // The fabric looks sit on the Quilt, each inside exactly one quilt patch's box, on no skin Patch.
+    const quiltPatches = byPart(els, 'quilt-patch').map(shapeBox);
+    for (const part of ['fabric-check', 'fabric-stripe']) {
+      const look = byPart(els, part);
+      expect(look, part).toHaveLength(1);
+      expect(look[0].ancestors.some((a) => a.attrs['data-part'] === 'quilt'), `${part} in the quilt`).toBe(true);
+      expect(look[0].ancestors.some((a) => a.attrs['data-part'] === 'patch'), `${part} on a skin Patch`).toBe(false);
+      const lines = descendants(els, look[0]).filter((e) => e.name === 'line');
+      expect(lines.length).toBeGreaterThan(0);
+      const b = unionBox(lines);
+      const holders = quiltPatches.filter(
+        (q) => b.minX >= q.minX && b.maxX <= q.maxX && b.minY >= q.minY && b.maxY <= q.maxY,
+      );
+      expect(holders, `${part} ${JSON.stringify(b)} inside one quilt patch`).toHaveLength(1);
+    }
   });
 
-  it('keeps blush, freckles and plaster inside the head circle', () => {
+  it('keeps blush and freckles inside the head circle', () => {
     const els = parse(render());
-    const shapes = [
-      ...byPart(els, 'blush'),
-      ...byPart(els, 'freckle'),
-      ...descendants(els, byPart(els, 'plaster')[0]).filter((e) => e.name !== 'g'),
-    ];
-    expect(shapes.length).toBeGreaterThanOrEqual(2 + 3 + 1);
+    const shapes = [...byPart(els, 'blush'), ...byPart(els, 'freckle')];
+    expect(shapes.length).toBeGreaterThanOrEqual(2 + 3);
     for (const s of shapes) {
       expect(insideHeadCircle(s), `<${s.name} ${JSON.stringify(s.attrs)}> inside the head`).toBe(true);
     }
@@ -837,6 +847,449 @@ describe('StitchedPatient stylesheet', () => {
       expect(used.has(c), c).toBe(true);
     }
     for (const c of used) expect(CSS, c).toMatch(new RegExp(`\\.${escapeRe(c)}(?![\\w-])`));
+  });
+});
+
+// Cohesive redraw checks (Requirements 3.34 to 3.56, 12.16, Property 23).
+
+/**
+ * Vertices of a shape: the end point of each command of an absolute
+ * M/L/H/V/Q/C/Z path (control points skipped), or the points of a polygon.
+ */
+function vertices(el: Element): [number, number][] {
+  if (el.name === 'polygon' || el.name === 'polyline') {
+    const v = (el.attrs.points ?? '').trim().split(/[\s,]+/).map(Number);
+    if (v.length < 2 || v.length % 2 !== 0 || v.some((n) => !Number.isFinite(n))) throw new Error(`bad points on <${el.name}>`);
+    const pts: [number, number][] = [];
+    for (let k = 0; k < v.length; k += 2) pts.push([v[k], v[k + 1]]);
+    return pts;
+  }
+  if (el.name !== 'path') throw new Error(`no vertex reader for <${el.name}>`);
+  const d = el.attrs.d ?? '';
+  const tokens = d.match(/[A-Za-z]|-?(?:\d+\.?\d*|\.\d+)(?:e-?\d+)?/g) ?? [];
+  const out: [number, number][] = [];
+  let cmd = '';
+  let cur: [number, number] = [0, 0];
+  let i = 0;
+  const next = (): number => {
+    const v = Number(tokens[i++]);
+    if (!Number.isFinite(v)) throw new Error(`bad path data: ${d}`);
+    return v;
+  };
+  while (i < tokens.length) {
+    if (/[A-Za-z]/.test(tokens[i])) {
+      cmd = tokens[i++];
+      if (cmd === 'Z') continue;
+    }
+    if (cmd === 'H') cur = [next(), cur[1]];
+    else if (cmd === 'V') cur = [cur[0], next()];
+    else if (cmd === 'M' || cmd === 'L') cur = [next(), next()];
+    else if (cmd === 'Q') {
+      next();
+      next();
+      cur = [next(), next()];
+    } else if (cmd === 'C') {
+      for (let k = 0; k < 4; k += 1) next();
+      cur = [next(), next()];
+    } else throw new Error(`unsupported path command ${cmd} in ${d}`);
+    out.push(cur);
+  }
+  return out;
+}
+
+/** Relative luminance of a #RRGGBB colour (WCAG 2.2). */
+function relativeLuminance(hex: string): number {
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) throw new Error(`not a hex colour: ${hex}`);
+  const [r, g, b] = [m[1], m[2], m[3]].map((h) => {
+    const c = parseInt(h, 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function asLayout(b: BBox): LayoutBox {
+  return { x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY };
+}
+
+/** Direct children of one parsed element. */
+function childrenOf(els: Element[], group: Element): Element[] {
+  return els.filter((e) => e.ancestors[e.ancestors.length - 1]?.attrs === group.attrs);
+}
+
+/** Box of a group (or a single shape) and every shape inside it. */
+function groupBox(els: Element[], group: Element): BBox {
+  return unionBox([group, ...descendants(els, group)]);
+}
+
+function svgOf(els: Element[]): Element {
+  const svgs = els.filter((e) => e.name === 'svg');
+  expect(svgs).toHaveLength(1);
+  return svgs[0];
+}
+
+function only(els: Element[], part: string): Element {
+  const found = byPart(els, part);
+  expect(found, part).toHaveLength(1);
+  return found[0];
+}
+
+function halfOf(b: BBox): 'viewer-left' | 'viewer-right' | 'both' {
+  if (b.maxX <= 100) return 'viewer-left';
+  if (b.minX >= 100) return 'viewer-right';
+  return 'both';
+}
+
+const describeEl = (e: Element) => `<${e.name} ${JSON.stringify(e.attrs)}>`;
+
+/** Parts whose strokes (with their descendants') keep their own colour and width (3.34). */
+const OUTLINE_EXEMPT_PARTS = new Set([
+  'face',
+  'seam',
+  'stitch',
+  'heart',
+  'fabric-check',
+  'fabric-stripe',
+  'spark',
+  'sparkle',
+  'iv-tube',
+  'sweat',
+]);
+const outlineExempt = (n: { attrs: Record<string, string> }) =>
+  'data-side' in n.attrs || OUTLINE_EXEMPT_PARTS.has(n.attrs['data-part'] ?? '');
+
+const SCENE_ORDER = ['window', 'moon', 'bat', 'bat', 'iv-pole', 'iv-bag', 'iv-tube', 'headboard', 'pillow'];
+const SKIN_PATCH_NAMES = ['cheek', 'forehead', 'hands', 'head'];
+
+interface CohesionCase {
+  label: string;
+  params: AvatarParameters;
+  variant: AvatarVariant;
+  expression: Expression;
+  els: Element[];
+}
+
+function cohesionCase(params: AvatarParameters, variant: AvatarVariant, label: string): CohesionCase {
+  return {
+    label,
+    params,
+    variant,
+    expression: EXPECTED_EXPRESSION[variant][params.overallStatus],
+    els: parse(renderToStaticMarkup(<StitchedPatient params={params} statusSentence="Status." variant={variant} />)),
+  };
+}
+
+/** One check per rule group of Requirement 12.16; Property 23 runs all of them. */
+const COHESION_RULES: Record<string, (c: CohesionCase) => void> = {
+  'one outline style and round joins and caps (3.34)': ({ els }) => {
+    const svg = svgOf(els);
+    expect(svg.attrs['stroke-linejoin']).toBe('round');
+    expect(svg.attrs['stroke-linecap']).toBe('round');
+    let outlined = 0;
+    for (const e of descendants(els, svg)) {
+      for (const k of ['stroke-linejoin', 'stroke-linecap']) {
+        if (k in e.attrs) expect(e.attrs[k], `${k} on ${describeEl(e)}`).toBe('round');
+      }
+      const stroke = e.attrs.stroke;
+      if (stroke === undefined || stroke === 'none') continue;
+      if (outlineExempt(e) || e.ancestors.some(outlineExempt)) continue;
+      outlined += 1;
+      expect(stroke, describeEl(e)).toBe(OUTLINE_COLOUR);
+      expect(Number(e.attrs['stroke-width']), describeEl(e)).toBe(OUTLINE_WIDTH);
+    }
+    expect(outlined).toBeGreaterThan(0);
+  },
+
+  'scene group first, holding its parts in order (3.35)': ({ els }) => {
+    const scene = only(els, 'scene');
+    expect(scene.name).toBe('g');
+    expect(childrenOf(els, svgOf(els))[0]?.attrs, 'first child of <svg>').toBe(scene.attrs);
+    const parts = childrenOf(els, scene)
+      .map((e) => e.attrs['data-part'])
+      .filter((p): p is string => p !== undefined && SCENE_ORDER.includes(p));
+    expect(parts).toEqual(SCENE_ORDER);
+    for (const p of new Set(SCENE_ORDER)) {
+      for (const e of byPart(els, p)) expect(e.ancestors.some((a) => a.attrs === scene.attrs), `${p} in the scene`).toBe(true);
+    }
+  },
+
+  'quilt group after the character and before the hands, with patches, seams, stitches and fabrics (3.29, 3.36, 3.37)': ({ els }) => {
+    const quilt = only(els, 'quilt');
+    expect(quilt.name).toBe('g');
+    const kids = childrenOf(els, svgOf(els));
+    const qi = kids.findIndex((k) => k.attrs === quilt.attrs);
+    expect(qi, 'quilt is a direct child of <svg>').toBeGreaterThanOrEqual(0);
+    const at = els.indexOf(quilt);
+    const before = [only(els, 'torso'), only(els, 'head-tilt'), only(els, 'heart-hop'), ...els.filter((e) => 'data-side' in e.attrs)];
+    for (const e of before) expect(els.indexOf(e), `${describeEl(e)} before the quilt`).toBeLessThan(at);
+    const after = kids.slice(qi + 1);
+    expect(after).toHaveLength(1);
+    expect(after[0].attrs['data-part']).toBe('patch');
+    expect(after[0].attrs['data-patch']).toBe('hands');
+    expect(byPart(descendants(els, after[0]), 'arm')).toHaveLength(2);
+
+    const inQuilt = descendants(els, quilt);
+    const patches = byPart(inQuilt, 'quilt-patch');
+    expect(patches.length).toBeGreaterThanOrEqual(4);
+    expect(byPart(inQuilt, 'seam').length).toBeGreaterThanOrEqual(1);
+    expect(byPart(inQuilt, 'stitch').length).toBeGreaterThanOrEqual(2);
+    const patchBoxes = patches.map((p) => asLayout(groupBox(els, p)));
+    for (const part of ['fabric-check', 'fabric-stripe']) {
+      const look = only(els, part);
+      expect(look.ancestors.some((a) => a.attrs === quilt.attrs), `${part} in the quilt`).toBe(true);
+      expect(look.ancestors.some((a) => a.attrs['data-part'] === 'patch'), `${part} on a skin piece`).toBe(false);
+      const b = groupBox(els, look);
+      expect(patchBoxes.some((q) => boxInside(b, q)), `${part} ${JSON.stringify(b)} inside one quilt patch`).toBe(true);
+    }
+    expect(byPart(els, 'plaster')).toHaveLength(0);
+  },
+
+  'no scene shape over the face (3.38)': ({ els }) => {
+    const shapes = within(els, 'scene').filter((e) => e.name !== 'g');
+    expect(shapes.length).toBeGreaterThan(0);
+    for (const s of shapes) expect(boxDisjoint(shapeBox(s), FACE_FEATURE_BOX), describeEl(s)).toBe(true);
+  },
+
+  'quilt top below the chest region (3.39)': ({ els }) => {
+    const top = groupBox(els, only(els, 'quilt')).minY;
+    expect(top).toBeGreaterThan(CHEST_REGION.y + CHEST_REGION.height);
+  },
+
+  'window, moon and bats inside the window region, bats in front of the moon (3.40, 3.54)': ({ els }) => {
+    expect(WINDOW_BOX.x + WINDOW_BOX.width).toBeLessThanOrEqual(100);
+    expect(WINDOW_BOX.y + WINDOW_BOX.height).toBeLessThan(CHEST_REGION.y);
+    const moon = only(els, 'moon');
+    const moonBox = groupBox(els, moon);
+    expect(boxInside(groupBox(els, only(els, 'window')), WINDOW_BOX), 'window').toBe(true);
+    expect(boxInside(moonBox, WINDOW_BOX), 'moon').toBe(true);
+    const bats = byPart(els, 'bat');
+    expect(bats).toHaveLength(2);
+    for (const bat of bats) {
+      const b = groupBox(els, bat);
+      expect(boxInside(b, WINDOW_BOX), `bat ${JSON.stringify(b)} in the window`).toBe(true);
+      expect(els.indexOf(bat)).toBeGreaterThan(els.indexOf(moon));
+      expect(boxDisjoint(b, asLayout(moonBox)), `bat ${JSON.stringify(b)} over the moon`).toBe(false);
+    }
+  },
+
+  'IV parts inside IV_BOX, clear of the torso, head and hands (3.41)': ({ els }) => {
+    expect(IV_BOX.x).toBeGreaterThanOrEqual(100);
+    for (const part of ['iv-pole', 'iv-bag', 'iv-tube']) {
+      const b = groupBox(els, only(els, part));
+      expect(boxInside(b, IV_BOX), `${part} ${JSON.stringify(b)}`).toBe(true);
+    }
+    const hands = els.filter((e) => e.attrs['data-part'] === 'patch' && e.attrs['data-patch'] === 'hands');
+    expect(hands).toHaveLength(1);
+    for (const group of [only(els, 'torso'), only(els, 'head-tilt'), hands[0]]) {
+      const b = groupBox(els, group);
+      expect(boxDisjoint(b, IV_BOX), `${describeEl(group)} ${JSON.stringify(b)} clear of IV_BOX`).toBe(true);
+    }
+  },
+
+  'head circle at least 70 across (3.42)': ({ els }) => {
+    const head = only(els, 'head');
+    expect(head.name).toBe('circle');
+    expect(2 * num(head, 'r')).toBeGreaterThanOrEqual(70);
+  },
+
+  'hat sits on the head, hair shows below the brim (3.43, 3.44)': ({ els }) => {
+    const head = only(els, 'head');
+    const [cy, r] = [num(head, 'cy'), num(head, 'r')];
+    const hat = groupBox(els, only(els, 'hat'));
+    expect(hat.maxY, 'hat above the head centre').toBeLessThan(cy);
+    expect(hat.maxY, 'hat bottom 8 below the head top').toBeGreaterThanOrEqual(cy - r + 8);
+    const locks = byPart(els, 'hair-lock');
+    expect(locks.length).toBeGreaterThanOrEqual(6);
+    const boxes = locks.map((l) => groupBox(els, l));
+    for (const b of boxes) expect(boxDisjoint(b, FACE_FEATURE_BOX), `hair lock ${JSON.stringify(b)}`).toBe(true);
+    expect(boxes.some((b) => b.maxY > hat.maxY), 'a lock below the brim').toBe(true);
+  },
+
+  'arms join the sleeves with a stitched seam, mittens on the quilt, clear of the chest (3.45, 3.46)': ({ els }) => {
+    const arms = byPart(els, 'arm');
+    expect(arms).toHaveLength(2);
+    expect(arms.map((a) => halfOf(groupBox(els, a))).sort()).toEqual(['viewer-left', 'viewer-right']);
+    const gowns = byPart(els, 'gown');
+    const quiltBox = asLayout(groupBox(els, only(els, 'quilt')));
+    const sideBoxes = els.filter((e) => 'data-side' in e.attrs).map((e) => asLayout(shapeBox(e)));
+    expect(sideBoxes.length).toBeGreaterThanOrEqual(2);
+    for (const arm of arms) {
+      const half = halfOf(groupBox(els, arm));
+      const gown = gowns.filter((g) => halfOf(shapeBox(g)) === half);
+      expect(gown, `gown panel in the ${half} half`).toHaveLength(1);
+      const gownVertices = vertices(gown[0]);
+      const shapes = childrenOf(els, arm).filter((e) => e.name !== 'g' && e.attrs['data-part'] !== 'seam');
+      const joined = shapes.some(
+        (s) => vertices(s).filter(([x, y]) => gownVertices.some(([gx, gy]) => Math.hypot(x - gx, y - gy) <= 0.5)).length >= 2,
+      );
+      expect(joined, `${half} arm shares two vertices with its gown panel`).toBe(true);
+
+      const inside = descendants(els, arm);
+      const seams = byPart(inside, 'seam').map((s) => groupBox(els, s));
+      const stitches = byPart(inside, 'stitch').map((s) => groupBox(els, s));
+      expect(seams.length, `${half} arm seam`).toBeGreaterThanOrEqual(1);
+      const onSeam = stitches.some((st) => {
+        const [x, y] = [(st.minX + st.maxX) / 2, (st.minY + st.maxY) / 2];
+        return seams.some((s) => x >= s.minX - 0.5 && x <= s.maxX + 0.5 && y >= s.minY - 0.5 && y <= s.maxY + 0.5);
+      });
+      expect(onSeam, `${half} arm stitch on its seam`).toBe(true);
+
+      const mittens = byPart(inside, 'mitten');
+      expect(mittens).toHaveLength(1);
+      expect(boxDisjoint(groupBox(els, mittens[0]), quiltBox), `${half} mitten on the quilt`).toBe(false);
+
+      for (const s of inside.filter((e) => e.name !== 'g')) {
+        for (const sb of sideBoxes) expect(boxDisjoint(shapeBox(s), sb), `${describeEl(s)} over ${JSON.stringify(sb)}`).toBe(true);
+      }
+    }
+  },
+
+  'flat shading in the skin, gown and quilt shade colours (3.47)': ({ els, params }) => {
+    const skinShade = SKIN_PALETTES[params.skinTone].shade;
+    const shades = byPart(els, 'shade');
+    for (const s of shades) {
+      expect(s.attrs.stroke === undefined || s.attrs.stroke === 'none', `${describeEl(s)} has no stroke`).toBe(true);
+      expect(Object.keys(s.attrs).filter((k) => k.includes('opacity')), describeEl(s)).toEqual([]);
+      expect(s.attrs.style ?? '', describeEl(s)).not.toContain('opacity');
+      expect([skinShade, GOWN_SHADE, QUILT_SHADE], describeEl(s)).toContain(s.attrs.fill);
+    }
+    const shadesIn = (part: string, fill: string) => byPart(within(els, part), 'shade').filter((s) => s.attrs.fill === fill);
+    expect(shadesIn('head-tilt', skinShade).length).toBeGreaterThanOrEqual(3);
+    expect(shadesIn('torso', GOWN_SHADE).length).toBeGreaterThanOrEqual(1);
+    expect(shadesIn('quilt', QUILT_SHADE).length).toBeGreaterThanOrEqual(1);
+  },
+
+  'open eyes have an iris, a pupil and a highlight (3.49)': ({ els, expression }) => {
+    if (expression !== 'calm' && expression !== 'worried' && expression !== 'alarmed') return;
+    const circle = (e: Element) => {
+      expect(e.name, describeEl(e)).toBe('circle');
+      return { x: num(e, 'cx'), y: num(e, 'cy'), r: num(e, 'r') };
+    };
+    const eyes = byPart(els, 'eye');
+    expect(eyes).toHaveLength(2);
+    for (const eye of eyes) {
+      const inner = descendants(els, eye);
+      const white = circle(only(inner, 'eye-white'));
+      const iris = circle(only(inner, 'iris'));
+      const pupil = circle(only(inner, 'pupil'));
+      const glint = circle(only(inner, 'eye-highlight'));
+      expect(Math.hypot(iris.x - white.x, iris.y - white.y) + iris.r, 'iris inside the white').toBeLessThanOrEqual(white.r);
+      expect(Math.hypot(pupil.x - iris.x, pupil.y - iris.y) + pupil.r, 'pupil inside the iris').toBeLessThanOrEqual(iris.r);
+      expect(Math.hypot(glint.x - iris.x, glint.y - iris.y), 'highlight centre inside the iris').toBeLessThan(iris.r);
+    }
+  },
+
+  'triangle nose inside the face region, clear of eyes and lips (3.50)': ({ els }) => {
+    const face = descendants(els, only(els, 'face'));
+    const nose = only(face, 'nose');
+    expect(only(els, 'nose')).toBe(nose);
+    expect(nose.name).toBe('polygon');
+    expect(vertices(nose)).toHaveLength(3);
+    const b = shapeBox(nose);
+    expect(boxInside(b, FACE_FEATURE_BOX), `nose ${JSON.stringify(b)}`).toBe(true);
+    for (const e of [...byPart(face, 'eye-white'), only(face, 'lips')]) {
+      expect(boxDisjoint(b, asLayout(shapeBox(e))), `nose clear of ${describeEl(e)}`).toBe(true);
+    }
+  },
+
+  'two open gown panels with print dots (3.51, 3.52)': ({ els }) => {
+    const gowns = byPart(els, 'gown');
+    expect(gowns).toHaveLength(2);
+    const torso = only(els, 'torso');
+    for (const g of gowns) expect(g.ancestors.some((a) => a.attrs === torso.attrs), 'gown in the torso').toBe(true);
+    const boxes = gowns.map((g) => groupBox(els, g));
+    expect(boxes.map(halfOf).sort()).toEqual(['viewer-left', 'viewer-right']);
+    for (const b of boxes) expect(boxDisjoint(b, GOWN_OPENING), `gown ${JSON.stringify(b)} clear of the opening`).toBe(true);
+    const dots = byPart(els, 'gown-dot');
+    expect(dots.length).toBeGreaterThanOrEqual(6);
+    for (const d of dots) {
+      expect(d.name).toBe('circle');
+      expect(d.attrs.fill, describeEl(d)).toBeDefined();
+      expect(d.attrs.fill).not.toBe('none');
+      expect(d.attrs.stroke === undefined || d.attrs.stroke === 'none', describeEl(d)).toBe(true);
+      const [x, y] = [num(d, 'cx'), num(d, 'cy')];
+      expect(boxes.some((b) => x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY), `${describeEl(d)} on a gown panel`).toBe(true);
+    }
+  },
+
+  'chest halves in a skin patch colour (3.53)': ({ els, params }) => {
+    for (const side of SIDES) {
+      const chests = els.filter(
+        (e) => e.attrs['data-side'] === side && (e.attrs['data-part'] === 'chest' || e.attrs['data-part'] === 'chest-swollen'),
+      );
+      expect(chests).toHaveLength(1);
+      expect(SKIN_PALETTES[params.skinTone].patches, `${side} chest fill`).toContain(chests[0].attrs.fill);
+    }
+  },
+
+  'muted scene and quilt fills (3.55)': ({ els }) => {
+    const limit = Math.min(...SKIN_PALETTES.healthy.patches.map(relativeLuminance));
+    const filled = [only(els, 'scene'), only(els, 'quilt')]
+      .flatMap((g) => [g, ...descendants(els, g)])
+      .filter((e) => e.attrs.fill !== undefined && e.attrs.fill !== 'none');
+    expect(filled.length).toBeGreaterThan(0);
+    for (const e of filled) {
+      expect(relativeLuminance(e.attrs.fill), `${describeEl(e)} luminance`).toBeLessThanOrEqual(limit);
+    }
+  },
+
+  'sp-unstitch only on the four skin pieces and only when lost (3.56)': ({ els, variant }) => {
+    const unstitched = els.filter((e) => hasClass(e, 'sp-unstitch'));
+    if (variant !== 'lost') {
+      expect(unstitched).toHaveLength(0);
+      return;
+    }
+    for (const e of unstitched) {
+      expect(e.attrs['data-part'], describeEl(e)).toBe('patch');
+      for (const part of ['scene', 'torso', 'quilt']) {
+        expect(e.ancestors.some((a) => a.attrs['data-part'] === part), `${describeEl(e)} inside ${part}`).toBe(false);
+      }
+    }
+    expect(unstitched.map((e) => e.attrs['data-patch']).sort()).toEqual(SKIN_PATCH_NAMES);
+  },
+};
+
+describe('StitchedPatient cohesive illustration (12.16)', () => {
+  /** One (variant, Overall_Status) per Expression. */
+  const PER_EXPRESSION: readonly [AvatarVariant, AvatarParameters['overallStatus']][] = [
+    ['live', 'normal'],
+    ['live', 'warning'],
+    ['live', 'critical'],
+    ['rescued', 'normal'],
+    ['lost', 'normal'],
+  ];
+  const CHESTS: readonly [string, Partial<AvatarParameters>][] = [
+    ['normal chest', { swollenSides: [], decompressedSides: [] }],
+    ['normal chest, decompressed', { swollenSides: [], decompressedSides: ['Left', 'Right'], sweating: true }],
+    ['swollen chest', { swollenSides: ['Left', 'Right'], decompressedSides: ['Left', 'Right'], sweating: true }],
+  ];
+  const CASES: CohesionCase[] = TONES.flatMap((skinTone) =>
+    PER_EXPRESSION.flatMap(([variant, overallStatus]) =>
+      CHESTS.map(([chest, extra]) =>
+        cohesionCase({ ...BASE, skinTone, overallStatus, ...extra }, variant, `${skinTone}/${variant}/${overallStatus}/${chest}`),
+      ),
+    ),
+  );
+
+  it('covers every Skin_Tone, every Expression and both chest geometries', () => {
+    expect(new Set(CASES.map((c) => c.params.skinTone))).toEqual(new Set(TONES));
+    expect(new Set(CASES.map((c) => c.expression))).toEqual(new Set(['calm', 'worried', 'alarmed', 'joyful', 'sleepy']));
+    expect(new Set(CASES.map((c) => c.params.swollenSides.length))).toEqual(new Set([0, 2]));
+  });
+
+  it.each(Object.keys(COHESION_RULES))('%s', (rule) => {
+    for (const c of CASES) {
+      try {
+        COHESION_RULES[rule](c);
+      } catch (err) {
+        throw new Error(`${c.label}: ${(err as Error).message}`);
+      }
+    }
+  });
+
+  it.each(TONES)('the %s shade is darker than every patch colour of that tone (3.48)', (tone) => {
+    const { shade, patches } = SKIN_PALETTES[tone];
+    for (const p of patches) expect(relativeLuminance(shade), `${shade} vs ${p}`).toBeLessThan(relativeLuminance(p));
   });
 });
 
@@ -1014,6 +1467,24 @@ describe('StitchedPatient properties', () => {
         const celebrate = params.decompressedSides.length > 0;
         expect(els.filter((e) => hasClass(e, 'sp-celebrate-bolt'))).toHaveLength(celebrate ? 2 : 0);
         expect(els.filter((e) => hasClass(e, 'sp-celebrate-heart'))).toHaveLength(celebrate ? 1 : 0);
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: play-mode, Property 23: The Avatar is one cohesive illustration
+  /** **Validates: Requirements 3.2, 3.20, 3.29, 3.34, 3.35, 3.36, 3.37, 3.38, 3.39, 3.40, 3.41, 3.42, 3.43, 3.44, 3.45, 3.46, 3.47, 3.49, 3.50, 3.51, 3.52, 3.53, 3.54, 3.55, 3.56** */
+  it('Property 23: The Avatar is one cohesive illustration', () => {
+    fc.assert(
+      fc.property(arbAvatarParameters, arbVariant, (params, variant) => {
+        const c = cohesionCase(params, variant, `${params.skinTone}/${variant}/${params.overallStatus}`);
+        for (const [rule, check] of Object.entries(COHESION_RULES)) {
+          try {
+            check(c);
+          } catch (err) {
+            throw new Error(`${rule}: ${(err as Error).message}`);
+          }
+        }
       }),
       PBT_PARAMS,
     );
