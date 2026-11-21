@@ -379,7 +379,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 11.5, 11.6, 11.10_
 
-  - [ ] 10.5 Create `RewindPanel`
+  - [x] 10.5 Create `RewindPanel`
     - `apps/web/src/components/RewindPanel.tsx`: a container that on open calls `loadLineageCheckpoints`, builds moments with `selectRewindCheckpoints` and `labelRewindMoment`, and calls `fork(checkpointId, simulationTime)` once per selection; and a presentational `RewindPanelBody` with props `status` (`loading` | `loadError` | `ready` | `forking` | `forkError`) and `moments`
     - Texts: "Couldn't load earlier moments. Please try again." (nothing listed until reopened), "No earlier moments yet.", "Rewinding…" with all moments disabled, "Couldn't rewind. Please try again." with moments re-enabled
     - `role="dialog"`, `aria-modal="true"`, positioned below the Safety_Notice, using `useFocusTrap`; Escape or closing without a fork returns focus to the Rewind button
