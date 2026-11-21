@@ -705,10 +705,10 @@ interface StitchedPatientProps {
 
 **Artwork (original, drawn for this project; 3.2, 3.4, 3.5, 3.6).**
 
-- A small, round-headed patchwork person: rounded head (not flat-topped), large friendly eyes, small smile, a tuft of hair.
+- A small, round-headed patchwork person: rounded head (not flat-topped), large friendly eyes, small smile, messy yarn hair (see "Cohesive redraw").
 - Skin made of 3–4 patches in soft warm tones, separated by seams with at least three visible cross-stitch marks (`×` pairs).
 - Exactly two short rounded bolts, one on each side of the neck.
-- A light blue hospital gown (`#A9D6F5`) covering the torso, with a small stitched-heart patch on the chest that pulses with the heartbeat.
+- A light blue hospital gown (`#A9D6F5`) over the shoulders, upper arms and sides of the torso, open at the front so the chest shows as skin (see "Cohesive redraw"), with a small stitched-heart patch on the chest that pulses with the heartbeat.
 - No blood, wounds, bone, fangs or skulls in any state. Skin is never green and the head is never flat, to stay clear of the 1931 Universal design; the acceptance reviewer records this confirmation (3.6).
 
 **Palette (UI constants).** Background deep purple `#2E1A47`, accent pumpkin orange `#FF7A1A`, text off-white `#FFF7EC`, focus ring `#FFD166` (3.3). Orange on purple and purple on orange both have a contrast ratio of about 6:1 (≥ 4.5:1 for text, 11.8).
@@ -777,30 +777,22 @@ Precedence: `variant === 'rescued'` → `joyful`; else `variant === 'lost'` → 
 | `rescued` (any status) | `joyful` | crescents: upward-curving strokes over each eye centre, no whites | raised arcs | big grin: a filled half-moon from (88, 86) to (112, 86) with control point (100, 100); the grin path is the `lips` element, fill = lips colour; optionally a small `#FFF7EC` tooth strip on top, a plain rounded `rect` (about x 94–106, y 86–89, rx 1), no fangs | three four-point sparkles (`data-part="sparkle"`), about 10 units across, centred at (46, 52), (154, 52) and (64, 14), outside the face group |
 | `lost` (any status) | `sleepy` | closed, drooping: downward-curving lid strokes over each eye centre | outer ends lower than inner ends (sad) | small sad curve centred at (100, 92), drawn as the `lips` element with stroke = lips colour, stroke width at least 2.5, fill `none` | one tear (`data-part="tear"`): a small drop at about (87, 81), 6 × 8 units (box x 84–90, y 77–85, clear of the cheek Patch, every stitch and the mouth), fill `#BFE6FF`, outline `#6FA8DC` (the sweat colours) |
 
+Since the cohesive redraw, the open eyes of `calm`, `worried` and `alarmed` also draw an iris and a white highlight, and every Expression has a small triangle nose (3.49, 3.50; values in "Cohesive redraw"). The whites, pupils, brows, mouths, lips and tear in the table above are unchanged.
+
 Every Expression draws exactly one `data-part="lips"` element inside the `mouth` group, coloured with `SKIN_PALETTES[skinTone].lips`, so the Skin_Tone cue at the mouth survives every Expression (3.33, 4.5); the `mouth` group keeps `data-part="mouth"`. Every mouth shape stays inside `FACE_FEATURE_BOX` (x 72–128, y 52–100): the `alarmed` ring spans y 85–97 and the `joyful` grin, control point included, spans x 88–112, y 86–100.
 
 Eyes and brows are drawn with `circle`, `ellipse` and `path` only. The face group contains no `<line>` element, so no Expression can show crossed strokes or X eyes (3.19). No cross-stitch mark (centre ±3 units) overlaps an eye white's bounding box: the closest stitches, (118, 48) and (69, 82), lie above and to the left of the `alarmed` eye boxes (whites r 11 at (84, 70) and (116, 70), so y 59–81 and x 73–95 / 105–127); their marks end at y 51 and x 72.
 
-**Layout constants (UI constants, not clinical values).** Exported from `StitchedPatient.tsx`, in viewBox units. Each rectangle is `{ x, y, width, height }`; the ranges below are inclusive.
+**Layout constants (UI constants, not clinical values).** Exported from `StitchedPatient.tsx`, in viewBox units. Each rectangle is `{ x, y, width, height }`. The current values, including the changed `HAT_BOX` and `BAT_BOXES` and the new `WINDOW_BOX`, `IV_BOX`, `GOWN_OPENING` and `QUILT_TOP_Y`, are in the coordinate plan of "Cohesive redraw". `FACE_FEATURE_BOX` (x 72–128, y 52–100), `CHEST_REGION` (x 40–160, y 112–184) and `SPARK_BOXES` (x 64–77 and 123–136, y 101–111) are unchanged.
 
-| Constant | x range | y range | Contents |
-|---|---|---|---|
-| `FACE_FEATURE_BOX` (Face_Feature_Region) | 72–128 | 52–100 | eyes, brows, mouth and tear of every Expression. Head circle: centre (100, 64), r 42. |
-| `CHEST_REGION` (Chest_Region) | 40–160 | 112–184 | both chest halves and swollen outlines from `sideGeometry` (Left swollen x 101–157, y 115–181; Right mirrored x 43–99), needles (y 124–136) and bandages (y 134–142) |
-| `HAT_BOX` | 100–148 | 0–34 | the pumpkin hat |
-| `BAT_BOXES[0]` | 6–40 | 8–30 | bat on the viewer's upper left |
-| `BAT_BOXES[1]` | 158–194 | 62–86 | bat on the viewer's right, beside the head |
-| `SPARK_BOXES[0]` | 64–77 | 101–111 | sparks at the viewer's-left bolt (bolt x 78–90, y 106–114) |
-| `SPARK_BOXES[1]` | 123–136 | 101–111 | sparks at the viewer's-right bolt (bolt x 110–122) |
+Every hat, bat and spark box is disjoint from `FACE_FEATURE_BOX` and from `CHEST_REGION` (3.21); "Cohesive redraw" shows why for the new boxes. The animations keep the drawn geometry inside these boxes plus a small margin: sparks change only opacity, bats move at most 3 units, and the head tilt moves the hat by at most about 4 units, which keeps it above y = 52.
 
-Every hat, bat and spark box is disjoint from `FACE_FEATURE_BOX` and from `CHEST_REGION`: the hat and the right bat are separated by y or x, the left bat lies left of x = 40, and the spark boxes lie between y = 100 and y = 112 (3.21). The hat box also clears the sweat-drop positions (the nearest, (124, 40), starts at y = 35), so the sweat cue stays visible. The animations keep the drawn geometry inside these boxes plus a small margin: sparks change only opacity, bats move at most 3 units (their boxes are at least 26 units from both protected regions), and the head tilt moves the hat by at most about 4 units, which keeps it above y = 52.
-
-**Dress-up parts (3.20).** None carries `data-side` (3.21), and none has a `transform` attribute; the tilt of the hat is drawn into its coordinates.
+**Dress-up parts (3.20).** None carries `data-side` (3.21), and none has a `transform` attribute.
 
 | Part | `data-part` | Drawing |
 |---|---|---|
-| Pumpkin hat | `hat` (one group) | A small pumpkin sitting on the upper right of the head, tilted about 15° clockwise, inside `HAT_BOX`: an orange `#FF7A1A` body with two darker rib curves, a short brown stem in the seam colour `#6B4A3A` and a curled brown tendril. The right part of the hair tuft is behind it. No face carved into it. |
-| Bats | `bat` (exactly two groups) | Small friendly bats inside `BAT_BOXES`: an oval body and two scalloped wings in `#4A2F6E` with a `#FFF7EC` outline of 0.8, and two tiny `#FFD166` eye dots. No teeth or fangs. Bat 0 has class `sp-bat`, bat 1 has `sp-bat sp-bat-delay`. |
+| Pumpkin beanie | `hat` (one group) | A snug knitted pumpkin beanie that overlaps the top of the head, inside `HAT_BOX`, with a ribbed brim, pumpkin ridges and a short green stem. No face carved into it. Geometry and colours in "Cohesive redraw". (Replaces the small tilted pumpkin of task 10.7.) |
+| Bats | `bat` (exactly two groups) | Small friendly bats flying inside the window, in front of the moon, inside `BAT_BOXES`: an oval body and two scalloped wings in `#4A2F6E` with the Outline_Colour outline, and two tiny muted eye dots. No teeth or fangs. Bat 0 has class `sp-bat`, bat 1 has `sp-bat sp-bat-delay`. They are now drawn inside the scene group (3.35, 3.54). |
 | Bolt sparks | `spark` (exactly two groups) | Three short `#FFD166` strokes (stroke width at most 1.5) radiating outward from each bolt's outer end, inside `SPARK_BOXES`. Spark 0 has class `sp-spark`, spark 1 has `sp-spark sp-spark-delay`. |
 
 **Craft details (3.29).**
@@ -809,37 +801,13 @@ Every hat, bat and spark box is disjoint from `FACE_FEATURE_BOX` and from `CHEST
 |---|---|---|
 | Blush | `blush` (exactly two) | Ellipses rx 6, ry 3.5 at (72, 86) and (128, 86). Their outer edge is at most about 40.9 units from the head centre (100, 64), inside the head circle (r 42). Fill from a new `blush` entry in `SKIN_PALETTES`: `#F59AB0` for `healthy`, a faint `#E9C9CF` for `pale` and `cyanotic`, so rosy cheeks do not hide the Skin_Tone cue. |
 | Freckles | `freckle` (six) | Circles r 1.2, fill `#C98A6B`, at (66, 72), (63, 76), (68, 79) and the mirrored (134, 72), (137, 76), (132, 79). |
-| Sticking plaster | `plaster` (one group) | A rounded strip about 12 × 5 units drawn as a path (no transform) from about (60, 57) to (69, 46) on the viewer's-left side of the head, fill `#FFF7EC`, outline `#C98A6B`, with a slightly darker centre pad and two rows of tiny dots. Nothing under it: no wound, no red, no stitches. It lies inside x 56–70, y 44–60, clear of the face box and the sweat drops. |
-| Checked patch | `fabric-check` (inside the forehead Patch group) | Thin lines in the seam colour with `strokeOpacity` 0.35: verticals (116, 34)–(116, 47) and (126, 34)–(126, 46), horizontals (108, 38)–(130, 38) and (112, 44)–(134, 44). Every endpoint lies at least 1 unit inside the forehead patch outline, so no clipping is needed. |
-| Striped patch | `fabric-stripe` (inside the hands Patch group) | Three horizontal lines across each hand circle (centres (45, 184) and (155, 184), r 10), at y = 180, 184 and 188, ending 1 unit inside the circle edge. Same stroke as the checks. |
+| Sticking plaster | — | Removed by the cohesive redraw (3.29): no element has `data-part="plaster"`. |
+| Checked patch | `fabric-check` (inside one quilt patch) | Moved from the forehead to the Quilt (3.29). Thin lines in the seam colour with `strokeOpacity` 0.35, every endpoint at least 1 unit inside its quilt patch, so no clipping is needed. Coordinates in "Cohesive redraw". |
+| Striped patch | `fabric-stripe` (inside one quilt patch) | Moved from the hands to the Quilt (3.29). Horizontal lines with the same stroke as the checks, ending 1 unit inside their quilt patch. Coordinates in "Cohesive redraw". |
 
-The forehead Patch outline is `M 104 26 Q 130 28 138 46 L 108 50 Z`, with the two seam stitches at (118, 48) and (130, 47), so the forehead Patch and its stitches stay clear of the brows (brow tops at y 52).
+The forehead Patch outline is `M 104 26 Q 130 28 138 46 L 108 50 Z`, with the two seam stitches at (118, 48) and (130, 47), so the forehead Patch and its stitches stay clear of the brows (brow tops at y 52). The beanie brim covers the part above y = 32; the forehead Patch no longer holds the checked fabric.
 
-**Group structure.** Side-specific elements stay direct children of `<svg>`, outside the head-tilt group and every other group, as in task 10.1 (3.24, Property 8):
-
-```
-<svg role="img" …>
-  <g data-part="torso" class="sp-breathe">…</g>
-  <g data-part="head-tilt" class="sp-tilt">            ← class only when variant is live or rescued (3.23)
-    <Patch head>  neck, bolts, head circle, hair, face group </Patch>
-    <Patch forehead>  outline, fabric-check </Patch>
-    <Patch cheek>  outline </Patch>
-    head-area cross-stitch marks (the first five STITCHES)
-    blush, freckles, plaster
-    sweat drops (when sweating)
-    hat
-    sparkles (joyful only)
-  </g>
-  <Patch hands>  hands, fabric-stripe </Patch>
-  hand cross-stitch marks (the last two STITCHES)
-  spark groups ×2, bat groups ×2
-  chest halves (data-side)                  ← direct children of <svg>
-  needle and bandage per decompressed side (data-side)
-  <g data-part="heart-hop" class="sp-celebrate-heart">   ← class only when decompressedSides is non-empty
-    heart path (sp-beat)
-  </g>
-</svg>
-```
+**Group structure.** Superseded by the layer order in "Cohesive redraw". Side-specific elements still stay direct children of `<svg>`, outside the head-tilt group and every other group, as in task 10.1 (3.24, Property 8).
 
 The bolts get `sp-celebrate-bolt` when `decompressedSides` is non-empty (3.26, 3.27). The heart keeps its `sp-beat` class on the path; the hop sits on the wrapper group so the two animations do not replace each other. The eyes group gets `sp-blink` for `calm`, `worried` and `alarmed` only (3.22). In the `lost` variant the Patch groups keep `sp-unstitch` (7.4), and the face group drifts with the head Patch.
 
@@ -880,6 +848,153 @@ Negative delays start the second spark and bat mid-cycle, so the pairs never mov
 **Reduced motion (3.28).** Every new element sits inside the `.sp-avatar` wrapper, so the existing rule in the `prefers-reduced-motion: reduce` block, `.sp-avatar *, .sp-ending * { animation: none !important; transition: none !important; }`, already stops all of them. No new selector is needed in that block. With the animations off, every element shows its base style: eyes open, head upright, sparks fully visible, bats at their drawn positions, bolts grey and the heart in place. The test reads `globals.css` as text and checks that the reduced-motion block contains this rule and that the six new classes are defined, with `animation-iteration-count: 1` on the two celebration classes.
 
 **Testing the non-covering rule.** The markup test computes a conservative bounding box for each hat, bat and spark group from its descendant shapes. These shapes are limited to `rect`, `circle`, `ellipse`, `line`, `polygon` and `path` with the absolute commands `M`, `L`, `H`, `V`, `Q`, `C` and `Z`. For a path, the test takes every coordinate pair, including control points; a Bézier curve lies inside the convex hull of its control points, so the box can only be too large. The test then checks that each box lies inside its `HAT_BOX`, `BAT_BOXES` or `SPARK_BOXES` entry and is disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION`. It also checks that every eye, brow, mouth and tear shape lies inside `FACE_FEATURE_BOX` and every `data-side` element lies inside `CHEST_REGION`. Because the real features are checked against the regions, moving a constant cannot hide an overlap. Whether the hat, bats and sparks look clear of the face and chest is also part of the manual artwork review (3.32).
+
+### Cohesive redraw (Requirements 3.2, 3.20, 3.29, 3.34–3.57)
+
+The task 10.7 Avatar reads as a collage: the hat, bats, plaster and fabric patches look like separate stickers, the body is a stack of blocks, and the round hands float. This part replaces that layout with one illustration: the character sits up in a hospital bed in a night room, drawn in one outline style with flat two-tone shading lit from the window at the upper left. It changes artwork, layer order and some layout constants. It changes no prop, no logic module and no stylesheet rule.
+
+**What does not change.**
+
+- `StitchedPatientProps` and `AvatarParameters`: no new prop or field, no `Math.random`, `Date` or timer, identical markup for identical props (3.12, 3.31).
+- One inline `<svg role="img" viewBox="0 0 200 280">`, with no `id`, gradient, `<pattern>`, `<clipPath>`, `<mask>`, `<filter>`, `<defs>`, `<image>`, `href` or `url(` (3.1, 3.30).
+- The face group: every Expression's whites, pupils, brows, mouth, `lips` element and tear, with the coordinates in the Expressions table (3.13–3.19, 3.33). The head circle stays at centre (100, 64), r 42, so every face coordinate and `FACE_FEATURE_BOX` stay valid. The face group only gains the iris, the highlight and the nose (3.49, 3.50).
+- `SKIN_PALETTES` `patches`, `lips` and `blush` values (each Skin_Tone gains a `shade` entry); the sweat drops at (76, 48), (88, 38) and (124, 40); blush and freckles.
+- The chest: `sideGeometry` in `sides.ts`, `ChestHalf` and `DecompressionMarks` geometry and strokes, the swollen outline, and every `data-side` element as a direct child of `<svg>` inside `CHEST_REGION`, with the patient's Left on the viewer's right (3.7, 3.24, Property 8). Only the chest-half fill changes, from the `chestHalf` blue to `palette.patches[1]`, so the chest shows as skin in the open gown (3.53).
+- The heart patch (`sp-beat`) in the `heart-hop` group between the chest halves, x 84–116, y 136–162.
+- `sp-breathe` on the torso group; `sp-blink` on the eyes group; `sp-tilt` on the one head-tilt group, which holds the head, the face, the hair and the hat; the sparks at the bolts in `SPARK_BOXES`; `sp-bat`; the one-time celebration; `sp-unstitch` on the four Patch groups only (head, forehead, cheek, hands) in the `lost` variant (3.56); the reduced-motion block. `globals.css` needs no change: the bats keep their class and the scene and quilt add no animation.
+- The speech band and the rate icons stay outside the SVG, in the wrapper `div`, as today (3.9–3.11, 4.21).
+- No blood, wounds, bone, fangs or skulls; skin never green; head never flat; real eyes, never button or X eyes; nothing that reproduces an existing character (3.4–3.6, 3.19, 3.32).
+
+**Layer order.** Document order inside the one `<svg>`:
+
+```
+<svg role="img" viewBox="0 0 200 280" stroke-linejoin="round" stroke-linecap="round">   (3.34)
+  <g data-part="scene">                                  ← first child (3.35)
+    window: frame, night glass, sill
+    moon (two flat craters)
+    bat ×2 (sp-bat, sp-bat sp-bat-delay)                 ← after the moon, over it (3.54)
+    iv-pole, iv-bag, iv-tube                             ← behind the bed, inside IV_BOX (3.41)
+    headboard: two posts with ball tops, top rail
+    pillow
+  </g>
+  <g data-part="torso" class="sp-breathe">               ← breathing unchanged
+    torso skin piece
+    gown ×2 (one per half, open front) with gown-dot circles
+    shade (GOWN_SHADE): shoulder folds, under each arm
+  </g>
+  <g data-part="head-tilt" class="sp-tilt">              ← class only when variant is live or rescued (3.23)
+    back hair (data-part="hair")
+    <Patch head>  neck, chin shade, bolts ×2, head circle (data-part="head"), far-side shade, face group </Patch>
+    <Patch forehead>  outline </Patch>
+    <Patch cheek>  outline </Patch>
+    brim shade
+    blush ×2, freckles ×6
+    head-area cross-stitch marks (5)
+    hair-lock ×6
+    hat (beanie)
+    sweat drops (when sweating)
+    sparkles (joyful only)
+  </g>
+  spark groups ×2
+  chest halves (data-side), needle and bandage per decompressed side (data-side)   ← direct children of <svg>
+  <g data-part="heart-hop" …>  heart (sp-beat)  </g>
+  <g data-part="quilt">                                  ← after the character's torso, head and chest (3.36)
+    quilt body with turned-down hem, quilt-patch ×8 (fabric-check in one, fabric-stripe in one),
+    seams, cross-stitches, shade (QUILT_SHADE)
+  </g>
+  <Patch hands>                                          ← last, so the mittens rest on the quilt
+    <g data-part="arm"> forearm, seam + cross-stitch at the sleeve hem, mitten </g> ×2
+  </Patch>
+</svg>
+```
+
+Why this order:
+
+- The scene group must be the first child (3.35), so the quilt, which overlaps the lap, cannot be inside it. The quilt is its own top-level group after the heart-hop group. Its top edge lies below `CHEST_REGION` (3.39), so drawing it after the `data-side` elements covers no chest half or side mark.
+- The arms come after the quilt so the mittens lie on it (3.36, 3.45). Arm shapes stay in x 18–46 and 154–182, and every arm shape is disjoint from every `data-side` box: the forearms end at x 42 and x 158, left of and right of the swollen chest boxes (Right x 43–99, Left x 101–157), and the mitten shapes, including the thumbs that reach x 46 and x 154, start at y 188, below the swollen chests' bottom at y 181 (3.46).
+- The back hair is inside the head-tilt group, so it tilts with the head (3.23). It is drawn first in that group, after the torso, and stays above y = 100, so it never covers the gown.
+- The two hand stitches of task 10.7, (45, 175) and (155, 175), move to the arm seams at (31, 150) and (169, 150). With the five head-area stitches, the skin keeps seven cross-stitch marks (3.2).
+- The right hair locks end at y 43, above the stitch marks at (118, 48) and (130, 47) (boxes from y 44), so the locks, drawn after the stitches, hide none of them. The left locks lie in x 60–80, clear of the stitches at (106, 42), (69, 82) and (79, 92).
+
+**Coordinate plan (UI constants, viewBox units, inclusive ranges).**
+
+| Constant | Value | Status |
+|---|---|---|
+| `HEAD_CENTRE`, `HEAD_RADIUS` | (100, 64), 42: x 58–142, y 22–106, diameter 84 (≥ 70, 3.42) | unchanged values, newly exported |
+| `FACE_FEATURE_BOX` | x 72–128, y 52–100 | unchanged |
+| `CHEST_REGION` | x 40–160, y 112–184. Contains every `sideGeometry` element: Left swollen chest x 101–157, y 115–181; Right mirrored x 43–99; needles y 124–136; bandages y 134–142 | unchanged |
+| `SPARK_BOXES` | [0] x 64–77, [1] x 123–136, both y 101–111 (bolts x 78–90 and 110–122, y 106–114) | unchanged |
+| `HAT_BOX` | x 70–130, y 2–32 | changed (was x 100–148, y 0–34) |
+| `WINDOW_BOX` | x 4–56, y 6–80 (glass x 8–52, y 10–70; sill y 72–80) | new |
+| `MOON` | centre (30, 32), r 13: x 17–43, y 19–45 | new |
+| `BAT_BOXES` | [0] x 10–30, y 30–42; [1] x 28–48, y 14–26 | changed (were x 6–40, y 8–30 and x 158–194, y 62–86) |
+| `IV_BOX` | x 184–198, y 4–240 | new |
+| `GOWN_OPENING` | x 98–102, y 120–176: between the chest halves' inner edges (Right chest x 52–98, Left x 102–148) over their height | new |
+| `QUILT_TOP_Y` | 188: the smallest y of every quilt coordinate, control points included (> 184, the bottom of `CHEST_REGION`) | new |
+
+The boxes satisfy the rules as follows:
+
+- `HAT_BOX` lies above the head centre (y 64), and its bottom (32) is 10 units below the head top (22), so the beanie sits on the head (3.43). It is disjoint from `FACE_FEATURE_BOX` (y ≥ 52) and `CHEST_REGION` (3.21). It ends above every sweat drop (the highest drop, at (88, 38), starts at y 33), so the sweat cue stays visible. It starts at x 70, clear of the joyful sparkle at (64, 14), which spans x 59–69. The tilt moves its far corner by about 3.8 units, so it stays above y 52.
+- `WINDOW_BOX` lies in x ≤ 56 < 100 and y ≤ 80 < 112 (3.40). It is disjoint from `FACE_FEATURE_BOX` (x ≥ 72), `HAT_BOX` and the head circle box (x ≥ 58).
+- Both `BAT_BOXES` lie inside the window glass with at least 2 units to spare for the ±2-unit `sp-bat` motion, and each intersects the moon box: bat 0 over x 17–30, y 30–42; bat 1 over x 28–43, y 19–26 (3.54). They are disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION` (3.21).
+- `IV_BOX` lies in x ≥ 184 ≥ 100. It is disjoint from the torso group (gown panels end at x 182), the head-tilt group (the head ends at x 142; the right joyful sparkle at (154, 52) ends at x 159) and the hands group (arms end at x 182) (3.41).
+- Every scene shape is disjoint from `FACE_FEATURE_BOX` (3.38): the window and bats lie at x ≤ 56, the IV at x ≥ 184, and the headboard and pillow start at y 103 and y 104, below the box's bottom at y 100.
+- Both gown panel boxes (x 18–90 and x 110–182) are disjoint from `GOWN_OPENING` (3.52).
+
+**Element geometry.** All paths use the absolute commands `M`, `L`, `H`, `V`, `Q`, `C` and `Z` only, so the existing Conservative_Bounding_Box helper of the markup test reads them. Mirrored parts use x → 200 − x.
+
+| Part | `data-part` | Geometry |
+|---|---|---|
+| Window | `window` | Frame `rect` x 4–56, y 6–80, rx 3; night glass `rect` x 8–52, y 10–70; sill `rect` x 4–56, y 72–80. No glazing bars, so nothing crosses the moon. |
+| Moon | `moon` | `circle` (30, 32) r 13; two crater circles r 2 at (25, 28) and (34, 37), fill only. |
+| Bats | `bat` ×2 | Oval body and two scalloped wings, about 20 × 12, inside `BAT_BOXES`; two eye dots r 0.8. |
+| IV pole | `iv-pole` | `rect` x 190–192, y 8–240 with a hook path at the top inside x 186–196, y 4–10. |
+| IV bag | `iv-bag` | Rounded `rect` x 184–198, y 12–48, rx 4, with a short label line. |
+| IV tube | `iv-tube` | `path` from (191, 48) down to (188, 236), stroke width 1, fill `none`. It stays inside `IV_BOX`, so it never touches the figure, and the headboard post (x 182–190) covers its lower part, so it runs behind the bed. |
+| Headboard | `headboard` | Posts `rect` x 10–18 and x 182–190, y 110–236; ball tops `circle` r 5 at (14, 108) and (186, 108); top rail `rect` x 14–186, y 114–120. |
+| Pillow | `pillow` | Rounded `rect` x 26–174, y 104–152, rx 20, with one seam curve. |
+| Torso skin | (in `torso`) | `M 60 114 Q 100 106 140 114 L 146 196 L 54 196 Z`, fill `palette.patches[1]`. |
+| Gown panel, viewer's left | `gown` | `M 90 112 Q 56 108 30 118 Q 18 126 20 150 L 42 150 Q 44 156 48 160 L 54 196 L 58 196 L 60 122 Q 76 114 90 112 Z`: shoulder, short sleeve with hem vertices (20, 150) and (42, 150), and the side of the torso with the front edge from (60, 122) to (58, 196). Box x 18–90, y 108–196. The right panel is the mirror image (box x 110–182). |
+| Gown dots | `gown-dot` ×10 | `circle` r 1.3, fill only, at (27, 127), (37, 135), (28, 143), (40, 121), (72, 113) and their mirror images: on the shoulders and sleeves, outside both the normal and the swollen chest boxes (swollen Right x 43–99, y 115–181), so the chest halves never cover them. |
+| Arm, viewer's left | `arm` | Forearm `M 20 150 L 42 150 L 40 188 L 22 188 Z` (shares the sleeve hem vertices (20, 150) and (42, 150), 3.45), fill `palette.patches[3]`; seam: dashed `path` (20, 150)–(42, 150) with a cross-stitch at (31, 150); mitten (`mitten`) `M 20 188 Q 18 206 30 206 Q 42 206 40 188 Z` with a thumb `M 40 192 Q 46 192 44 199 Q 42 201 40 199 Z`, fill `palette.patches[2]`, box x 18–46, y 188–206. The right arm is the mirror image. |
+| Neck and bolts | (in `Patch head`) | Unchanged: neck `rect` x 90–110, y 100–120; bolts x 78–90 and 110–122, y 106–114. |
+| Back hair | `hair` | One mass behind the head, `M 60 46 Q 58 18 100 14 Q 142 18 140 46 L 132 40 Q 100 26 68 40 Z`, fill hair colour. Replaces the old tuft. |
+| Hair locks | `hair-lock` ×6 | Short curled yarn strands from under the brim: three on the viewer's left inside x 60–80, y 26–46, three on the viewer's right inside x 120–140, y 26–43. Each lock ends below the brim (y 32), and all are clear of `FACE_FEATURE_BOX` (3.44). |
+| Beanie | `hat` | Dome `M 72 30 C 70 4 130 4 128 30 Z`; brim `rect` x 70–130, y 24–32, rx 4, with rib lines at x = 78, 86, 94, 102, 110, 118 and 126 from y 25 to 31; two ridge curves from (88, 8) to (86, 26) and from (112, 8) to (114, 26); stem `M 97 2 L 103 2 L 102 8 L 98 8 Z`. Ribs and ridges are drawn in the Outline_Colour at the Outline_Width. At y 32 the head spans x 72.6–127.4, so the brim wraps the head with about 2.5 units of overlap on each side. |
+| Eyes, open Expressions | `iris`, `pupil`, `eye-highlight` | In `calm`, `worried` and `alarmed`: iris `circle` r 6 at each eye centre (84, 70) and (116, 70), inside the white (r 9, or r 11 for `alarmed`); the pupil keeps its radius (4, or 3 for `alarmed`) and gets `data-part="pupil"`; highlight `circle` r 1.6 at the eye centre + (2, −2), fill `#FFFFFF`, centre 2.8 units from the eye centre, inside the iris (3.49). `joyful` and `sleepy` keep their crescent and closed eyes. |
+| Nose | `nose` | `<polygon points="100,77 96.5,83 103.5,83">`, fill `palette.shade`, in the face group in every Expression. It lies inside `FACE_FEATURE_BOX`, between the eye-white boxes (x ≤ 95 and x ≥ 105 for `alarmed`) and above every `lips` box (y ≥ 85) (3.50). |
+| Shades, skin | `shade` | Far side of the head: a crescent `M 128 34 Q 150 64 118 101 Q 138 66 128 34 Z` inside the head circle on the viewer's right, in `Patch head` after the head circle and before the face group; under the chin: `ellipse` (100, 108) rx 10 ry 2.5 in `Patch head` after the neck; under the brim: `M 74 32 Q 100 40 126 32 Z` after the cheek Patch. Fill `palette.shade`. |
+| Shades, gown | `shade` | Per panel: a shoulder fold `M 34 122 Q 40 130 38 142 Q 36 130 30 124 Z` and an underarm wedge `M 42 150 Q 46 158 52 162 L 48 150 Z`, and their mirror images. Fill `GOWN_SHADE`. |
+| Quilt | `quilt` | Body `M 4 194 Q 52 188 100 192 Q 148 188 196 194 L 196 280 L 4 280 Z` in `QUILT_HEM`, with the turned-down hem visible from y 188 to 200 and a dashed seam at y 200; eight `quilt-patch` rects in a grid x 4–52, 52–100, 100–148, 148–196 by y 200–240 and 240–280, filled in turn with the four `QUILT_COLOURS`; dashed seams on the grid lines; cross-stitches at (52, 220), (148, 260) and (100, 240). Box x 4–196, y 188–280. |
+| Checked fabric | `fabric-check` | In the patch x 52–100, y 200–240: verticals at x = 64, 76 and 88 from y 201 to 239, horizontals at y = 210, 220 and 230 from x 53 to 99. |
+| Striped fabric | `fabric-stripe` | In the patch x 100–148, y 240–280: horizontals at y = 248, 256, 264 and 272 from x 101 to 147. |
+| Shades, quilt | `shade` | A band along the hem fold `M 4 198 Q 100 202 196 198 L 196 200 L 4 200 Z` and an ellipse under each mitten at (30, 208) and (170, 208), rx 10, ry 2. Fill `QUILT_SHADE`. |
+
+**Outline style (3.34).** `OUTLINE_COLOUR = '#3B2433'` (a warm dark plum) and `OUTLINE_WIDTH = 1.5`, exported from `StitchedPatient.tsx`. The `<svg>` sets `stroke-linejoin="round"` and `stroke-linecap="round"`, and descendants inherit them. Every stroked shape of the character, the scene and the Quilt uses the outline constants, except the parts listed in 3.34: the face group; seams, cross-stitches and the heart in the seam colour `#6B4A3A`; the fabric lines, bolt sparks, sparkles and IV tube; the sweat drops and the `data-side` elements, whose strokes are vital-sign cues. Fill-only shapes (gown dots, eye highlights, Shade_Shapes, blush, freckles, moon craters) have no stroke. Bolts, beanie, hair, gown panels, arms, mittens, head circle, window, IV parts, headboard, pillow and quilt patches all get the outline. The bats' `#FFF7EC` outline becomes the Outline_Colour.
+
+**Shading (3.47, 3.48).** Two-tone cel shading with one light source, the window at the upper left. Each Shade_Shape is one flat darker colour with no stroke, no opacity and no gradient. Skin shades lie on the viewer's right of the head, under the brim and under the chin; gown shades lie on the folds and under the arms; quilt shades lie along the hem fold and under the mittens (3.57).
+
+**Colours (UI constants, not clinical values).** Relative luminance (WCAG 2.2) is given where a rule depends on it.
+
+| Constant | Value | Note |
+|---|---|---|
+| `SKIN_PALETTES.healthy.shade` | `#D4937A` (≈ 0.36) | darker than the darkest healthy patch `#E8A985` (≈ 0.47) |
+| `SKIN_PALETTES.pale.shade` | `#A99C90` (≈ 0.34) | darker than the darkest pale patch `#C2B5A8` (≈ 0.47) |
+| `SKIN_PALETTES.cyanotic.shade` | `#A99C90` | the `pale` shade, because cyanotic uses the pale patches; the blue cue stays on the lips |
+| `IRIS`, `EYE_HIGHLIGHT` | `#8A5A3B`, `#FFFFFF` | warm brown iris, so it is not confused with the cyanotic lips |
+| `GOWN` (`AVATAR_COLOURS.gown`), `GOWN_SHADE`, `GOWN_DOT` | `#A9D6F5` (unchanged), `#7FB3DB`, `#F4FAFF` | |
+| `BEANIE`, `BEANIE_STEM` | `#FF7A1A` (the accent orange), `#6E8B3D` | the stem is the only green, and it is not skin |
+| `AVATAR_COLOURS.hair` | `#5A3A29` (unchanged) | |
+| `QUILT_HEM` | `#9C93B5` (≈ 0.31) | |
+| `QUILT_COLOURS` | `#B993C9` (≈ 0.35), `#D49A6E` (≈ 0.38), `#84B0A0` (≈ 0.39), `#BBAA86` (≈ 0.41) | |
+| `QUILT_SHADE` | `#6F5A86` | |
+| `SCENE_COLOURS` | night glass `#1F1433`, window frame and sill `#5A4378`, moon `#B8B09A` (≈ 0.44), moon craters `#A39C88`, bat `#4A2F6E`, bat eyes `#C9A44A` (≈ 0.39), IV pole `#7A7890`, IV bag and tube `#8FA9B8` (≈ 0.38), headboard `#6E6A86`, pillow `#9C93B5` (≈ 0.31) | |
+
+Every fill in the scene and the Quilt has a relative luminance no higher than that of the darkest healthy patch `#E8A985` (≈ 0.472); the brightest, the moon, is about 0.436 (3.55). The character's brightest fills (gown ≈ 0.63, skin patches ≈ 0.47–0.72, beanie, eye whites) stay above every scene fill. The bat eye dots change from `#FFD166` to `#C9A44A` for this rule; the bolt sparks keep `#FFD166` because they belong to the character.
+
+**Constants and code that change.** `HAT_BOX` and `BAT_BOXES` get the values above; `WINDOW_BOX`, `MOON`, `IV_BOX`, `GOWN_OPENING`, `QUILT_TOP_Y`, `HEAD_CENTRE`, `HEAD_RADIUS`, `OUTLINE_COLOUR`, `OUTLINE_WIDTH`, the shade, gown, beanie, quilt and scene colours, and a `shade` entry per Skin_Tone are new. `Plaster`, `DRESS_UP_COLOURS.plaster`, `DRESS_UP_COLOURS.plasterPad` and `DRESS_UP_COLOURS.batOutline` are removed. `FABRIC_CHECK_LINES` and `FABRIC_STRIPE_LINES` get the quilt coordinates. The hand circles become the arm groups, the hair tuft becomes the back hair and hair locks, `PumpkinHat` becomes the beanie, `BAT_CENTRES` moves into the window, and `AVATAR_COLOURS.chestHalf` is no longer used. `FACE_FEATURE_BOX`, `CHEST_REGION`, `SPARK_BOXES`, `UNSTITCH_OFFSETS`, `PatchName` and `sides.ts` are unchanged. The markup tests for 3.20, 3.21 and Property 22 read the boxes from the exported constants, so they move to the new `HAT_BOX` and `BAT_BOXES` without other changes.
+
+**Testing.** The cohesive-redraw checks (12.16, Property 23) reuse the Conservative_Bounding_Box helper from "Testing the non-covering rule", plus two small helpers in the test file: a path vertex reader (the end points of each path command) for the arm-join rule (3.45), and `relativeLuminance(hex)` with the WCAG 2.2 formula for 3.48 and 3.55. The outline check walks every element whose `stroke` attribute is set and not `none`, skips elements that have an exempt `data-part` on themselves or an ancestor, and compares `stroke` and `stroke-width` with the constants. It also checks that no element sets `stroke-linejoin` or `stroke-linecap` to anything other than `round`. Whether the result reads as one illustration lit from the window, with no collage look, is part of the manual artwork review (3.32, 3.57).
 
 ### Hint panel (`HintPanel.tsx`)
 
@@ -1411,9 +1526,27 @@ The test asserts each offset is smaller than half the smallest gap, so `boundary
 
 ### Property 22: The Avatar's Expression and dress-up follow its props and keep clear of the face and chest
 
-*For any* Avatar_Parameters and Avatar_Variant, the rendered Avatar markup has exactly one element with a `data-expression` attribute, and its value equals `expressionFor(params.overallStatus, variant)`: `joyful` for `rescued` and `sleepy` for `lost` whatever the Overall_Status, otherwise `calm`, `worried` or `alarmed` for `normal`, `warning` or `critical`. The face group contains no `<line` element and contains exactly one `tear` when the Expression is `sleepy` and none otherwise. The face group contains exactly one `lips` element, whose fill or stroke equals the Skin_Tone's lips colour. The eyes group carries `sp-blink` exactly when the Expression is `calm`, `worried` or `alarmed`, and the head-tilt group carries `sp-tilt` exactly when the variant is not `lost`. The markup has exactly one `hat`, exactly two `bat` and exactly two `spark` groups. None of them carries `data-side`, and the conservative bounding box of each lies inside its design box and is disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION`. Every eye, brow, mouth and tear shape lies inside `FACE_FEATURE_BOX`. Every `data-side` element is a direct child of the `<svg>` element and lies inside `CHEST_REGION`. Exactly two elements carry `sp-celebrate-bolt` and exactly one carries `sp-celebrate-heart` when `decompressedSides` is non-empty, and none carries either class when it is empty.
+*For any* Avatar_Parameters and Avatar_Variant, the rendered Avatar markup has exactly one element with a `data-expression` attribute, and its value equals `expressionFor(params.overallStatus, variant)`: `joyful` for `rescued` and `sleepy` for `lost` whatever the Overall_Status, otherwise `calm`, `worried` or `alarmed` for `normal`, `warning` or `critical`. The face group contains no `<line` element and contains exactly one `tear` when the Expression is `sleepy` and none otherwise. The face group contains exactly one `lips` element, whose fill or stroke equals the Skin_Tone's lips colour. The eyes group carries `sp-blink` exactly when the Expression is `calm`, `worried` or `alarmed`, and the head-tilt group carries `sp-tilt` exactly when the variant is not `lost`. The markup has exactly one `hat`, exactly two `bat` and exactly two `spark` groups. None of them carries `data-side`, and the conservative bounding box of each lies inside its design box (`HAT_BOX`, `BAT_BOXES` or `SPARK_BOXES`, with the values in "Cohesive redraw") and is disjoint from `FACE_FEATURE_BOX` and `CHEST_REGION`. Every eye, brow, mouth, tear and nose shape lies inside `FACE_FEATURE_BOX`. Every `data-side` element is a direct child of the `<svg>` element and lies inside `CHEST_REGION`. Exactly two elements carry `sp-celebrate-bolt` and exactly one carries `sp-celebrate-heart` when `decompressedSides` is non-empty, and none carries either class when it is empty.
 
 **Validates: Requirements 3.13, 3.14, 3.15, 3.16, 3.17, 3.18, 3.19, 3.20, 3.21, 3.22, 3.23, 3.24, 3.26, 3.27, 3.33**
+
+### Property 23: The Avatar is one cohesive illustration
+
+*For any* Avatar_Parameters and Avatar_Variant, the rendered Avatar markup satisfies all of these rules:
+
+- **One outline style.** Every element with a stroke other than `none`, outside the exempt parts of Requirement 3.34, has `stroke` equal to `OUTLINE_COLOUR` and `stroke-width` equal to `OUTLINE_WIDTH`. The `<svg>` sets `stroke-linejoin="round"` and `stroke-linecap="round"`, and no element sets either to another value.
+- **Scene group.** The first child of the `<svg>` is the only `scene` group. It holds, in order, `window`, `moon`, two `bat`, `iv-pole`, `iv-bag`, `iv-tube`, `headboard` and `pillow`. No scene shape's conservative bounding box intersects `FACE_FEATURE_BOX`. The window and the moon lie inside `WINDOW_BOX`. The IV parts lie inside `IV_BOX`, which is disjoint from the boxes of the torso, head-tilt and `hands` groups.
+- **Bats in the window.** Both bats lie inside `WINDOW_BOX`, come after the moon, and have boxes that intersect the moon's box.
+- **Quilt.** The only `quilt` group is a direct child of the `<svg>`. It comes after the torso group, the head-tilt group, every `data-side` element and the `heart-hop` group, and only the `hands` Patch follows it. The top of its box lies below `CHEST_REGION`. It holds at least four `quilt-patch` elements, seams and at least two stitches. The `fabric-check` and `fabric-stripe` groups each lie inside one quilt patch's box, and no element has `data-part="plaster"`.
+- **Head, hat and hair.** The head circle's diameter is at least 70. The hat's box lies above the head centre, and its bottom is at least 8 units below the head top. There are at least six `hair-lock` elements, all clear of `FACE_FEATURE_BOX`, and at least one ends below the hat's bottom.
+- **Arms.** There are exactly two `arm` groups, one per half. Each arm shape has two vertices within 0.5 units of vertices of the gown panel on its side, and each arm has a seam with a stitch. Each mitten's box intersects the quilt's box. No arm shape's box intersects the box of any `data-side` element.
+- **Shading.** Every `shade` element has no stroke and no opacity attribute, and its fill equals the Skin_Tone's `shade`, `GOWN_SHADE` or `QUILT_SHADE`. At least three skin shades lie in the head-tilt group, at least one gown shade in the torso group and at least one quilt shade in the quilt.
+- **Eyes and nose.** When the Expression is `calm`, `worried` or `alarmed`, each eye has an `iris` inside the white, a `pupil` inside the iris and an `eye-highlight` whose centre lies inside the iris. In every Expression, the face group has one `nose` polygon with three points, inside `FACE_FEATURE_BOX` and clear of the eye-white and `lips` boxes.
+- **Gown and chest.** There are exactly two `gown` panels in the torso group, one per half, and neither panel's box intersects `GOWN_OPENING`. There are at least six `gown-dot` circles with a fill and no stroke, each centred inside a gown panel's box. Both chest halves are filled with a patch colour of the Skin_Tone.
+- **Muted scene.** Every fill inside the scene group and the quilt has a relative luminance no higher than that of the darkest `healthy` patch colour.
+- **Unstitching.** `sp-unstitch` appears only on Patch groups, and only when the variant is `lost`.
+
+**Validates: Requirements 3.2, 3.20, 3.29, 3.34, 3.35, 3.36, 3.37, 3.38, 3.39, 3.40, 3.41, 3.42, 3.43, 3.44, 3.45, 3.46, 3.47, 3.49, 3.50, 3.51, 3.52, 3.53, 3.54, 3.55, 3.56**
 
 ## Error Handling
 
@@ -1446,7 +1579,7 @@ All user-facing error text is plain language and never shows HTTP codes or stack
 - **fast-check** (add `fast-check@^3` to `devDependencies`) for property tests. `src/test/pbt.ts` exports `PBT_PARAMS = { seed: 20261031, numRuns: 100 }`, passed to every `fc.assert`, so every run uses the same generated inputs (12.10). A failing run prints the counterexample and the seed.
 - **yaml** (add `yaml@^2` to `devDependencies`) for case-content tests. The tests read `path.resolve(__dirname, '../../../../cases/adult-tension-pneumothorax.yaml')` from `apps/web/src/lib/` and use `parseDocument` so comments are available for the `TODO(author)` check.
 - **React server rendering** (`react-dom/server`, already a dependency) for markup tests of `StitchedPatient`, `StatusLine`, `ViewSwitcher` and `EndingScreen`. No jsdom or Testing Library dependency is needed.
-- Add `"test:run": "vitest --run"` to `apps/web/package.json`. Run with `cd apps/web && npm run test:run`. The Play tests must finish within 30 s on an Apple Silicon laptop (12.12); 22 properties at 100 runs over pure functions take well under that.
+- Add `"test:run": "vitest --run"` to `apps/web/package.json`. Run with `cd apps/web && npm run test:run`. The Play tests must finish within 30 s on an Apple Silicon laptop (12.12); 23 properties at 100 runs over pure functions take well under that.
 
 ### Why property-based testing applies
 
@@ -1477,7 +1610,7 @@ Each correctness property is implemented by exactly one `fc.assert` test.
 | `avatarMapper.test.ts` | all cases in 12.1 and 12.13; samples without `systolic_pressure`/`diastolic_pressure` and with one case vital missing (12.14) | 3, 4, 5 |
 | `sides.test.ts` | Left insult before/at/after `timeSeconds`; Left Decompression; Right-only Decompression keeps Left swollen; Left → viewer right (12.2); early Decompression (4.18) | 6 |
 | `branchLineage.test.ts` | fork-time lookup, missing fork Checkpoint fallback, Active_Interventions after fork (12.2, 10.9) | 7 |
-| `StitchedPatient.test.tsx` | default sentence as accessible name; speech text up to 200 chars present; empty and whitespace speech render no bubble; Overall_Status labels; one test per Expression with variant precedence; dress-up and craft parts present; celebration classes with and without Decompressed_Sides; reduced-motion CSS-text check of `globals.css` (12.15) | 8, 9, 22 |
+| `StitchedPatient.test.tsx` | default sentence as accessible name; speech text up to 200 chars present; empty and whitespace speech render no bubble; Overall_Status labels; one test per Expression with variant precedence; dress-up and craft parts present; celebration classes with and without Decompressed_Sides; reduced-motion CSS-text check of `globals.css` (12.15); cohesive-redraw checks for every Skin_Tone, every Expression and both chest geometries, each Skin_Tone's `shade` darker than its patches (3.48), and no `plaster` element (12.16) | 8, 9, 22, 23 |
 | `statusSelector.test.ts` | first of two matching rules; partial match of a multi-condition rule; no-direction condition matches both directions; default when none match (12.3); null sample; missing vital (12.14) | 10, 11 |
 | `endingEvaluator.test.ts` | every case listed in 12.4: exact-hold rescue and one sample short; pre-insult samples add no time; exact-hold for each lost group; restart after one failing sample; equal and decreasing times; sample at and below `timeLimitSeconds`; simultaneous rescue and lost → `rescued`; missing vitals (12.14) | 12, 13, 14 |
 | `playCase.test.ts` | `conditionsDisjoint` examples for each operator pair | 15, 18 |
@@ -1495,7 +1628,7 @@ The schema is validated by the existing Python tooling, not by Vitest. The imple
 
 - **Service round trip (2.13):** with `docker compose up`, create a Session and compare `GET /sessions/{id}/case` `play` and `playLabel` values with the YAML.
 - **Calibration (Requirement 13):** run `calibratePlayMode.ts` after the author drafts the values; commit the record under `docs/calibration/`.
-- **Manual acceptance checklist** in the new file `docs/play-mode-acceptance.md`: artwork review and the no-franchise confirmation (3.2–3.6), including the new expressions, dress-up and craft details (3.32); speech-bubble placement at 320 px and 1280 px (3.11); Safety_Notice at 320–1920 px and over overlays (1.8, 7.9); 1280×720 fit with 0–3 Hints, 16 px text, contrast (11.7, 11.8); keyboard order, focus ring, focus trap and Escape (11.2–11.6, 11.10); reduced motion on macOS (4.21, 7.12); screen-reader announcement of status changes (5.11, 5.13); the timed behaviours (1.6, 4.20, 5.12, 7.2); and the stakeholder demonstration in Requirement 14.
+- **Manual acceptance checklist** in the new file `docs/play-mode-acceptance.md`: artwork review and the no-franchise confirmation (3.2–3.6), including the new expressions, dress-up and craft details (3.32), and the cohesive redraw: one illustration lit from the window at the upper left, with no collage look (3.2, 3.57); speech-bubble placement at 320 px and 1280 px (3.11); Safety_Notice at 320–1920 px and over overlays (1.8, 7.9); 1280×720 fit with 0–3 Hints, 16 px text, contrast (11.7, 11.8); keyboard order, focus ring, focus trap and Escape (11.2–11.6, 11.10); reduced motion on macOS (4.21, 7.12); screen-reader announcement of status changes (5.11, 5.13); the timed behaviours (1.6, 4.20, 5.12, 7.2); and the stakeholder demonstration in Requirement 14.
 
 ### Why some criteria have no automated test
 
@@ -1507,7 +1640,7 @@ Visual design (3.2–3.6), layout fit (11.7), focus behaviour in a real browser 
 |---|---|
 | 1 Two views | `useSimulationSession`, `sessionReducer` (`viewSelected`, `caseLoaded`, `caseFailed`), `ViewSwitcher`, `SafetyNotice`, `ClinicianView` |
 | 2 Case file | YAML shape, schema fragments, `caseContent.test.ts`, existing `validate-case.py` and `case_loader.py` |
-| 3 Avatar | `StitchedPatient`, `sideGeometry`, palette, Speech_Bubble_Slot headroom band, `expressionFor`, Expressions and dress-up layout constants, new animation classes (Properties 8, 9, 22) |
+| 3 Avatar | `StitchedPatient`, `sideGeometry`, palette, Speech_Bubble_Slot headroom band, `expressionFor`, Expressions and dress-up layout constants, new animation classes, Cohesive redraw (scene group, Quilt, layer order, coordinate plan, outline constants, shade and scene colours) (Properties 8, 9, 22, 23) |
 | 4 Avatar follows vitals | `avatarMapper.ts`, `vitalBands.ts`, `sides.ts`, CSS custom-property animation |
 | 5 Status | `statusSelector.ts`, `StatusLine`, `GoalBar`, `timeFormat.ts` |
 | 6 Ending evaluation | `endingEvaluator.ts`, reducer fork handling, stale-sample guard |

@@ -390,11 +390,11 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 10.2, 10.5, 10.6, 10.7, 10.10, 10.11, 10.12, 11.2, 11.5, 11.6, 11.10_
 
   - [ ] 10.6 Create `EndingScreen`
-    - `apps/web/src/components/EndingScreen.tsx`: overlay starting at `top: var(--notice-h)` with a `z-index` below the Safety_Notice; dark background with an original inline-SVG moon, bats and corner cobweb (no ids); `<h2>` "Rescued" or "Lost"
+    - `apps/web/src/components/EndingScreen.tsx`: overlay starting at `top: var(--notice-h)` with a `z-index` below the Safety_Notice; dark background with an original inline-SVG corner cobweb (no ids); no moon or bats of its own, because the Avatar's scene already has the window, moon and bats; `<h2>` "Rescued" or "Lost"
     - `rescued`: "He's breathing again." and `StitchedPatient` with `endingSnapshot`, `variant="rescued"`; a "Rewind" control
     - `lost`: `StitchedPatient` with `variant="lost"` and a "Rewind and try again" button present in the first render
     - Both: the Rewind control opens the `RewindPanel` on top while the screen stays; "Show the monitor" calls `selectView('clinician')`; focus moves to the first control and is trapped with `useFocusTrap`; decorations sit inside `.sp-ending` so reduced motion stops their animation
-    - Create `apps/web/src/components/EndingScreen.test.tsx` with `renderToStaticMarkup`: heading and texts per Ending; "Rewind and try again" present for `lost`; "Show the monitor" for both; at least one decoration; the lost Avatar carries `sp-unstitch`; the overlay style starts below the notice
+    - Create `apps/web/src/components/EndingScreen.test.tsx` with `renderToStaticMarkup`: heading and texts per Ending; "Rewind and try again" present for `lost`; "Show the monitor" for both; at least one decoration; the cobweb is present and the Ending_Screen's own markup (outside the Avatar) contains no moon or bat; the lost Avatar carries `sp-unstitch`; the overlay style starts below the notice
     - Run `npx tsc --noEmit` from `apps/web/`; no new errors compared with the 1.1 baseline
     - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
@@ -426,6 +426,43 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 3.1, 3.12, 3.13, 3.14, 3.15, 3.16, 3.17, 3.18, 3.19, 3.20, 3.21, 3.22, 3.23, 3.24, 3.25, 3.26, 3.27, 3.28, 3.29, 3.30, 3.31, 3.32, 3.33, 12.15_
     - _Properties: 8, 9, 22_
+
+  - [ ] 10.8 Redraw the Avatar as one cohesive scene
+    - Touch only `apps/web/src/components/StitchedPatient.tsx` and `apps/web/src/components/StitchedPatient.test.tsx`; `apps/web/src/app/globals.css` stays unchanged unless a rule must change; report any change
+    - Layer order, per the design section "Cohesive redraw" (follow its exact order and element lists): the `scene` group as the first child of `<svg>` (window, moon, two bats, IV pole, IV bag, IV tube, headboard, pillow); the `torso` group with `sp-breathe` (torso skin piece, two gown panels with gown dots, gown shades); the `head-tilt` group (back hair, `Patch head` with neck, chin shade, bolts, head circle, far-side shade and face group, `Patch forehead`, `Patch cheek`, brim shade, blush, freckles, head-area stitches, hair locks, beanie, sweat drops, sparkles); the two spark groups; the chest halves, needles and bandages with `data-side` as direct children of `<svg>`; the `heart-hop` group; the `quilt` group; last the `hands` Patch with both `arm` groups (forearm, seam with cross-stitch, mitten)
+    - Coordinates and constants, per the design's coordinate plan, element geometry and colour tables: new values for `HAT_BOX` and `BAT_BOXES`; new `WINDOW_BOX`, `MOON`, `IV_BOX`, `GOWN_OPENING`, `QUILT_TOP_Y`, `HEAD_CENTRE`, `HEAD_RADIUS`, `OUTLINE_COLOUR`, `OUTLINE_WIDTH`, the shade, gown, beanie, quilt and scene colours, and a `shade` entry per Skin_Tone in `SKIN_PALETTES`; `FABRIC_CHECK_LINES` and `FABRIC_STRIPE_LINES` get the quilt coordinates; `FACE_FEATURE_BOX`, `CHEST_REGION`, `SPARK_BOXES`, `UNSTITCH_OFFSETS`, `PatchName` and `sides.ts` stay unchanged
+    - Outline and shading: every stroked shape outside the exemptions of Requirement 3.34 uses `OUTLINE_COLOUR` and `OUTLINE_WIDTH`; the `<svg>` sets `stroke-linejoin="round"` and `stroke-linecap="round"`; Shade_Shapes are flat fills with no stroke and no opacity, lit from the window at the upper left
+    - Face additions: iris, pupil (`data-part="pupil"`) and eye highlight in `calm`, `worried` and `alarmed`; a triangle `nose` polygon in every Expression; all other face coordinates unchanged
+    - Removals and moves: remove `Plaster`, `DRESS_UP_COLOURS.plaster`, `DRESS_UP_COLOURS.plasterPad` and `DRESS_UP_COLOURS.batOutline`; `fabric-check` and `fabric-stripe` move onto quilt patches; the hand circles become the arm groups, the hair tuft becomes the back hair and hair locks, `PumpkinHat` becomes the beanie, the bats move into the window; the hand stitches move to the arm seams; chest halves are filled with `palette.patches[1]` (3.53) and `AVATAR_COLOURS.chestHalf` is no longer used
+    - Must not change: the Expressions and lips (3.13 to 3.19, 3.33); the Skin_Tones and their `patches`, `lips` and `blush` values; the sweat drops; the chest halves with swelling and the side marks per side as direct children of `<svg>` inside `CHEST_REGION`, with the patient's Left on the viewer's right; the heart with `sp-beat`; breathing on the torso group; `sp-blink`; `sp-tilt` on the head-tilt group; the sparks; `sp-bat`; the one-time celebration; `sp-unstitch` on the four skin Patch groups only (head, forehead, cheek, hands); the reduced-motion block; the speech band and the rate icons outside the SVG; the viewBox `0 0 200 280`
+    - Constraints: no new prop on `StitchedPatient` and no new field in `AvatarParameters`; no `Math.random`, `Date` or timers; identical markup for identical props; no `id`, gradient, `<pattern>`, `<clipPath>`, `<mask>`, `<filter>`, `<defs>`, `<image>`, `href` or `url(`; all paths use only absolute `M`/`L`/`H`/`V`/`Q`/`C`/`Z` commands; all artwork original and friendly, no blood, wounds, bone, fangs or skulls, skin never green, head never flat, real eyes and never button or X eyes
+    - Extend `apps/web/src/components/StitchedPatient.test.tsx` with `renderToStaticMarkup`, for every Skin_Tone, every Expression and both the normal and the swollen chest geometry where Requirement 12.16 says so, using the Conservative_Bounding_Box helper, a path vertex reader and a `relativeLuminance(hex)` helper (WCAG 2.2):
+      - outline: every element with a stroke other than `none`, outside the exempt parts (face group, `seam`, `stitch`, `heart`, `fabric-check`, `fabric-stripe`, `spark`, `sparkle`, `iv-tube`, `sweat` and every `data-side` element, with their descendants), has `stroke` equal to `OUTLINE_COLOUR` and `stroke-width` equal to `OUTLINE_WIDTH`; the `<svg>` sets round line joins and caps and no element sets another value (3.34)
+      - scene group: exactly one `scene` group, the first child of `<svg>`, holding `window`, `moon`, two `bat`, `iv-pole`, `iv-bag`, `iv-tube`, `headboard` and `pillow` in that order (3.35)
+      - quilt group: one `quilt` group, a direct child of `<svg>`, after the torso, head-tilt, every `data-side` element and the heart-hop group, followed only by the `hands` Patch; at least four `quilt-patch` elements, seams and at least two stitches; `fabric-check` and `fabric-stripe` each inside one quilt patch's box and on no skin piece (3.29, 3.36, 3.37)
+      - no scene shape's box intersects `FACE_FEATURE_BOX` (3.38)
+      - the top of the quilt's box lies below the bottom of `CHEST_REGION` (3.39)
+      - window and moon inside `WINDOW_BOX`; both bats inside `WINDOW_BOX`, after the moon in document order, each box intersecting the moon's box (3.40, 3.54)
+      - IV pole, bag and tube inside `IV_BOX`, which is disjoint from the boxes of the torso, head-tilt and `hands` groups (3.41)
+      - head circle diameter at least 70 (3.42)
+      - hat box above the head centre with its bottom at least 8 units below the head top; at least six `hair-lock` elements clear of `FACE_FEATURE_BOX`, at least one ending below the hat's bottom (3.43, 3.44)
+      - arms: exactly two `arm` groups, one per half; each arm shape has two vertices within 0.5 units of vertices of the gown panel on its side; each arm has a seam with a stitch; each mitten's box intersects the quilt's box; no arm shape's box intersects the box of any `data-side` element, for normal and swollen chests (3.45, 3.46)
+      - shading: every `shade` element has no stroke and no opacity attribute and a fill equal to the Skin_Tone's `shade`, `GOWN_SHADE` or `QUILT_SHADE`; at least three skin shades in the head-tilt group, at least one gown shade in the torso group and at least one quilt shade in the quilt; each Skin_Tone's `shade` has a lower relative luminance than every patch colour of that tone (3.47, 3.48)
+      - eyes: in `calm`, `worried` and `alarmed`, each eye has an `iris` inside the white, a `pupil` inside the iris and an `eye-highlight` centred inside the iris (3.49)
+      - nose: one `nose` polygon with three points in every Expression, inside `FACE_FEATURE_BOX` and clear of the eye-white and `lips` boxes (3.50)
+      - gown: exactly two `gown` panels in the torso group, one per half; at least six `gown-dot` circles with a fill and no stroke, each centred inside a gown panel's box; no gown panel's box intersects `GOWN_OPENING` (3.51, 3.52)
+      - chest halves (`chest` or `chest-swollen`) filled with a patch colour of the current Skin_Tone (3.53)
+      - muted scene: every fill inside the scene group and the quilt has a relative luminance no higher than that of the darkest `healthy` patch colour (3.55)
+      - `sp-unstitch` only on the four skin Patch groups and only for `lost`; none inside the scene, torso or quilt groups (3.56)
+      - no element with `data-part="plaster"` (3.29)
+      - **Property 23: The Avatar is one cohesive illustration**. Tag: `// Feature: play-mode, Property 23: The Avatar is one cohesive illustration`
+    - Update every existing Avatar test to the new boxes and artwork: `HAT_BOX` and `BAT_BOXES`; the plaster test now asserts no plaster; the fabric looks on the quilt; the hand and stripe tests on the arm, mitten and quilt groups. Properties 8, 9 and 22 keep their tags and pass
+    - The existing palette tests that parse fills inside Patch groups must keep passing, so every new fill inside a Patch group is a hex colour
+    - Run `npx tsc --noEmit` from `apps/web/`; no new errors compared with the 1.1 baseline
+    - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
+    - Quote the Vitest summary line (passed/failed/skipped) in the task report
+    - _Requirements: 3.2, 3.20, 3.21, 3.29, 3.30, 3.32, 3.34, 3.35, 3.36, 3.37, 3.38, 3.39, 3.40, 3.41, 3.42, 3.43, 3.44, 3.45, 3.46, 3.47, 3.48, 3.49, 3.50, 3.51, 3.52, 3.53, 3.54, 3.55, 3.56, 3.57, 12.15, 12.16_
+    - _Properties: 8, 9, 22, 23_
 
 - [ ] 11. Wire the Play view and the session page
   - [ ] 11.1 Create `PlayView`
@@ -512,6 +549,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
 ## Notes
 
 - Tasks are ordered by dependency: tooling and types → Alarm_Function → pure logic → API timeouts → case schema and case file → session state and hook → shared shell and Clinician view → Play components → wiring → calibration → acceptance checklist → final check
+- Run order differs from document order for group 10: 10.7 and 10.8 run before 10.6, because the Ending_Screen shows the redrawn Avatar. The order is 10.5, 10.7, 10.8, then 10.6.
 - Every task is required. There are no optional tasks and no `*` markers
 - Tests live in the task that implements the code they test. There are no separate "write tests" tasks. Each property test sits in the task that implements its function and carries the tag `// Feature: play-mode, Property N: <title>`
 - Each task references its requirement numbers and, where it has any, the design's property numbers
@@ -578,13 +616,14 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     { "id": 26, "tasks": ["10.5"] },
     { "id": 27, "tasks": ["10.6"] },
     { "id": 28, "tasks": ["10.7"] },
-    { "id": 29, "tasks": ["11.1"] },
-    { "id": 30, "tasks": ["11.2"] },
-    { "id": 31, "tasks": ["12.1"] },
-    { "id": 32, "tasks": ["12.2"] },
-    { "id": 33, "tasks": ["12.3"] },
-    { "id": 34, "tasks": ["13.1"] },
-    { "id": 35, "tasks": ["14.1"] }
+    { "id": 29, "tasks": ["10.8"] },
+    { "id": 30, "tasks": ["11.1"] },
+    { "id": 31, "tasks": ["11.2"] },
+    { "id": 32, "tasks": ["12.1"] },
+    { "id": 33, "tasks": ["12.2"] },
+    { "id": 34, "tasks": ["12.3"] },
+    { "id": 35, "tasks": ["13.1"] },
+    { "id": 36, "tasks": ["14.1"] }
   ]
 }
 ```
