@@ -472,7 +472,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Properties: 8, 9, 22, 23_
 
 - [ ] 11. Wire the Play view and the session page
-  - [ ] 11.1 Create `PlayView`
+  - [x] 11.1 Create `PlayView`
     - `apps/web/src/components/PlayView.tsx`: the two-column layout from the design (`height: calc(100vh - var(--notice-h))`, `overflow: hidden` at widths ≥ 1024 px, stacked and scrolling below 1024 px), with `StitchedPatient`, `StatusLine`, `GoalBar`, `PlaybackControls variant="play"`, `InterventionPanel` with `getLabel = playButtonText`, `HintPanel`, Rewind button with `RewindPanel`, `Toast`s (success "Done: <button text>.", error "That didn't work. Please try again.", "The simulation could not be paused.", stream stopped "The simulation stopped. Please reload the page.") and `EndingScreen` while the Ending is not `none`. DOM order equals the visual and focus order in the design. Text at least `1rem`
     - Export the pure helper `interventionsDisabled({ connected, interventionPending, forkPending, ending })` and use it for the buttons
     - Create `apps/web/src/components/PlayView.test.tsx` with `renderToStaticMarkup` and a reducer-built state:

@@ -555,6 +555,18 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795228891533
       }
+    ],
+    "11.1 Create `PlayView`": [
+      {
+        "executionId": "b64a7607-cc71-4cd8-b4e5-ada634e01979",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795229468610
+      },
+      {
+        "executionId": "b64a7607-cc71-4cd8-b4e5-ada634e01979",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795230120431
+      }
     ]
   }
 }
