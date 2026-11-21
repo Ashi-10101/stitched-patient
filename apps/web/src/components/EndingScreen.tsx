@@ -15,7 +15,7 @@
 
 import { useRef, type Ref } from 'react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
-import { StitchedPatient } from '@/components/StitchedPatient';
+import { SPEECH_BAND_HEIGHT, StitchedPatient } from '@/components/StitchedPatient';
 import type { AvatarParameters } from '@/types';
 
 export type EndingKind = 'rescued' | 'lost';
@@ -79,6 +79,24 @@ function Cobweb() {
   );
 }
 
+/**
+ * Fixed height above and below the drawing: p-4 top and bottom (2rem),
+ * text-2xl heading (2rem), text-base sentence (1.5rem), a button row
+ * (py-2 + 1.5rem line + 2px borders = 2.75rem), three gap-3 gaps (2.25rem),
+ * plus a 0.5rem safety margin.
+ */
+const ENDING_OVERHEAD = '11rem';
+
+/**
+ * The Ending_Screen never shows speech, so the Avatar's empty speech band is
+ * pulled up behind the heading, and the width comes from the height left below
+ * the notice (drawing aspect 200 × 280), capped at 22rem.
+ */
+const AVATAR_WRAPPER_STYLE = {
+  marginTop: `calc(-1 * ${SPEECH_BAND_HEIGHT})`,
+  width: `min(22rem, calc((100vh - var(--notice-h) - ${ENDING_OVERHEAD}) * 200 / 280))`,
+} as const;
+
 const BUTTON_CLASS =
   'rounded-lg border-2 border-[var(--sp-accent)] px-4 py-2 text-base font-semibold text-[var(--sp-text)] hover:bg-[var(--sp-accent)] hover:text-[var(--sp-bg)]';
 
@@ -108,7 +126,11 @@ export function EndingScreen({
       <div className="relative mx-auto flex w-full max-w-lg flex-col items-center gap-3 p-4 text-center">
         <h2 className="text-2xl font-semibold">{ENDING_HEADING[ending]}</h2>
         {ending === 'rescued' && <p className="text-base">{RESCUED_TEXT}</p>}
-        <div data-part="ending-avatar" className="w-full max-w-[13rem]">
+        <div
+          data-part="ending-avatar"
+          className="max-w-full [&_[data-part=speech-band]]:pointer-events-none"
+          style={AVATAR_WRAPPER_STYLE}
+        >
           <StitchedPatient params={params} statusSentence={statusSentence} variant={ending} />
         </div>
         <div className="flex flex-wrap justify-center gap-3">

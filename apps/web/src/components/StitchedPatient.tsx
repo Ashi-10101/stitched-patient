@@ -1042,9 +1042,12 @@ function RateIcons({ params }: { params: AvatarParameters }) {
   );
 }
 
+/** Height of the Speech_Bubble_Slot band reserved above the drawing. */
+export const SPEECH_BAND_HEIGHT = '8.5rem';
+
 function SpeechBand({ speech }: { speech: string | undefined }) {
   return (
-    <div data-part="speech-band" className="relative h-[8.5rem] w-full shrink-0">
+    <div data-part="speech-band" className="relative w-full shrink-0" style={{ height: SPEECH_BAND_HEIGHT }}>
       {hasSpeech(speech) && (
         <div
           data-part="speech-bubble"

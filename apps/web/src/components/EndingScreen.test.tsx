@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AvatarParameters } from '@/types';
+import { SPEECH_BAND_HEIGHT } from './StitchedPatient';
 import {
   ENDING_HEADING,
   EndingScreen,
@@ -164,6 +165,26 @@ describe('EndingScreen', () => {
     expect(swollen).toMatch(/<[^>]*data-side="Left"[^>]*data-part="chest-swollen"/);
     const flat = avatarSvg(render('rescued', { swollenSides: [] }));
     expect(flat).not.toContain('data-part="chest-swollen"');
+  });
+
+  it('renders the speech band with the height from SPEECH_BAND_HEIGHT', () => {
+    expect(SPEECH_BAND_HEIGHT).toBe('8.5rem');
+    for (const ending of ENDINGS) {
+      const band = render(ending).match(/<div[^>]*data-part="speech-band"[^>]*>/);
+      expect(band).not.toBeNull();
+      expect(band![0]).toContain(`height:${SPEECH_BAND_HEIGHT}`);
+    }
+  });
+
+  it('pulls the Avatar wrapper up by the speech band and sizes it from the height left', () => {
+    for (const ending of ENDINGS) {
+      const wrapper = render(ending).match(/<div data-part="ending-avatar"[^>]*>/);
+      expect(wrapper).not.toBeNull();
+      const style = wrapper![0].match(/style="([^"]*)"/)![1];
+      expect(style).toContain(`margin-top:calc(-1 * ${SPEECH_BAND_HEIGHT})`);
+      expect(style).toMatch(/width:min\(22rem,/);
+      expect(wrapper![0]).not.toContain('max-w-[13rem]');
+    }
   });
 
   it('names the Avatar with the statusSentence', () => {

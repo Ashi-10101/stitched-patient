@@ -1035,6 +1035,7 @@ Every fill in the scene and the Quilt has a relative luminance no higher than th
 - Both endings: a Rewind control ("Rewind and try again" for `lost`, "Rewind" for `rescued`) that opens the Rewind_Panel on top while the Ending_Screen stays (7.5, 7.6), and "Show the monitor", which calls `selectView('clinician')` (7.6).
 - Focus moves to the first control on open and is trapped while open (11.5, 11.10).
 - The screen disappears when the Ending returns to `none` after a successful fork (10.8).
+- Avatar sizing: the Ending_Screen shows no speech, so the Avatar wrapper has `margin-top: calc(-1 * SPEECH_BAND_HEIGHT)` (the constant exported by `StitchedPatient.tsx`, 8.5rem), which pulls the empty band up behind the heading (the band ignores pointer events). The wrapper width is `min(22rem, calc((100vh - var(--notice-h) - 11rem) * 200 / 280))`, where 11rem is the padding, heading, rescued sentence, button row and gaps plus a 0.5rem margin, capped by `max-w-full`. At 1280 × 720 the Avatar is about 21.8rem wide and the content (656 px) fits in the 664 px below the notice, with both buttons visible; at smaller sizes the overlay scrolls vertically.
 
 ### Ending banner (`EndingBanner.tsx`)
 
