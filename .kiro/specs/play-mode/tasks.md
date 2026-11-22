@@ -494,39 +494,85 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 1.9, 1.10, 1.11, 14.8, 14.9_
 
+  - [ ] 11.3 Gate the rescue on the Required_Interventions
+    - Author's decision of 2026-11-20 (design D8): a sample counts toward the Rescue_Condition only from the Rescue_Gate_Time, which opens when every Required_Intervention is in the Active_Interventions. Follow the design sections "endingEvaluator.ts", "sessionState.ts — the reducer" and "Case file additions"
+    - Files: `apps/web/src/lib/endingEvaluator.ts` and `endingEvaluator.test.ts`; `apps/web/src/lib/sessionState.ts` and `sessionState.test.ts`; `apps/web/src/types/index.ts`; `apps/web/src/test/generators.ts`; `cases/case-schema.json`; `cases/adult-tension-pneumothorax.yaml`; `apps/web/src/lib/caseContent.test.ts`; and the setup of existing tests that reach `rescued` with the real case file (below). No other file changes
+    - Types: add `requiredInterventions?: string[]` to `endings.rescued` in `PlaySection` in `src/types/index.ts`
+    - Evaluator (`endingEvaluator.ts`):
+      - add `rescueGateTime: number | null` to `EndingContext`; `buildEndingContext` sets it to `rescueGateTime(requiredInterventions(play), [])`, so it is `null` when the Play_Section lists Required_Interventions and `-Infinity` without them
+      - `stepEnding` step 4 as in the design: rescue holds only when `t >= ctx.rescueFromTime`, `ctx.rescueGateTime !== null`, `t >= ctx.rescueGateTime` and every rescue condition holds. Steps 1 to 3 and 5 to 7 stay unchanged. `evaluateEnding` stays the fold of `stepEnding`
+      - export `requiredInterventions(play)` (`endings.rescued.requiredInterventions`, or `[]` when the field or the Play_Section is absent), `rescueGateTime(requiredIds, active)` (`-Infinity` for an empty list; else the largest, over the required ids, of the smallest finite `simulationTime` of an `active` entry with that `interventionId`; `null` when one id has no entry; entries with other ids ignored) and `setRescueGate(ctx, s, gate)` (same `ctx` and `s` when the gate is unchanged; otherwise the new gate, and `rescueStart = null` when the Ending is `none`, `rescueStart` is not `null` and the gate is `null` or later than `rescueStart`; `ending`, `endedAt`, `lastTime` and `lostStarts` never change). `endingEvaluator.ts` does not import `branchLineage.ts`. The calibration script (task 12.2) reuses these helpers
+    - Reducer (`sessionState.ts`): a private `withRescueGate(state)` that computes `rescueGateTime(requiredInterventions(caseData?.play), activeInterventions(interventionRecord, lineage))`, applies it with `setRescueGate(state.endingCtx, state.ending, gate)` and returns the same state when the gate is unchanged. Call it as the last step of `caseLoaded`, `sessionLoaded`, `checkpointsLoaded`, `interventionRecordRestored`, `interventionSucceeded` and `forkSucceeded`. `sampleReceived`, `hintRevealed`, `viewSelected`, `playbackChanged` and `connectionChanged` leave the gate unchanged. The reducer stays pure
+    - Generators (`src/test/generators.ts`): let `arbPlaySection` sometimes include `endings.rescued.requiredInterventions` (1 or more unique non-empty ids), keeping every existing guarantee (1 to 6 rescue conditions, 0 to 5 lost groups, at least one group or a Time_Limit, status rules never on `normal`)
+    - Schema (`cases/case-schema.json`): add the optional `requiredInterventions` array to `endings.rescued` per the design fragment (`minItems: 1`, `uniqueItems: true`, items strings with `minLength: 1`); keep `additionalProperties: false` on `endings.rescued`
+    - Case file (`cases/adult-tension-pneumothorax.yaml`): add `requiredInterventions: ["needle-decompression-left"]` under `endings.rescued`, with a comment on the same line or the line directly above stating that this is the author's decision of 2026-11-20 that rescue counts only after the left needle decompression. This entry gets no `TODO(author)` marker. Every other draft value keeps its marker, and no other line of the file changes
+    - Existing tests that reach `rescued` with the real case file now see a `null` gate. Check at least `PlayView.test.tsx`, `SessionScreen.test.tsx`, `EndingScreen.test.tsx`, `ClinicianView.test.tsx` and `sessionState.test.ts`, and any other test that does so. In each, change only the setup so that `needle-decompression-left` is applied before the rescue samples (for example an `interventionSucceeded` action with `buildInterventionEntry` for that Intervention, or `setRescueGate` for a test that calls the evaluator directly). Do not change what these tests assert. Report each changed test and its setup change
+    - Validate the schema inside the physiology image, from the repository root:
+      - real case: `docker compose run --rm -v "$PWD/scripts:/check/scripts:ro" -v "$PWD/cases:/check/cases:ro" -w /check physiology python3 scripts/validate-case.py cases/adult-tension-pneumothorax.yaml` must print "Case file is valid" and exit 0
+      - with the file tools, create three broken copies of the updated case under `/tmp/sp-cases/`: `requiredInterventions` empty (`[]`), with a repeated id, and with an empty string. Validate each with the side-by-side mounts, so the real schema under `cases/` is read: `docker compose run --rm -v "$PWD/scripts:/check/scripts:ro" -v "$PWD/cases:/check/cases:ro" -v /tmp/sp-cases:/check/tmpcases:ro -w /check physiology python3 scripts/validate-case.py tmpcases/<file>.yaml`. Each must exit non-zero and print the path of `endings.rescued.requiredInterventions` (2.21)
+      - the file tool cannot write a schema copy, so do not try to copy `case-schema.json` to `/tmp/sp-cases/`. The broken copies are not committed
+    - Add to `apps/web/src/lib/endingEvaluator.test.ts`, one test per case of Requirement 12.17:
+      - with a fixed finite gate, samples that satisfy the Rescue_Condition before the gate add no rescue hold time, and a stretch exactly `holdSeconds` long that starts at the gate returns `rescued`
+      - with Required_Interventions and a `null` gate, a sequence whose samples all satisfy the Rescue_Condition never returns `rescued`, and still returns `lost` through a Lost_Condition group and through the Time_Limit
+      - a fixed sequence modelled on the 2026-11-20 run (no Intervention, the Rescue_Condition satisfied from the insult `timeSeconds` onward, Required_Interventions listed) returns `none` at Simulation_Time 61 s and later
+      - `rescueGateTime` returns the largest of the earliest entry times of the required ids, `null` when one required id is missing, and `null` when only `needle-decompression-right` is active while `needle-decompression-left` is required
+      - without Required_Interventions, the gate is `-Infinity` and the Endings equal those without a gate
+      - `setRescueGate` ends an open rescue stretch that starts before a later or a `null` gate, and leaves `ending`, `endedAt`, `lastTime` and `lostStarts` unchanged
+      - extend the generators of the existing Property 12, 13 and 14 tests with a fixed gate in the context (`-Infinity`, `null` or a finite time); the Property 12 reference model applies the gate as the design states. All three keep their tags and pass
+      - **Property 24: Rescue never comes before the Rescue_Gate_Time**. Tag: `// Feature: play-mode, Property 24: Rescue never comes before the Rescue_Gate_Time`
+    - Add to `apps/web/src/lib/sessionState.test.ts`:
+      - after a fork to a Checkpoint earlier than the left Decompression the gate is `null`, and after `needle-decompression-left` succeeds again on the new Branch the gate equals the new entry's Simulation_Time
+      - the gate is recomputed on each event of Requirement 6.23: `caseLoaded`, `sessionLoaded`, `checkpointsLoaded`, `interventionRecordRestored`, `interventionSucceeded` and `forkSucceeded`
+      - **Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage**. Tag: `// Feature: play-mode, Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage`
+    - Add to `apps/web/src/lib/caseContent.test.ts`:
+      - every entry of `endings.rescued.requiredInterventions` equals the `id` of an Intervention in the case file; the failure names each unknown entry (2.22)
+      - `requiredInterventions` has exactly one entry, `needle-decompression-left`, with the 2026-11-20 decision comment on its line or the line directly above and no `TODO(author)` marker (2.23)
+      - the existing `TODO(author)` marker test must not require a marker on this entry; it keeps requiring one on every other draft value
+    - All existing tests keep passing; only the setup changes named above are allowed
+    - Run `npx tsc --noEmit` from `apps/web/`; no new errors compared with the 1.1 baseline
+    - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
+    - Quote the Vitest summary line (passed/failed/skipped) in the task report, and quote the output of each validation command
+    - _Requirements: 2.21, 2.22, 2.23, 6.1, 6.3, 6.12, 6.13, 6.18, 6.19, 6.20, 6.21, 6.22, 6.23, 6.24, 12.17_
+    - _Properties: 12, 13, 14, 24, 25_
+
 - [ ] 12. Calibrate the draft Play thresholds against the engine
   - [ ] 12.1 Implement calibration record helpers in `apps/web/src/lib/calibration.ts`
     - Pure helpers used by the calibration script, kept under `src/` so Vitest covers them without any network:
       - `samplesAtTenSecondMarks(samples, endTime)`: one sample per multiple of 10 s from 0 to the end; the next sample is used and flagged when a mark is missing
-      - `scenarioOutcome(ctx, samples)`: the Ending from `evaluateEnding`, the time it left `none`, and for `lost` the cause (lost group number, read from `lostStarts` in the state returned at the ending sample, or "Time_Limit"); whether rescue ever held before the end
-      - `checkLeft` (rescued at ≤ 300 s), `checkRightOnly` (lost at or before the Time_Limit, never rescued), `checkNoIntervention` (lost at or before the Time_Limit, no rescue before) and `compareEarlyWithNone` (side-by-side samples after the insult time and a "pneumothorax still develops" statement)
-      - `renderCalibrationRecord(...)`: the markdown record with every item in the design's "Record" list, including the labels "answers open question 1, item c" and "item d", the Requirement 4.18 revision flag when needed, and the line "Play_Section values NOT calibrated" when any check fails
-    - Create `apps/web/src/lib/calibration.test.ts` with synthetic sample sequences: missing marks flagged; each check passes and fails on the right inputs; lost cause names the group or the Time_Limit; the record contains the "NOT calibrated" line only on failure and the 4.18 flag only when the early scenario shows no pneumothorax
+      - `scenarioOutcome(ctx, samples, gateEntries)`: takes the scenario's gate sequence (its Intervention_Record entries) and applies `setRescueGate` with `rescueGateTime(requiredInterventions(play), entries so far)` at the sample where each call succeeded, as the design's "Rescue gate in the script" says, then returns the Ending from the fold of `stepEnding`, the time it left `none`, the final Rescue_Gate_Time, and for `lost` the cause (lost group number, read from `lostStarts` in the state returned at the ending sample, or "Time_Limit"); whether rescue ever held before the end
+      - `checkLeft` (rescued at ≤ 300 s, and at or after the Rescue_Gate_Time plus `holdSeconds`; 13.14), `checkRightOnly` (lost at or before the Time_Limit, never rescued), `checkNoIntervention` (lost at or before the Time_Limit, never rescued) and `compareEarlyWithNone` (side-by-side samples after the insult time and a "pneumothorax still develops" statement). `checkRightOnly` and `checkNoIntervention` also list the samples at which every rescue Vital_Condition held without the gate (13.15). `compareEarlyWithNone` states that the early scenario's Ending is not evidence for item d and answers item d only from the vitals comparison (13.16)
+      - for Requirement 13.17: `baselineBands(sample, alarms)` (the Vital_Band, Alarm_State and direction, of every vital with Case thresholds at t = 0), `overallStatusSeries(samples, alarms)` (the Overall_Status per sample) and `statusRuleReport(samples, alarms, play)` (each Status_Rule that matched, with the sample times at which it matched and the sample times at which `selectStatus` returned its sentence, or "only the defaultSentence was returned")
+      - `renderCalibrationRecord(...)`: the markdown record with every item in the design's "Record" list, including the Rescue_Gate_Time per scenario, the 13.17 items, the labels "answers open question 1, item c" and "item d", the Requirement 4.18 revision flag when needed, and the line "Play_Section values NOT calibrated" when any check fails
+    - Create `apps/web/src/lib/calibration.test.ts` with synthetic sample sequences: missing marks flagged; the gate is applied at the sample where the call succeeded, not before; each check passes and fails on the right inputs, including the 13.14 gate-plus-hold bound and the 13.15 list of samples where rescue held without the gate; lost cause names the group or the Time_Limit; the 13.17 items for a synthetic case where RR and EtCO2 sit on their lower normal bounds and no Status_Rule fires (the baseline bands and the Overall_Status per sample as `getVitalBand` and `overallStatus` give them, and "only the defaultSentence was returned"); the record contains the Rescue_Gate_Time per scenario, the "NOT calibrated" line only on failure and the 4.18 flag only when the early scenario shows no pneumothorax
     - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
-    - _Requirements: 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.11, 13.12_
+    - _Requirements: 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.11, 13.12, 13.13, 13.14, 13.15, 13.16, 13.17_
 
   - [ ] 12.2 Write the calibration script `apps/web/scripts/calibratePlayMode.ts`
     - CLI from the design: `--url`, `--case`, `--decompress-at`, `--early-decompress-at`, optional `--max-seconds`. Uses Node's global `fetch` and `WebSocket`, the `yaml` parser, the shipped `endingEvaluator.ts` and the helpers from task 12.1. Imports use relative paths or the `@` alias through `--config vitest.config.ts`
     - Checks before any network call, stopping with a clear message: the arguments parse; the Play_Section exists and has a Time_Limit or `--max-seconds` is given; `--early-decompress-at` is less than the left `SETensionPneumothorax` `timeSeconds`; `git merge-base --is-ancestor 1e71454 HEAD` succeeds
     - Before the scenarios, create one Session and compare `GET /sessions/{id}/case` `play` and each `playLabel` with the YAML values (Requirement 2.13). The record states the result; a mismatch stops the run
     - Runs the 4 scenarios (no-intervention, left, right-only at the same time as left, left-before-insult) as separate Sessions in parallel, with the per-scenario procedure in the design: play, pause at the Decompression time, apply, read the newest "After …" Checkpoint time as the actual Decompression time, resume; stop at a non-`none` Ending or the Time_Limit / `--max-seconds`; pause and delete the Session
-    - Writes `docs/calibration/play-mode-<YYYY-MM-DD>-<short-sha>.md` and appends an index line to `docs/calibration/README.md` (created if missing). Never edits the case file
+    - Rescue gate (13.13): the script keeps its own Intervention_Record per scenario, one `InterventionRecordEntry` per successful Intervention_API call with the actual Decompression time and the scenario's branch id. It computes the gate with `rescueGateTime(requiredInterventions(play), entries)` from task 11.3 and applies it with `setRescueGate` at the point in the sample order where the call succeeded, so the evaluator sees the same gate sequence as the Web_App
+    - The left-before-insult scenario ignores its Ending and keeps running until its Simulation_Time reaches the last Simulation_Time of the no-intervention scenario. When the scenarios run in parallel, it runs to the Time_Limit or `--max-seconds` and the comparison uses the overlapping times (13.16)
+    - Writes `docs/calibration/play-mode-<YYYY-MM-DD>-<short-sha>.md` and appends an index line to `docs/calibration/README.md` (created if missing). The record contains the Rescue_Gate_Time per scenario and the 13.17 items from task 12.1 (baseline bands at t = 0, Overall_Status per sample, Status_Rules matched and returned). Never edits the case file
     - Do not run the scenarios in this task. Verify offline: run `npx vite-node --config vitest.config.ts scripts/calibratePlayMode.ts -- --url http://localhost:8000 --case ../../cases/adult-tension-pneumothorax.yaml --decompress-at 150 --early-decompress-at 40` from `apps/web/`; it must stop on the early-decompression check before any network call. Quote the output
     - Run `npx tsc --noEmit` from `apps/web/`; no new errors compared with the 1.1 baseline
     - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
-    - _Requirements: 2.13, 13.1, 13.2, 13.3, 13.4, 12.11_
+    - _Requirements: 2.13, 13.1, 13.2, 13.3, 13.4, 12.11, 13.13, 13.14, 13.15, 13.16, 13.17_
 
   - [ ] 12.3 Run the calibration and record it (ONE-TIME RECORDING RUN)
     - The Physiology_Service must be reachable at `http://localhost:8000` (check `curl -sf http://localhost:8000/`). If it is not, stop and ask the user to start `docker compose up physiology` in their own terminal, or to give the x86 machine's URL for `--url`. Do not start the service from the agent
     - Run from `apps/web/`: `npx vite-node --config vitest.config.ts scripts/calibratePlayMode.ts -- --url http://localhost:8000 --case ../../cases/adult-tension-pneumothorax.yaml --decompress-at 150 --early-decompress-at 20 2>&1 | tee /tmp/sp-calibration.log`
     - Use execute_bash with timeout 1800000 ms. Until the core spec's clock task lands, the service ignores speed, so each scenario takes about as many wall-clock seconds as simulated seconds (up to the 600 s Time_Limit); the 4 scenarios run in parallel. If execute_bash reports a timeout, read the log and the record file before retrying
-    - Expected from the drafts (task 7.2 engine basis): left rescued near t=230 (must be ≤ 300), no-intervention lost near t=340. The right-only and left-before-insult results are not yet known (open question 1, items c and d)
-    - Include the recorded outcome per scenario, the Decompression times and the check results in the task report. Keep the record files under `docs/calibration/` with the change
-    - If any check in Requirement 13.5, 13.6 or 13.7 fails, or the early scenario flags Requirement 4.18: STOP and report. Do not change any case value, threshold or check to make it pass
+    - Expected from the drafts (task 7.2 engine basis) and the rescue gate (task 11.3): left rescued at or after its Rescue_Gate_Time plus `holdSeconds` and at or before 300 s (the drafts predict near t=230); no-intervention and right-only never rescued, which the `null` gate guarantees and the checks still verify, and lost at or before the Time_Limit (no-intervention lost near t=340 per the drafts). The right-only result is not yet known (open question 1, item c)
+    - The early scenario's gate opens at the early Decompression, so its Ending is not evidence for item d. Item d is answered only from the vitals comparison with the no-intervention run, and the early scenario now runs past its Ending
+    - Include the recorded outcome per scenario, the Decompression times, the Rescue_Gate_Time per scenario and the check results in the task report. Keep the record files under `docs/calibration/` with the change
+    - The task report must also include, per scenario, the baseline band of every vital at t = 0, the Overall_Status over time and which Status_Rules fired (and when), so the author can decide the thresholds. The 2026-11-20 run showed `warning` from t = 0 (baseline RR ≈ 12 and EtCO2 ≈ 35 on the lower normal bounds) and only the default sentence. Do not change any threshold
+    - If any check in Requirement 13.5, 13.6, 13.7, 13.14 or 13.15 fails, or the early scenario flags Requirement 4.18: STOP and report. Do not change any case value, threshold or check to make it pass
     - Do not remove any `TODO(author)` marker, also when every check passes. The author removes them after review and citation (Requirement 13.10)
-    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10, 13.11, 13.12, 14.3, 14.4_
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10, 13.11, 13.12, 13.13, 13.14, 13.15, 13.16, 13.17, 14.3, 14.4_
 
 - [ ] 13. Write the manual acceptance checklist
   - [ ] 13.1 Create `docs/play-mode-acceptance.md`
@@ -557,6 +603,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
 
 - Tasks are ordered by dependency: tooling and types → Alarm_Function → pure logic → API timeouts → case schema and case file → session state and hook → shared shell and Clinician view → Play components → wiring → calibration → acceptance checklist → final check
 - Run order differs from document order for group 10: 10.7 and 10.8 run before 10.6, because the Ending_Screen shows the redrawn Avatar. The order is 10.5, 10.7, 10.8, then 10.6.
+- Task 11.3 (the rescue gate) was added after group 11 was done; it runs after 11.2 and before 12.1, because the calibration script uses its helpers. The order is 11.1, 11.2, 11.3, then 12.1.
 - Every task is required. There are no optional tasks and no `*` markers
 - Tests live in the task that implements the code they test. There are no separate "write tests" tasks. Each property test sits in the task that implements its function and carries the tag `// Feature: play-mode, Property N: <title>`
 - Each task references its requirement numbers and, where it has any, the design's property numbers
@@ -626,11 +673,12 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     { "id": 29, "tasks": ["10.8"] },
     { "id": 30, "tasks": ["11.1"] },
     { "id": 31, "tasks": ["11.2"] },
-    { "id": 32, "tasks": ["12.1"] },
-    { "id": 33, "tasks": ["12.2"] },
-    { "id": 34, "tasks": ["12.3"] },
-    { "id": 35, "tasks": ["13.1"] },
-    { "id": 36, "tasks": ["14.1"] }
+    { "id": 32, "tasks": ["11.3"] },
+    { "id": 33, "tasks": ["12.1"] },
+    { "id": 34, "tasks": ["12.2"] },
+    { "id": 35, "tasks": ["12.3"] },
+    { "id": 36, "tasks": ["13.1"] },
+    { "id": 37, "tasks": ["14.1"] }
   ]
 }
 ```
