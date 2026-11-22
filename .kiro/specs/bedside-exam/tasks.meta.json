@@ -33,6 +33,27 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795378126937
       }
+    ],
+    "3.1 Add Variant loading to `services/physiology/case_loader.py`": [
+      {
+        "executionId": "570af9bd-95b7-4c50-a31f-1301905c6241",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795378879562
+      }
+    ],
+    "2. Schema, case file and case validation script": [
+      {
+        "executionId": "570af9bd-95b7-4c50-a31f-1301905c6241",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795379313094
+      }
+    ],
+    "3. Case_Loader": [
+      {
+        "executionId": "570af9bd-95b7-4c50-a31f-1301905c6241",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795379313170
+      }
     ]
   }
 }

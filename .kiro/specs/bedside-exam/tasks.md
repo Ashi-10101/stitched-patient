@@ -45,7 +45,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 1.4, 1.5, 1.6, 1.7, 1.9, 1.10, 1.13, 3.2, 3.3, 3.4, 3.5, 3.11, 3.12, 10.3, 14.9, 14.10_
     - _Properties: 1, 2, 4, 5_
 
-- [ ] 2. Schema, case file and case validation script
+- [x] 2. Schema, case file and case validation script
   - [x] 2.1 Extend `cases/case-schema.json`, `cases/adult-tension-pneumothorax.yaml` and `scripts/validate-case.py`, and update the case-content marker rule
     - Files: `cases/case-schema.json`, `cases/adult-tension-pneumothorax.yaml`, `scripts/validate-case.py`, `apps/web/src/lib/caseContent.test.ts` (the `checkTodoMarkers` rule only). No other file changes
     - Schema: apply the design section "JSON Schema changes" exactly: move `play.hints` and `endings.rescued.requiredInterventions` into `definitions` (`hintList`, `requiredInterventionList`) behind standalone `$ref`s; add `variants` at the root; add `exam` and `sideRevealText` under `play.properties`; add the `definitions` entries `sideRevealText`, `kebabId`, `variant`, `variantOverrides`, `examSection`, `examLabel`, `examAction` (with the `oneOf` and the `if`/`then`), `examRule` and `examWhen`. Add no `additionalProperties: false` at the root
@@ -75,8 +75,8 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the output of each validation command, the pytest summary line, the tsc result and the Vitest summary line in the task report
     - _Requirements: 1.1, 1.2, 1.3, 1.11, 1.12, 1.13, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 4.1, 4.2, 4.3, 4.4, 4.5, 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.9, 8.10, 8.11, 11.4, 12.1, 12.4_
 
-- [ ] 3. Case_Loader
-  - [ ] 3.1 Add Variant loading to `services/physiology/case_loader.py`
+- [x] 3. Case_Loader
+  - [x] 3.1 Add Variant loading to `services/physiology/case_loader.py`
     - Files: `services/physiology/case_loader.py`, `services/physiology/test_case_loader_variants.py` (new). No other file changes
     - Implement `LoadedCase` (with `variant_ids`), `load_case_with_variants`, `load_resolved_case`, and `load_case` returning `load_case_with_variants(case_id).base`, as the design section "Case_Loader" states. A Base_Case without `variants` keeps today's validation code and message exactly (1.13). With `variants`, any `check_case` problem raises `CaseLoadError("Case validation failed for <case_id>: " + "; ".join(...))`. A missing schema file still gives `schema = None`, and steps 3 to 6 still run (1.10)
     - In `test_case_loader_variants.py` (all fast, no Pulse engine):
