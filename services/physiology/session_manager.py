@@ -101,6 +101,7 @@ class Session:
     branches: Dict[str, Branch]
     current_branch_id: str
     created_at: datetime
+    variant_id: Optional[str] = None  # Variant chosen at creation; None for a Case without Variants
     playing: bool = False
     speed: PlaybackSpeed = PlaybackSpeed.NORMAL
     temp_dir: Path = field(default_factory=lambda: Path(tempfile.mkdtemp()))
@@ -158,13 +159,20 @@ class SessionManager:
             await asyncio.sleep(300)  # Check every 5 minutes
             # TODO: Implement idle session cleanup based on last activity time
     
-    def create_session(self, case_id: str, case_data: Dict[str, Any]) -> Session:
+    def create_session(
+        self,
+        case_id: str,
+        case_data: Dict[str, Any],
+        variant_id: Optional[str] = None,
+    ) -> Session:
         """
         Create a new session from a case definition.
         
         Args:
             case_id: Case identifier
-            case_data: Loaded and validated case data
+            case_data: Loaded and validated case data (the Resolved_Case of
+                the chosen Variant, or the Base_Case for a Case without Variants)
+            variant_id: Chosen Variant_Id, or None for a Case without Variants
             
         Returns:
             New Session instance
@@ -216,6 +224,7 @@ class SessionManager:
             branches={branch_id: branch},
             current_branch_id=branch_id,
             created_at=datetime.utcnow(),
+            variant_id=variant_id,
             scheduled_insults=scheduled_insults,
         )
         

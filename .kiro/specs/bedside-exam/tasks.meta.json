@@ -54,6 +54,13 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795379313170
       }
+    ],
+    "4.1 Select the Variant at session creation in `models.py`, `main.py` and `session_manager.py`": [
+      {
+        "executionId": "8947f418-c214-416e-a03c-8dc0377d13cf",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795379381378
+      }
     ]
   }
 }

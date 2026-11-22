@@ -66,12 +66,14 @@ class BranchMetadata(BaseModel):
 class SessionRequest(BaseModel):
     """Request to create a new session."""
     case_id: str
+    variant_id: Optional[str] = None  # string or null; no pattern, so a bad id gets 400, not 422
 
 
 class SessionMetadata(BaseModel):
     """Metadata for an active session."""
     session_id: str
     case_id: str
+    variant_id: Optional[str] = None  # always serialised; null for a Case without Variants
     created_at: str
     current_branch_id: str
     branches: List[BranchMetadata]

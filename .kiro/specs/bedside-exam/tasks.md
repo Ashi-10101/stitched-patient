@@ -95,7 +95,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 3_
 
 - [ ] 4. Session_API, Session metadata and the Variant_Source
-  - [ ] 4.1 Select the Variant at session creation in `models.py`, `main.py` and `session_manager.py`
+  - [x] 4.1 Select the Variant at session creation in `models.py`, `main.py` and `session_manager.py`
     - Files: `services/physiology/models.py`, `services/physiology/main.py`, `services/physiology/session_manager.py`, `services/physiology/test_session_variants.py` (new). No other file changes
     - `models.py`: `SessionRequest.variant_id: Optional[str] = None` (no pattern) and `SessionMetadata.variant_id: Optional[str] = None`, as in the design section "Request, metadata and the create flow"
     - `session_manager.py`: `Session.variant_id: Optional[str] = None`; `create_session(self, case_id, case_data, variant_id=None)` stores both and otherwise works as today. Existing two-argument callers keep working

@@ -1,9 +1,10 @@
 """FastAPI application for physiology service."""
+import random
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Dict, List
+from typing import Callable, Dict, List
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
@@ -12,8 +13,9 @@ from models import (
     PlaybackControlRequest, PlaybackState, ForkRequest,
     BranchMetadata, CheckpointMetadata, VitalSigns
 )
-from session_manager import SessionManager
-from case_loader import load_case, list_cases, CaseLoadError
+from session_manager import Session, SessionManager
+from case_loader import load_case_with_variants, list_cases, CaseLoadError
+from case_resolver import choose_variant, VariantSelectionError
 from config import settings
 
 
@@ -72,33 +74,20 @@ async def get_cases() -> List[str]:
     return list_cases()
 
 
-@app.post("/sessions", response_model=SessionMetadata)
-async def create_session(request: SessionRequest) -> SessionMetadata:
-    """
-    Create a new simulation session from a case.
-    
-    Args:
-        request: Session creation request with case_id
-        
-    Returns:
-        Session metadata including session_id and initial branch
-    """
-    try:
-        case_data = load_case(request.case_id)
-    except CaseLoadError as e:
-        logger.error(f"Failed to load case {request.case_id}: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    
-    try:
-        session = session_manager.create_session(request.case_id, case_data)
-        logger.info(f"Created session {session.session_id} for case {request.case_id}")
-    except Exception as e:
-        logger.error(f"Failed to create session: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
-    
+VariantSource = Callable[[], float]
+
+
+def get_variant_source() -> VariantSource:
+    """Default Variant_Source: the module-level generator of `random`, seeded from OS entropy at import."""
+    return random.random
+
+
+def session_metadata(session: Session) -> SessionMetadata:
+    """Build the SessionMetadata of a Session; shared by POST /sessions and GET /sessions/{id}."""
     return SessionMetadata(
         session_id=session.session_id,
         case_id=session.case_id,
+        variant_id=session.variant_id,
         created_at=session.created_at.isoformat(),
         current_branch_id=session.current_branch_id,
         branches=[
@@ -112,6 +101,60 @@ async def create_session(request: SessionRequest) -> SessionMetadata:
             for branch in session.branches.values()
         ],
     )
+
+
+@app.post("/sessions", response_model=SessionMetadata)
+async def create_session(
+    request: SessionRequest,
+    variant_source: VariantSource = Depends(get_variant_source),
+) -> SessionMetadata:
+    """
+    Create a new simulation session from a case.
+    
+    The case is loaded first (404 for any case-load error, whatever the
+    variant_id). The Variant is then chosen: the named variant_id, or one
+    drawn from variant_source when variant_id is null or omitted. A bad
+    variant_id gives 400. Both checks finish before any engine starts.
+    
+    Args:
+        request: Session creation request with case_id and optional variant_id
+        variant_source: Callable returning a float in [0, 1)
+        
+    Returns:
+        Session metadata including session_id, variant_id and initial branch
+    """
+    try:
+        loaded = load_case_with_variants(request.case_id)
+    except CaseLoadError as e:
+        logger.error(f"Failed to load case {request.case_id}: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    try:
+        variant_id = choose_variant(
+            request.case_id, loaded.variant_ids, request.variant_id, variant_source
+        )
+    except VariantSelectionError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        # A Variant_Source value outside [0, 1); no engine has started.
+        logger.error(f"Failed to create session: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {e}")
+    
+    case_data = loaded.base if variant_id is None else loaded.resolved[variant_id]
+    
+    try:
+        session = session_manager.create_session(
+            request.case_id, case_data, variant_id=variant_id
+        )
+        logger.info(
+            f"Created session {session.session_id} for case {request.case_id}"
+            f" (variant {variant_id})"
+        )
+    except Exception as e:
+        logger.error(f"Failed to create session: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+    
+    return session_metadata(session)
 
 
 @app.get("/sessions/{session_id}", response_model=SessionMetadata)
@@ -121,22 +164,7 @@ async def get_session(session_id: str) -> SessionMetadata:
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    return SessionMetadata(
-        session_id=session.session_id,
-        case_id=session.case_id,
-        created_at=session.created_at.isoformat(),
-        current_branch_id=session.current_branch_id,
-        branches=[
-            BranchMetadata(
-                branch_id=branch.branch_id,
-                parent_branch_id=branch.parent_branch_id,
-                forked_from_checkpoint=branch.forked_from_checkpoint,
-                created_at=branch.created_at.isoformat(),
-                event_count=len(branch.events),
-            )
-            for branch in session.branches.values()
-        ],
-    )
+    return session_metadata(session)
 
 
 @app.delete("/sessions/{session_id}")
