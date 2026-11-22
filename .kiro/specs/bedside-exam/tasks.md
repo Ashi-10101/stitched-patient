@@ -151,8 +151,8 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 3.13, 3.14, 14.12_
     - _Properties: 7_
 
-- [ ] 7. Web types and test fixtures
-  - [ ] 7.1 Add the exam types, the test-only case resolver and the exam generators
+- [x] 7. Web types and test fixtures
+  - [x] 7.1 Add the exam types, the test-only case resolver and the exam generators
     - Files: `apps/web/src/types/index.ts`, `apps/web/src/test/caseFixtures.ts`, `apps/web/src/test/generators.ts`. No other file changes
     - `types/index.ts`: add the types of the design section "TypeScript types": `ExamSideRole`, `ExamWhen`, `ExamRule`, `SideNeutralExamAction`, `SidedExamAction`, `ExamAction`, `ExamSection`, `ExamFinding`, `ExamRecordEntry`; `PlaySection` gains optional `exam` and `sideRevealText`; `SessionMetadata` gains optional `variant_id?: string | null`. `CaseData` stays the Resolved_Case type, with no `variants`
     - `caseFixtures.ts` (shared fixture, setup change from the design list "Shared fixture"): export `BASE_CASE` (the parsed file), the test-only types `CaseVariant` and `VariantOverrides`, `resolveCaseForTest(base, variantId)` (each Override_Target from the Variant_Overrides, or from the Base_Case when absent; `variants` removed; independent of `case_resolver.py`), `CASE_LEFT` and `CASE_RIGHT`. `CASE` becomes `CASE_LEFT`, so every test that imports `CASE` keeps a valid `CaseData`. `CASE_TEXT`, `CASE_PATH` and `VITAL_OFFSETS` stay

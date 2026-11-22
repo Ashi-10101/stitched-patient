@@ -96,6 +96,20 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795380428000
       }
+    ],
+    "7.1 Add the exam types, the test-only case resolver and the exam generators": [
+      {
+        "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795380472876
+      }
+    ],
+    "7. Web types and test fixtures": [
+      {
+        "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795380852770
+      }
     ]
   }
 }

@@ -10,6 +10,10 @@ import type {
   CheckpointMetadata,
   ComparisonOp,
   ConditionGroup,
+  ExamAction,
+  ExamRecordEntry,
+  ExamRule,
+  ExamWhen,
   InterventionRecordEntry,
   PlaySection,
   ScheduledInsult,
@@ -551,3 +555,104 @@ export const arbLineage: fc.Arbitrary<LineageCase> = fc
       evictedSources,
     };
   });
+
+// ---------------------------------------------------------------------------
+// Bedside exam (bedside-exam design "Property test settings")
+// ---------------------------------------------------------------------------
+
+/** Exam text: `arbSentence` without the empty string (the schema needs 1 to 100 characters). */
+const arbExamText: fc.Arbitrary<string> = arbSentence.filter((s) => s.length >= 1 && s.length <= 100);
+
+/** Exam_Action id: 1 to 40 characters matching `^[a-z0-9-]+$`. */
+const arbExamActionId: fc.Arbitrary<string> = fc.stringOf(fc.constantFrom(...'abcxyz019-'), {
+  minLength: 1,
+  maxLength: 40,
+});
+
+/** Exam_Button label: 1 to 60 characters. */
+const arbExamLabel: fc.Arbitrary<string> = fc.string({ minLength: 1, maxLength: 60 });
+
+/**
+ * Exam_Rule `when`: every combination of `side` (only when `sided`), `insult`,
+ * `decompressed` and `vitals` (1 to 6 Status_Rule `when` items), each present or
+ * absent (absent keys are omitted), with at least one present.
+ */
+const arbExamWhen = (sided: boolean): fc.Arbitrary<ExamWhen> => {
+  const conditions = {
+    insult: fc.constantFrom<NonNullable<ExamWhen['insult']>>('started', 'notStarted'),
+    decompressed: fc.boolean(),
+    vitals: fc.array(arbStatusWhen, { minLength: 1, maxLength: 6 }),
+  };
+  const record = sided
+    ? fc.record(
+        { ...conditions, side: fc.constantFrom<NonNullable<ExamWhen['side']>>('affected', 'other') },
+        { requiredKeys: [] },
+      )
+    : fc.record(conditions, { requiredKeys: [] });
+  return record.filter((w) => Object.keys(w).length > 0).map((w) => w as ExamWhen);
+};
+
+/** Exam_Rule with `abnormal` absent (key omitted), `true` or `false`. */
+const arbExamRule = (sided: boolean): fc.Arbitrary<ExamRule> =>
+  fc
+    .record({
+      when: arbExamWhen(sided),
+      sentence: arbExamText,
+      abnormal: fc.constantFrom<boolean | undefined>(undefined, true, false),
+    })
+    .map(({ when, sentence, abnormal }) => ({
+      when,
+      sentence,
+      ...(abnormal === undefined ? {} : { abnormal }),
+    }));
+
+/**
+ * Exam_Action: a Sided_Action (`labels.Left` and `labels.Right`) or a
+ * Side_Neutral_Action (`label`, and no `side` condition in any rule), with 0 to
+ * 10 Exam_Rules. All rule sentences and the `defaultSentence` are distinct, so
+ * the returned string identifies the rule.
+ */
+export const arbExamAction: fc.Arbitrary<ExamAction> = fc.boolean().chain((sided) =>
+  fc
+    .record({
+      id: arbExamActionId,
+      rules: fc.uniqueArray(arbExamRule(sided), { maxLength: 10, selector: (r) => r.sentence }),
+      labelLeft: arbExamLabel,
+      labelRight: arbExamLabel,
+    })
+    .chain(({ id, rules, labelLeft, labelRight }) =>
+      arbExamText
+        .filter((s) => !rules.some((r) => r.sentence === s))
+        .map((defaultSentence): ExamAction =>
+          sided
+            ? { id, labels: { Left: labelLeft, Right: labelRight }, rules, defaultSentence }
+            : { id, label: labelLeft, rules, defaultSentence },
+        ),
+    ),
+);
+
+/** Wall-clock times from 2026-01-01 to 2027-01-01 as ISO 8601 strings. */
+const arbWallClockTime: fc.Arbitrary<string> = fc
+  .integer({ min: Date.UTC(2026, 0, 1), max: Date.UTC(2027, 0, 1) })
+  .map((ms) => new Date(ms).toISOString());
+
+/**
+ * Exam_Record entry: `side` present (`Left`/`Right`) or absent (key omitted);
+ * Simulation_Time 0, a value from a small repeated set, or any half-second step
+ * from 0 to 600 s; `branchId` from a small pool; any sentence text.
+ */
+export const arbExamRecordEntry: fc.Arbitrary<ExamRecordEntry> = fc
+  .record({
+    actionId: fc.constantFrom('listen', 'look-chest', 'neck-veins', 'windpipe', 'skin'),
+    side: fc.constantFrom<Side | undefined>('Left', 'Right', undefined),
+    simulationTime: fc.oneof(
+      { weight: 1, arbitrary: fc.constant(0) },
+      { weight: 2, arbitrary: fc.constantFrom(30, 90, 102) },
+      { weight: 3, arbitrary: fc.integer({ min: 0, max: 1200 }).map((n) => n / 2) },
+    ),
+    branchId: fc.constantFrom('main', 'branch-1', 'branch-2'),
+    sentence: arbSentence,
+    abnormal: fc.boolean(),
+    wallClockTime: arbWallClockTime,
+  })
+  .map(({ side, ...rest }) => ({ ...rest, ...(side === undefined ? {} : { side }) }));

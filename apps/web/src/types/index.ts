@@ -84,6 +84,8 @@ export interface SessionMetadata {
   created_at: string;
   current_branch_id: string;
   branches: BranchMetadata[];
+  /** Selected Variant_Id, or null for a Case without Variants (3.9). Never rendered. */
+  variant_id?: string | null;
 }
 
 export interface CaseData {
@@ -157,6 +159,75 @@ export interface PlaySection {
   hints: Hint[];
   status: { rules: StatusRule[]; defaultSentence: string };
   references?: string[];
+  /** Bedside exam (bedside-exam Requirement 4). Absent means no exam. */
+  exam?: ExamSection;
+  /** Shown on the rescued Ending_Screen (bedside-exam Requirement 12). */
+  sideRevealText?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Bedside exam
+// ---------------------------------------------------------------------------
+
+export type ExamSideRole = 'affected' | 'other';
+
+export interface ExamWhen {
+  side?: ExamSideRole;
+  insult?: 'started' | 'notStarted';
+  decompressed?: boolean;
+  /** Same item shape as a Status_Rule `when` item (play-mode 2.9). */
+  vitals?: StatusWhen[];
+}
+
+export interface ExamRule {
+  when: ExamWhen;
+  sentence: string;
+  /** Absent means false. */
+  abnormal?: boolean;
+}
+
+interface ExamActionBase {
+  id: string;
+  rules: ExamRule[];
+  defaultSentence: string;
+  references?: string[];
+}
+
+export interface SideNeutralExamAction extends ExamActionBase {
+  label: string;
+  labels?: never;
+}
+
+export interface SidedExamAction extends ExamActionBase {
+  labels: Record<Side, string>;
+  label?: never;
+}
+
+export type ExamAction = SideNeutralExamAction | SidedExamAction;
+
+export interface ExamSection {
+  actions: ExamAction[];
+  references?: string[];
+}
+
+/** Exam_Finding_Selector result. */
+export interface ExamFinding {
+  sentence: string;
+  abnormal: boolean;
+}
+
+/** One Exam_Button activation (7.1). */
+export interface ExamRecordEntry {
+  actionId: string;
+  /** Exam_Button side; absent for a Side_Neutral_Action. */
+  side?: Side;
+  simulationTime: number;
+  branchId: string;
+  /** The finding as shown; never recomputed (7.7). */
+  sentence: string;
+  abnormal: boolean;
+  /** ISO 8601, passed in by the hook. */
+  wallClockTime: string;
 }
 
 export interface ScheduledInsult {
