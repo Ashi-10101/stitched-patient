@@ -75,6 +75,27 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795379855933
       }
+    ],
+    "5. Existing physiology tests request the left Variant": [
+      {
+        "executionId": "fd6ee78c-c77e-408d-8f41-d940ba4d8aa6",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795380035002
+      }
+    ],
+    "6.1 Add `services/physiology/test_variant_engine.py` and run the slow suite": [
+      {
+        "executionId": "fd6ee78c-c77e-408d-8f41-d940ba4d8aa6",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795380065342
+      }
+    ],
+    "6. Right-Variant engine determinism (the only slow-suite run)": [
+      {
+        "executionId": "fd6ee78c-c77e-408d-8f41-d940ba4d8aa6",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795380428000
+      }
     ]
   }
 }

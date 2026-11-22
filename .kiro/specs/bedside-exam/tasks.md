@@ -117,7 +117,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.15, 10.5, 14.8, 14.11_
     - _Properties: 6_
 
-- [ ] 5. Existing physiology tests request the left Variant
+- [x] 5. Existing physiology tests request the left Variant
   - [x] 5.1 Update the setup of the slow tests that depend on the left insult
     - Files: `services/physiology/test_case_actions.py`, `test_fork.py`, `test_checkpoints_interventions.py`, `test_vitals_socket.py` (under `services/physiology/`). No other file changes
     - Existing tests whose setup changes, from the design list "Physiology tests whose setup changes" (the `pulse` markers are already in place from task 1.1):
@@ -135,8 +135,8 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the collected test list and the pytest summary line in the task report
     - _Requirements: 3.14, 14.8_
 
-- [ ] 6. Right-Variant engine determinism (the only slow-suite run)
-  - [ ] 6.1 Add `services/physiology/test_variant_engine.py` and run the slow suite
+- [x] 6. Right-Variant engine determinism (the only slow-suite run)
+  - [x] 6.1 Add `services/physiology/test_variant_engine.py` and run the slow suite
     - Files: `services/physiology/test_variant_engine.py` (new). No other file changes
     - Every test in the file carries `@pytest.mark.pulse`. Start from `case_loader.load_resolved_case("adult-tension-pneumothorax", "right")`, create two Branches from the same Checkpoint, apply `needle-decompression-right` at the same Simulation_Time on both, and compare the VitalSigns fields with the tolerance (0.001) and the failure message of `test_determinism.py` (core-simulation-loop 9.6 to 9.8)
       - **Property 7: Each Variant is deterministic in the Pulse engine** (example-based). Tag: `# Feature: bedside-exam, Property 7: Each Variant is deterministic in the Pulse engine`
