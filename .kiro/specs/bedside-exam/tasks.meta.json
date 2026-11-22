@@ -26,6 +26,13 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795378062613
       }
+    ],
+    "2.1 Extend `cases/case-schema.json`, `cases/adult-tension-pneumothorax.yaml` and `scripts/validate-case.py`, and update the case-content marker rule": [
+      {
+        "executionId": "570af9bd-95b7-4c50-a31f-1301905c6241",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795378126937
+      }
     ]
   }
 }

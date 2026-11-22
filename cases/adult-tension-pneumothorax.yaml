@@ -133,12 +133,12 @@ play:
       # TODO(author): time limit - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
       timeLimitSeconds: 600
   hints:
-    # TODO(author): hint 1 text - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
-    - text: "Watch his chest. Does one side move differently from the other?"
-    # TODO(author): hint 2 text - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
-    - text: "The trouble is on his left side. On your screen, that's the right."
-    # TODO(author): hint 3 text - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
-    - text: 'Press "Let the trapped air out - left side (needle)".'
+    # TODO(author): hint 1 text (points to the exam) - draft from the bedside-exam spec, pending author review
+    - text: 'Something is wrong with his breathing. Use the buttons under "Check on him" to examine him.'
+    # TODO(author): hint 2 text (compare both sides) - draft from the bedside-exam spec, pending author review; cite a source for comparing breath sounds (candidate: ATLS 10th ed., verify)
+    - text: "Listen to both sides of his chest. Is one side quieter than the other?"
+    # TODO(author): hint 3 text, equal to the left variant - draft from the bedside-exam spec, pending author review (open question 5)
+    - text: 'His left side is the quiet one. Press "Let the trapped air out - left side (needle)".'
   status:
     rules:
       - when: [{ vital: "spO2", band: "critical" }]
@@ -161,6 +161,96 @@ play:
         sentence: "He looks clammy and a little faint."
     # TODO(author): default status sentence - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
     defaultSentence: "He is breathing calmly and looks comfortable."
+  # TODO(author): side reveal text, equal to the left variant - draft from the bedside-exam spec, pending author review (open question 6)
+  sideRevealText: "The trapped air was in the left side of his chest."
+  exam:
+    actions:
+      - id: look-chest
+        # TODO(author): exam button label - draft from the bedside-exam spec, pending author review
+        label: "Look at his chest"
+        rules:
+          # TODO(author): is the chest sign visible from the insult start or only later, and is it reduced movement, a bigger side or both? Cite a source (open question 4)
+          - when: { insult: started, decompressed: false }
+            # TODO(author): chest look finding - draft from the bedside-exam spec, verify and cite a source (candidate: ATLS 10th ed.) (open question 4)
+            sentence: "One side of his chest hardly moves when he breathes."
+            abnormal: true
+        # TODO(author): normal chest look finding - draft from the bedside-exam spec, verify and cite a source
+        defaultSentence: "Both sides of his chest rise and fall evenly."
+
+      - id: listen
+        labels:
+          # TODO(author): exam button label, left - draft from the bedside-exam spec, pending author review
+          Left: "Listen to his chest - left side"
+          # TODO(author): exam button label, right - draft from the bedside-exam spec, pending author review
+          Right: "Listen to his chest - right side"
+        rules:
+          # TODO(author): should reduced breath sounds show from the insult start or only after a Vital_Band changes? Cite a source (open question 12)
+          - when: { side: affected, insult: started, decompressed: false }
+            # TODO(author): breath sounds on the affected side - draft from the bedside-exam spec, verify and cite a source (candidate: ATLS 10th ed.)
+            sentence: "You can barely hear any breathing on this side."
+            abnormal: true
+          # TODO(author): breath sounds on the affected side after the needle - wording, abnormal flag and any Vital_Band gate; cite a source (open question 1)
+          - when: { side: affected, decompressed: true }
+            # TODO(author): breath sounds after the needle - draft from the bedside-exam spec, verify and cite a source (open question 1)
+            sentence: "Breathing sounds are coming back on this side."
+        # TODO(author): normal breath sounds, also shown for a needled other side (open question 10) - draft from the bedside-exam spec, verify and cite a source
+        defaultSentence: "You hear clear breathing on this side."
+
+      - id: windpipe
+        # TODO(author): exam button label - draft from the bedside-exam spec, pending author review
+        label: "Feel the position of his windpipe"
+        rules:
+          - when:
+              insult: started
+              decompressed: false
+              # TODO(author): PLACEHOLDER condition, not a clinical decision - choose the Vital_Bands that gate this late sign and cite a source (open question 2) - draft from the bedside-exam spec
+              vitals: [{ vital: "spO2", band: "critical" }]
+            # TODO(author): tracheal finding, kept side-neutral (decision 7, D11) - draft from the bedside-exam spec, verify and cite a source (open question 2)
+            sentence: "His windpipe feels pushed off to one side."
+            abnormal: true
+        # TODO(author): normal tracheal position finding - draft from the bedside-exam spec, verify and cite a source
+        defaultSentence: "His windpipe is in the middle of his neck."
+
+      - id: neck-veins
+        # TODO(author): exam button label - draft from the bedside-exam spec, pending author review
+        label: "Look at his neck veins"
+        rules:
+          # TODO(author): early or late sign? Gate by a Vital_Band (for example a low blood pressure band)? Absent in some patients? Cite a source (open question 3)
+          - when: { insult: started, decompressed: false }
+            # TODO(author): neck vein finding - draft from the bedside-exam spec, verify and cite a source (candidate: ATLS 10th ed.) (open question 3)
+            sentence: "The veins in his neck are bulging."
+            abnormal: true
+        # TODO(author): normal neck vein finding - draft from the bedside-exam spec, verify and cite a source
+        defaultSentence: "His neck veins look normal."
+
+# Author's game-rule decision recorded in the bedside-exam spec (Requirements 2.1-2.6): the side variants and their insultSide and requiredInterventions values
+variants:
+  - id: left
+    overrides:
+      insultSide: Left
+      requiredInterventions: ["needle-decompression-left"]
+      hints:
+        # TODO(author): hint 1 text, left variant (points to the exam) - draft from the bedside-exam spec, pending author review
+        - text: 'Something is wrong with his breathing. Use the buttons under "Check on him" to examine him.'
+        # TODO(author): hint 2 text, left variant (compare both sides) - draft from the bedside-exam spec, pending author review; cite a source (candidate: ATLS 10th ed., verify)
+        - text: "Listen to both sides of his chest. Is one side quieter than the other?"
+        # TODO(author): hint 3 text, left variant - draft from the bedside-exam spec, pending author review (open question 5)
+        - text: 'His left side is the quiet one. Press "Let the trapped air out - left side (needle)".'
+      # TODO(author): side reveal text, left variant - draft from the bedside-exam spec, pending author review (open question 6)
+      sideRevealText: "The trapped air was in the left side of his chest."
+  - id: right
+    overrides:
+      insultSide: Right
+      requiredInterventions: ["needle-decompression-right"]
+      hints:
+        # TODO(author): hint 1 text, right variant (points to the exam) - draft from the bedside-exam spec, pending author review
+        - text: 'Something is wrong with his breathing. Use the buttons under "Check on him" to examine him.'
+        # TODO(author): hint 2 text, right variant (compare both sides) - draft from the bedside-exam spec, pending author review; cite a source (candidate: ATLS 10th ed., verify)
+        - text: "Listen to both sides of his chest. Is one side quieter than the other?"
+        # TODO(author): hint 3 text, right variant - draft from the bedside-exam spec, pending author review (open question 5)
+        - text: 'His right side is the quiet one. Press "Let the trapped air out - right side (needle)".'
+      # TODO(author): side reveal text, right variant - draft from the bedside-exam spec, pending author review (open question 6)
+      sideRevealText: "The trapped air was in the right side of his chest."
 
 references:
   # TODO(author): Add specific ATLS or other trauma guideline references for tension pneumothorax recognition and management

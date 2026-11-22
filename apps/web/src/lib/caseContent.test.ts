@@ -222,9 +222,27 @@ function lineComment(line: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Field paths added by the bedside-exam spec. Their TODO(author) marker must
+ * contain `BEDSIDE_EXAM_MARK` instead of ending with the draft suffix
+ * (bedside-exam 2.7, 8.4, 8.5).
+ */
+const BEDSIDE_EXAM_MARK = 'bedside-exam spec';
+const BEDSIDE_EXAM_ITEM_PATTERNS: RegExp[] = [
+  /^play\.hints\[\d+\]\.text$/,
+  /^play\.sideRevealText$/,
+  /^play\.exam\.actions\[\d+\]\.label$/,
+  /^play\.exam\.actions\[\d+\]\.labels\.(Left|Right)$/,
+  /^play\.exam\.actions\[\d+\]\.rules\[\d+\]\.sentence$/,
+  /^play\.exam\.actions\[\d+\]\.defaultSentence$/,
+  /^play\.exam\.actions\[\d+\]\.rules\[\d+\]\.when\.vitals$/,
+  /^variants\[\d+\]\.overrides\.hints\[\d+\]\.text$/,
+  /^variants\[\d+\]\.overrides\.sideRevealText$/,
+];
+
 /** Field paths that need a TODO(author) marker, besides every number in the Play_Section. */
 const TEXT_ITEM_PATTERNS: RegExp[] = [
-  /^play\.hints\[\d+\]\.text$/,
+  ...BEDSIDE_EXAM_ITEM_PATTERNS,
   /^play\.status\.rules\[\d+\]\.sentence$/,
   /^play\.status\.defaultSentence$/,
   // Draft text values (author away): goal text, diagnosis terms.
@@ -232,30 +250,83 @@ const TEXT_ITEM_PATTERNS: RegExp[] = [
   /^play\.diagnosisTerms\[\d+\]$/,
 ];
 
-/** The `references` path that covers a field path (Requirement 2.15). */
-function coveringReferencesPath(path: string): Array<string | number> {
+/**
+ * The `references` paths that cover a field path (play-mode 2.15,
+ * bedside-exam 2.7 and 8.5). The item is exempt when any of them is non-empty.
+ */
+function coveringReferencesPaths(path: string): Array<Array<string | number>> {
   const hint = /^play\.hints\[(\d+)\]/.exec(path);
-  if (hint) return ['play', 'hints', Number(hint[1]), 'references'];
+  if (hint) return [['play', 'hints', Number(hint[1]), 'references']];
   const ending = /^play\.endings\.(rescued|lost)\./.exec(path);
-  if (ending) return ['play', 'endings', ending[1], 'references'];
-  return ['play', 'references'];
+  if (ending) return [['play', 'endings', ending[1], 'references']];
+  const examAction = /^play\.exam\.actions\[(\d+)\]/.exec(path);
+  if (examAction) {
+    return [
+      ['play', 'exam', 'actions', Number(examAction[1]), 'references'],
+      ['play', 'exam', 'references'],
+    ];
+  }
+  if (path.startsWith('play.exam.')) return [['play', 'exam', 'references']];
+  const variantHint = /^variants\[(\d+)\]\.overrides\.hints\[(\d+)\]/.exec(path);
+  if (variantHint) {
+    return [['variants', Number(variantHint[1]), 'overrides', 'hints', Number(variantHint[2]), 'references']];
+  }
+  if (path.startsWith('variants')) return [];
+  return [['play', 'references']];
+}
+
+/**
+ * Each `when.vitals` list of an Exam_Rule, positioned at its `vitals` key so
+ * that the marker sits on the key line or the line directly above (8.4, 8.5).
+ */
+function collectWhenVitalsLists(examNode: unknown): ScalarItem[] {
+  const out: ScalarItem[] = [];
+  if (!isMap(examNode)) return out;
+  const actions = examNode.get('actions', true);
+  if (!isSeq(actions)) return out;
+  actions.items.forEach((action, a) => {
+    if (!isMap(action)) return;
+    const rules = action.get('rules', true);
+    if (!isSeq(rules)) return;
+    rules.items.forEach((rule, r) => {
+      if (!isMap(rule)) return;
+      const when = rule.get('when', true);
+      if (!isMap(when)) return;
+      for (const pair of when.items) {
+        if (isScalar(pair.key) && pair.key.value === 'vitals') {
+          out.push({ path: `play.exam.actions[${a}].rules[${r}].when.vitals`, node: pair.key });
+        }
+      }
+    });
+  });
+  return out;
 }
 
 /**
  * Every number in the Play_Section, every Hint text, every Status_Rule
- * sentence, the defaultSentence, the goal text, the diagnosis terms and every
- * Play_Label has a comment containing `TODO(author)` on its source line or on
- * a comment-only line directly above, unless its covering `references` array
- * is non-empty. Each such marker must end with the draft suffix.
+ * sentence, the defaultSentence, the goal text, the diagnosis terms, every
+ * Play_Label, and every item added by the bedside-exam spec (Variant Hint
+ * texts and Side_Reveal_Texts, the Base_Case Side_Reveal_Text, Exam_Action
+ * labels, Exam_Rule sentences, exam `defaultSentence`s and `when.vitals`
+ * lists) has a comment containing `TODO(author)` on its source line or on a
+ * comment-only line directly above, unless a covering `references` array is
+ * non-empty. A marker on an item added by the bedside-exam spec must contain
+ * "bedside-exam spec"; every other marker must end with the draft suffix.
+ * `insultSide` and `requiredInterventions` inside `variants` need no marker
+ * (bedside-exam 2.6).
  */
 function checkTodoMarkers(doc: Document, lineCounter: LineCounter, lines: string[]): string[] {
   const playNode = doc.get('play', true);
   if (!isMap(playNode)) return [MISSING];
 
-  const items = collectScalars(playNode, 'play').filter(
+  const items = [
+    ...collectScalars(playNode, 'play'),
+    ...collectScalars(doc.get('variants', true), 'variants'),
+  ].filter(
     ({ path, node }) =>
       typeof node.value === 'number' || TEXT_ITEM_PATTERNS.some((p) => p.test(path)),
   );
+  items.push(...collectWhenVitalsLists(playNode.get('exam', true)));
   const interventions = doc.get('interventions', true);
   if (isSeq(interventions)) {
     interventions.items.forEach((item, i) => {
@@ -267,8 +338,11 @@ function checkTodoMarkers(doc: Document, lineCounter: LineCounter, lines: string
 
   const failures: string[] = [];
   for (const { path, node } of items) {
-    const refs = doc.getIn(coveringReferencesPath(path), true);
-    if (isSeq(refs) && refs.items.length > 0) continue;
+    const covered = coveringReferencesPaths(path).some((refsPath) => {
+      const refs = doc.getIn(refsPath, true);
+      return isSeq(refs) && refs.items.length > 0;
+    });
+    if (covered) continue;
 
     const start = node.range?.[0];
     if (start === undefined) {
@@ -284,6 +358,10 @@ function checkTodoMarkers(doc: Document, lineCounter: LineCounter, lines: string
       failures.push(
         `${path} (line ${lineIdx + 1}) has no TODO(author) comment on its line or the line directly above`,
       );
+    } else if (BEDSIDE_EXAM_ITEM_PATTERNS.some((p) => p.test(path))) {
+      if (!marker.includes(BEDSIDE_EXAM_MARK)) {
+        failures.push(`${path} (line ${lineIdx + 1}) TODO(author) comment does not contain "${BEDSIDE_EXAM_MARK}"`);
+      }
     } else if (!marker.trimEnd().endsWith(DRAFT_SUFFIX)) {
       failures.push(`${path} (line ${lineIdx + 1}) TODO(author) comment does not end with "${DRAFT_SUFFIX}"`);
     }
@@ -393,7 +471,7 @@ describe('adult-tension-pneumothorax case content', () => {
     expect(checkPlayLabels(PARSED.data)).toEqual([]);
   });
 
-  it('every number, Hint text, sentence and draft text has a TODO(author) marker ending with the draft suffix', () => {
+  it('every number, sentence and draft text has a TODO(author) marker ending with the draft suffix, and every bedside-exam item has one naming the bedside-exam spec', () => {
     expect(checkTodoMarkers(PARSED.doc, PARSED.lineCounter, PARSED.lines)).toEqual([]);
   });
 
@@ -494,6 +572,35 @@ describe('case content checkers', () => {
     const play = parsed.doc.get('play', true);
     if (!isMap(play)) throw new Error('play is not a map');
     play.set('references', parsed.doc.createNode(['A citation']));
+    expect(checkTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines)).toEqual([]);
+  });
+
+  it('names the Variant Hint whose TODO(author) marker is missing (bedside-exam 2.7)', () => {
+    const marker =
+      '        # TODO(author): hint 2 text, right variant (compare both sides) - draft from the bedside-exam spec, pending author review; cite a source (candidate: ATLS 10th ed., verify)\n';
+    expect(CASE_TEXT).toContain(marker);
+    const parsed = parseCase(CASE_TEXT.replace(marker, ''));
+    const failures = checkTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('variants[1].overrides.hints[1].text');
+    expect(failures[0]).toContain('has no TODO(author) comment');
+  });
+
+  it('names the bedside-exam item whose TODO(author) marker does not name the bedside-exam spec, and honours the Exam_Action references (8.5)', () => {
+    const marker =
+      '          # TODO(author): exam button label, left - draft from the bedside-exam spec, pending author review\n';
+    expect(CASE_TEXT).toContain(marker);
+    const parsed = parseCase(
+      CASE_TEXT.replace(marker, '          # TODO(author): exam button label, left - pending author review\n'),
+    );
+    const failures = checkTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines);
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain('play.exam.actions[1].labels.Left');
+    expect(failures[0]).toContain('does not contain "bedside-exam spec"');
+
+    const listen = parsed.doc.getIn(['play', 'exam', 'actions', 1], true);
+    if (!isMap(listen)) throw new Error('play.exam.actions[1] is not a map');
+    listen.set('references', parsed.doc.createNode(['A citation']));
     expect(checkTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines)).toEqual([]);
   });
 });

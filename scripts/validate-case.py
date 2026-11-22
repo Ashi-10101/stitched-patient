@@ -12,6 +12,23 @@ import yaml
 from pathlib import Path
 from jsonschema import validate, ValidationError
 
+# The Case_Resolver is shared with the Physiology_Service.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "services" / "physiology"))
+import case_resolver  # noqa: E402
+
+
+def validate_variants(case_data: dict, schema: dict) -> bool:
+    """Check a Base_Case with Variants and every Resolved_Case (Requirements 1.11, 1.12)."""
+    problems = case_resolver.check_case(case_data, schema)
+    if problems:
+        for problem in problems:
+            print(f"✗ {problem}")
+        return False
+    print("✓ Base case is valid")
+    for variant in case_data["variants"]:
+        print(f"✓ Resolved case of variant '{variant['id']}' is valid")
+    return True
+
 
 def validate_case(case_path: Path, schema_path: Path) -> bool:
     """Validate a case file against the schema."""
@@ -34,6 +51,9 @@ def validate_case(case_path: Path, schema_path: Path) -> bool:
         print(f"✗ Failed to load schema: {e}")
         return False
     
+    if isinstance(case_data, dict) and "variants" in case_data:
+        return validate_variants(case_data, schema)
+
     # Validate
     try:
         validate(instance=case_data, schema=schema)
