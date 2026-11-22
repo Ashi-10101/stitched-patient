@@ -378,6 +378,7 @@ async def test_fork_unknown_checkpoint_raises_value_error(tmp_path, loader):
 # Real Pulse (Req 7.6)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.pulse
 async def test_real_fork_vitals_match_parent_at_checkpoint():
     """Req 7.6: a fork from the t=30 checkpoint reproduces the parent's t=30 vitals."""
     case_data = case_loader.load_case(CASE_ID)
@@ -435,6 +436,7 @@ def _cleanup_http_session(
     init_path.unlink(missing_ok=True)
 
 
+@pytest.mark.pulse
 def test_http_fork_unknown_checkpoint_returns_404():
     """Req 7.13: POST /fork with an unknown checkpoint_id returns 404 naming it."""
     with TestClient(main.app) as client:
@@ -453,6 +455,7 @@ def test_http_fork_unknown_checkpoint_returns_404():
             _cleanup_http_session(client, sid, session, init_path)
 
 
+@pytest.mark.pulse
 def test_http_fork_valid_checkpoint_returns_new_branch():
     """Req 7.5, 7.7, 7.10: POST /fork with the t=0 checkpoint returns the new branch's metadata."""
     with TestClient(main.app) as client:

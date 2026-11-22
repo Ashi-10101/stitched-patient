@@ -6,9 +6,13 @@ at the same simulation times must produce identical vitals.
 """
 import tempfile
 from pathlib import Path
+
+import pytest
+
 from pulse_wrapper import PulseEngineWrapper
 
 
+@pytest.mark.pulse
 def test_determinism():
     """Test that identical scenarios produce identical results."""
     

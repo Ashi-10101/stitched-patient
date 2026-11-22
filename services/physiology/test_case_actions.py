@@ -127,6 +127,7 @@ def _row(label: str, v: VitalSigns) -> str:
     )
 
 
+@pytest.mark.pulse
 async def test_case_needle_decompression_beats_untreated_fork():
     case_data = case_loader.load_case("adult-tension-pneumothorax")
     manager = SessionManager()

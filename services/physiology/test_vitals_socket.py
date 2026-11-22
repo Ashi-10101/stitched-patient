@@ -83,6 +83,7 @@ def dropped_records(caplog: pytest.LogCaptureFixture) -> List[logging.LogRecord]
     ]
 
 
+@pytest.mark.pulse
 def test_pause_only_on_last_disconnect(caplog):
     """Req 10.7, 10.13: two subscribers; first close keeps playing, last close pauses."""
     caplog.set_level(logging.INFO, logger="session_manager")

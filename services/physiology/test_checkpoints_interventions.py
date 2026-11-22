@@ -296,6 +296,7 @@ def counts(branch: Any) -> Tuple[int, int]:
 # Intervention tests (Req 6.11, 6.12, 7.2)
 # ---------------------------------------------------------------------------
 
+@pytest.mark.pulse
 def test_unknown_intervention_and_bad_parameter_return_400():
     """Req 6.11: unknown id gives 400 listing valid ids; a bad parameter gives 400. No side effects."""
     valid_ids = [i["id"] for i in case_loader.load_case(CASE_ID)["interventions"]]
@@ -327,6 +328,7 @@ def test_unknown_intervention_and_bad_parameter_return_400():
             assert branch.failed is False
 
 
+@pytest.mark.pulse
 def test_engine_action_failure_returns_500_and_service_survives():
     """Req 6.12: a non-ValueError engine failure gives 500, no side effects, service keeps working."""
     with TestClient(main.app) as client:
@@ -361,6 +363,7 @@ def test_engine_action_failure_returns_500_and_service_survives():
             assert counts(branch) == (before[0] + 1, before[1] + 1)
 
 
+@pytest.mark.pulse
 def test_successful_intervention_saves_manual_checkpoint():
     """Req 7.2: a successful intervention records one event and saves one manual checkpoint."""
     intervention_id = "needle-decompression-left"

@@ -11,7 +11,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
 ## Tasks
 
 - [ ] 1. Python test markers and the Case_Resolver
-  - [ ] 1.1 Register the `pulse` marker and mark the nine slow tests
+  - [x] 1.1 Register the `pulse` marker and mark the nine slow tests
     - Files: `services/physiology/pytest.ini`, `test_case_actions.py`, `test_fork.py`, `test_checkpoints_interventions.py`, `test_vitals_socket.py`, `test_determinism.py` (all under `services/physiology/`). No other file changes
     - In `pytest.ini`, add `markers = pulse: starts a real Pulse engine` (design D9)
     - Add `@pytest.mark.pulse` (and `import pytest` where missing) to exactly the nine tests of the design table "Tests that need a Pulse engine": `test_case_needle_decompression_beats_untreated_fork`; `test_real_fork_vitals_match_parent_at_checkpoint`, `test_http_fork_unknown_checkpoint_returns_404`, `test_http_fork_valid_checkpoint_returns_new_branch`; `test_unknown_intervention_and_bad_parameter_return_400`, `test_engine_action_failure_returns_500_and_service_survives`, `test_successful_intervention_saves_manual_checkpoint`; `test_pause_only_on_last_disconnect`; `test_determinism`
@@ -24,7 +24,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the collected test list and the pytest summary line in the task report
     - _Requirements: 14.13_
 
-  - [ ] 1.2 Implement `services/physiology/case_resolver.py` with its tests
+  - [-] 1.2 Implement `services/physiology/case_resolver.py` with its tests
     - Files: `services/physiology/case_resolver.py` (new), `services/physiology/test_case_resolver.py` (new), `services/physiology/requirements.txt`. No other file changes
     - Add `hypothesis==6.100.0` to `requirements.txt` (requirements decision 16, design "Property test settings"). The image build must install it on the image's Python 3.9; if `pip3 install` fails during the build, stop and report the error instead of choosing another version
     - Implement the module exactly as the design section "Case_Resolver" states: imports only `bisect`, `copy`, `dataclasses`, `typing` and `jsonschema`; `OVERRIDE_KEYS`, `TENSION_PNEUMOTHORAX_ACTION`, `CaseProblem` (with `__str__` per "Error messages"), `CaseVariantError`, `VariantSelectionError`, `resolve_variant`, `check_case` (steps 1 to 7 in order, each later step only when the earlier ones found nothing), `resolve_all`, `variant_index` (`bisect_right` over `k / n`, D5) and `choose_variant` (the table of five rows)
