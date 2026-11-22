@@ -291,20 +291,38 @@ const arbConditionGroup = (maxConditions: number): fc.Arbitrary<ConditionGroup> 
   });
 
 /**
- * Endings part of a Play_Section: 1 to 6 rescue conditions, 0 to 5 Lost_Condition
- * groups, and an optional Time_Limit (1 to 80 s), with at least one group or a
- * Time_Limit. An empty group list is sometimes `[]` and sometimes omitted.
+ * Intervention ids for `endings.rescued.requiredInterventions`: mostly the
+ * case's two Decompression ids, sometimes another non-empty string.
+ */
+const arbRequiredInterventionId: fc.Arbitrary<string> = fc.oneof(
+  { weight: 3, arbitrary: fc.constantFrom('needle-decompression-left', 'needle-decompression-right') },
+  { weight: 1, arbitrary: fc.string({ minLength: 1, maxLength: 12 }) },
+);
+
+/** Required_Interventions: absent (key omitted) or 1 to 3 unique non-empty ids. */
+const arbRequiredInterventions: fc.Arbitrary<string[] | undefined> = fc.option(
+  fc.uniqueArray(arbRequiredInterventionId, { minLength: 1, maxLength: 3 }),
+  { nil: undefined },
+);
+
+/**
+ * Endings part of a Play_Section: 1 to 6 rescue conditions, sometimes
+ * Required_Interventions (1 or more unique non-empty ids), 0 to 5
+ * Lost_Condition groups, and an optional Time_Limit (1 to 80 s), with at least
+ * one group or a Time_Limit. An empty group list is sometimes `[]` and
+ * sometimes omitted.
  */
 const arbEndings: fc.Arbitrary<PlaySection['endings']> = fc
   .record({
     rescued: arbConditionGroup(6),
+    requiredInterventions: arbRequiredInterventions,
     groups: fc.array(arbConditionGroup(6), { maxLength: 5 }),
     omitEmptyGroups: fc.boolean(),
     timeLimitSeconds: fc.option(fc.integer({ min: 1, max: 80 }), { nil: undefined }),
   })
   .filter(({ groups, timeLimitSeconds }) => groups.length > 0 || timeLimitSeconds !== undefined)
-  .map(({ rescued, groups, omitEmptyGroups, timeLimitSeconds }) => ({
-    rescued,
+  .map(({ rescued, requiredInterventions, groups, omitEmptyGroups, timeLimitSeconds }) => ({
+    rescued: requiredInterventions === undefined ? rescued : { ...rescued, requiredInterventions },
     lost: {
       ...(groups.length === 0 && omitEmptyGroups ? {} : { groups }),
       ...(timeLimitSeconds === undefined ? {} : { timeLimitSeconds }),

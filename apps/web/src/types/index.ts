@@ -151,7 +151,7 @@ export interface PlaySection {
   diagnosisTerms: string[];
   avatar?: { referenceTidalVolumeMl?: number };
   endings: {
-    rescued: ConditionGroup & { references?: string[] };
+    rescued: ConditionGroup & { requiredInterventions?: string[]; references?: string[] };
     lost: { groups?: ConditionGroup[]; timeLimitSeconds?: number; references?: string[] };
   };
   hints: Hint[];

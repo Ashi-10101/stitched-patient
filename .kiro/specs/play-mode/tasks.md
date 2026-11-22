@@ -494,7 +494,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Quote the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 1.9, 1.10, 1.11, 14.8, 14.9_
 
-  - [ ] 11.3 Gate the rescue on the Required_Interventions
+  - [x] 11.3 Gate the rescue on the Required_Interventions
     - Author's decision of 2026-11-20 (design D8): a sample counts toward the Rescue_Condition only from the Rescue_Gate_Time, which opens when every Required_Intervention is in the Active_Interventions. Follow the design sections "endingEvaluator.ts", "sessionState.ts — the reducer" and "Case file additions"
     - Files: `apps/web/src/lib/endingEvaluator.ts` and `endingEvaluator.test.ts`; `apps/web/src/lib/sessionState.ts` and `sessionState.test.ts`; `apps/web/src/types/index.ts`; `apps/web/src/test/generators.ts`; `cases/case-schema.json`; `cases/adult-tension-pneumothorax.yaml`; `apps/web/src/lib/caseContent.test.ts`; and the setup of existing tests that reach `rescued` with the real case file (below). No other file changes
     - Types: add `requiredInterventions?: string[]` to `endings.rescued` in `PlaySection` in `src/types/index.ts`

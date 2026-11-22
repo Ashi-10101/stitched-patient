@@ -7,7 +7,14 @@
  * a new object otherwise.
  */
 
-import type { CaseData, ConditionGroup, PlaySection, VitalCondition, VitalSigns } from '@/types';
+import type {
+  CaseData,
+  ConditionGroup,
+  InterventionRecordEntry,
+  PlaySection,
+  VitalCondition,
+  VitalSigns,
+} from '@/types';
 import { readVital } from './vitals';
 
 export type Ending = 'none' | 'rescued' | 'lost';
@@ -19,6 +26,11 @@ export interface EndingContext {
   play: PlaySection | undefined;
   /** Earliest Scheduled_Insult `timeSeconds`, or 0 if none (6.3). */
   rescueFromTime: number;
+  /**
+   * Rescue_Gate_Time (6.18-6.20): `-Infinity` without Required_Interventions,
+   * `null` while a Required_Intervention is not active.
+   */
+  rescueGateTime: number | null;
 }
 
 export interface EndingState {
@@ -46,7 +58,58 @@ export function buildEndingContext(caseData: CaseData): EndingContext {
   return {
     play: caseData.play,
     rescueFromTime: times.length > 0 ? Math.min(...times) : 0,
+    rescueGateTime: rescueGateTime(requiredInterventions(caseData.play), []),
   };
+}
+
+/** Required_Interventions of a Play_Section, or `[]` when the field or the Play_Section is absent. */
+export function requiredInterventions(play: PlaySection | undefined): readonly string[] {
+  return play?.endings?.rescued?.requiredInterventions ?? [];
+}
+
+/**
+ * Rescue_Gate_Time (6.18-6.20). `-Infinity` for no Required_Interventions.
+ * Otherwise the latest, over the required ids, of the earliest finite
+ * `simulationTime` of an active entry with that id; `null` if one id has none.
+ * Entries with other ids are ignored (6.19). `active` is the output of
+ * `activeInterventions(record, lineage)`.
+ */
+export function rescueGateTime(
+  requiredIds: readonly string[],
+  active: readonly InterventionRecordEntry[],
+): number | null {
+  if (requiredIds.length === 0) return -Infinity;
+  let gate = -Infinity;
+  for (const id of requiredIds) {
+    let earliest: number | null = null;
+    for (const entry of active) {
+      const t = entry.simulationTime;
+      if (entry.interventionId !== id || typeof t !== 'number' || !Number.isFinite(t)) continue;
+      if (earliest === null || t < earliest) earliest = t;
+    }
+    if (earliest === null) return null;
+    if (earliest > gate) gate = earliest;
+  }
+  return gate;
+}
+
+/**
+ * Applies a new Rescue_Gate_Time (6.24). Returns the same `ctx` and `s` when the
+ * gate is unchanged. Otherwise returns `ctx` with the new gate and ends an open
+ * rescue stretch that starts before the new gate (or any stretch when the gate
+ * is `null`). `ending`, `endedAt`, `lastTime` and `lostStarts` never change, and
+ * no sample is evaluated again.
+ */
+export function setRescueGate(
+  ctx: EndingContext,
+  s: EndingState,
+  gate: number | null,
+): { ctx: EndingContext; state: EndingState } {
+  if (gate === ctx.rescueGateTime) return { ctx, state: s };
+  const nextCtx: EndingContext = { ...ctx, rescueGateTime: gate };
+  const endStretch =
+    s.ending === 'none' && s.rescueStart !== null && (gate === null || s.rescueStart < gate);
+  return { ctx: nextCtx, state: endStretch ? { ...s, rescueStart: null } : s };
 }
 
 export function initialEndingState(ctx: EndingContext): EndingState {
@@ -93,9 +156,12 @@ export function stepEnding(ctx: EndingContext, s: EndingState, sample: Sample): 
   // 3.
   const lastTime = t;
 
-  // 4. Rescue stretch, counted only from rescueFromTime (6.3, 6.6, 6.7).
+  // 4. Rescue stretch, counted only from rescueFromTime and the Rescue_Gate_Time
+  //    (6.3, 6.6, 6.7, 6.18-6.20). A null gate means rescue never holds.
   const { rescued: rescue, lost } = play.endings;
-  const rescueHolds = t >= ctx.rescueFromTime && allHold(rescue.conditions, sample);
+  const gate = ctx.rescueGateTime;
+  const rescueHolds =
+    t >= ctx.rescueFromTime && gate !== null && t >= gate && allHold(rescue.conditions, sample);
   const rescueStart = rescueHolds ? (s.rescueStart ?? t) : null;
   const rescued = rescueStart !== null && t - rescueStart >= rescue.holdSeconds;
 

@@ -1,8 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BEAT_PERIOD_S, mapAvatar } from './avatarMapper';
-import { buildLineage } from './branchLineage';
-import { buildEndingContext, evaluateEnding, initialEndingState } from './endingEvaluator';
+import { activeInterventions, buildLineage } from './branchLineage';
+import {
+  buildEndingContext,
+  evaluateEnding,
+  initialEndingState,
+  requiredInterventions,
+  rescueGateTime,
+} from './endingEvaluator';
 import {
   HISTORY_LIMIT,
   STALE_TOLERANCE_S,
@@ -25,6 +31,7 @@ import type {
   VitalSigns,
 } from '@/types';
 import { CASE } from '@/test/caseFixtures';
+import { arbLineage, type LineageCase } from '@/test/generators';
 import { PBT_PARAMS } from '@/test/pbt';
 
 // ---------------------------------------------------------------------------
@@ -982,6 +989,293 @@ describe('sessionReducer properties', () => {
           expect(total - next.hintsRevealed).toBeGreaterThanOrEqual(0);
         });
       }),
+      PBT_PARAMS,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 11.3: Rescue_Gate_Time in the reducer (Requirements 6.21, 6.23, 6.24)
+// ---------------------------------------------------------------------------
+
+const gateOf = (state: SessionUiState): number | null => state.endingCtx.rescueGateTime;
+
+/** The gate the reducer must hold for the state's case, record and lineage. */
+function expectedGate(state: SessionUiState): number | null {
+  return rescueGateTime(
+    requiredInterventions(state.caseData?.play),
+    activeInterventions(state.interventionRecord, state.lineage),
+  );
+}
+
+describe('Rescue_Gate_Time in the reducer', () => {
+  it('the case requires the left Decompression', () => {
+    expect(requiredInterventions(CASE_WITH_PLAY.play)).toEqual(['needle-decompression-left']);
+  });
+
+  it('is null after a fork to a Checkpoint before the left Decompression, and the new entry time after it is applied again (6.21)', () => {
+    let state = reduce(onMain(), { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    state = feed(state, [100]);
+    state = reduce(state, { type: 'interventionSucceeded', entry: decompression('Left', 100, 'main') });
+    expect(gateOf(state)).toBe(100);
+
+    const forked = fork(state, 60);
+    expect(gateOf(forked)).toBeNull();
+
+    // Rescue-range samples on the new Branch cannot rescue while the gate is closed.
+    const waiting = feed(forked, range(61, 120));
+    expect(waiting.ending.ending).toBe('none');
+    expect(waiting.ending.rescueStart).toBeNull();
+
+    const again = decompression('Left', 120, 'fork1');
+    const reopened = reduce(waiting, { type: 'interventionSucceeded', entry: again });
+    expect(gateOf(reopened)).toBe(again.simulationTime);
+  });
+
+  it('is recomputed on caseLoaded, sessionLoaded, checkpointsLoaded, interventionRecordRestored, interventionSucceeded and forkSucceeded (6.23)', () => {
+    // caseLoaded: the record restored before the case is used at once.
+    let state = reduce(initialSessionState(), { type: 'sessionLoaded', session: SESSION_MAIN });
+    state = reduce(state, { type: 'interventionRecordRestored', record: [decompression('Left', 40, 'main')] });
+    expect(gateOf(state)).toBe(Number.NEGATIVE_INFINITY);
+    state = reduce(state, { type: 'caseLoaded', caseData: CASE_WITH_PLAY, storedView: null });
+    expect(gateOf(state)).toBe(40);
+
+    // checkpointsLoaded: on `child` with no lists, `main` is outside the lineage; the lists bound it at 60.
+    let child = reduce(loaded(), { type: 'sessionLoaded', session: SESSION });
+    child = reduce(child, { type: 'interventionRecordRestored', record: [decompression('Left', 50, 'main')] });
+    expect(gateOf(child)).toBeNull();
+    child = reduce(child, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    expect(gateOf(child)).toBe(50);
+
+    // sessionLoaded: an entry on `main` after the fork time is inactive on `child`, active on `main`.
+    let reloaded = reduce(loaded(), { type: 'sessionLoaded', session: SESSION });
+    reloaded = reduce(reloaded, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    reloaded = reduce(reloaded, { type: 'interventionRecordRestored', record: [decompression('Left', 80, 'main')] });
+    expect(gateOf(reloaded)).toBeNull();
+    reloaded = reduce(reloaded, { type: 'sessionLoaded', session: SESSION_MAIN });
+    expect(gateOf(reloaded)).toBe(80);
+
+    // interventionRecordRestored and interventionSucceeded.
+    let main = onMain();
+    expect(gateOf(main)).toBeNull();
+    main = reduce(main, { type: 'interventionSucceeded', entry: decompression('Right', 35, 'main') });
+    expect(gateOf(main)).toBeNull();
+    main = reduce(main, { type: 'interventionSucceeded', entry: decompression('Left', 45, 'main') });
+    expect(gateOf(main)).toBe(45);
+    main = reduce(main, { type: 'interventionRecordRestored', record: [decompression('Left', 20, 'main')] });
+    expect(gateOf(main)).toBe(20);
+
+    // forkSucceeded: a fork after the entry keeps it active.
+    const afterFork = fork(reduce(main, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS }), 30);
+    expect(gateOf(afterFork)).toBe(20);
+
+    for (const s of [state, child, reloaded, main, afterFork]) expect(gateOf(s)).toBe(expectedGate(s));
+  });
+
+  it('ends an open rescue stretch when the gate closes, and samples, hints and views leave the gate as is (6.24)', () => {
+    let state = reduce(onMain(), { type: 'interventionSucceeded', entry: decompression('Left', 40, 'main') });
+    state = feed(state, range(40, 50));
+    expect(state.ending).toMatchObject({ ending: 'none', rescueStart: 40 });
+    const ctx = state.endingCtx;
+
+    // Actions outside Requirement 6.23 keep the same context object.
+    const others: SessionAction[] = [
+      { type: 'sampleReceived', sample: sample(51) },
+      { type: 'hintRevealed', wallClockTime: '2026-11-20T10:04:00Z' },
+      { type: 'viewSelected', view: 'clinician' },
+      { type: 'playbackChanged', playing: true },
+      { type: 'connectionChanged', connected: true },
+    ];
+    for (const action of others) {
+      state = reduce(state, action);
+      expect(state.endingCtx).toBe(ctx);
+    }
+
+    const lostStarts = state.ending.lostStarts;
+    const closed = reduce(state, { type: 'interventionRecordRestored', record: [] });
+    expect(gateOf(closed)).toBeNull();
+    expect(closed.ending.rescueStart).toBeNull();
+    expect(closed.ending.ending).toBe('none');
+    expect(closed.ending.lastTime).toBe(state.ending.lastTime);
+    expect(closed.ending.lostStarts).toBe(lostStarts);
+  });
+});
+
+/** One step of a generated action sequence for Property 25; turned into an action by `toGateAction`. */
+type GateOpSpec =
+  | { kind: 'case'; variant: number }
+  | { kind: 'session'; branchPick: number }
+  | { kind: 'checkpoints'; mask: number }
+  | { kind: 'restore'; mask: number }
+  | { kind: 'intervention'; side: Side }
+  | { kind: 'fork'; at: number }
+  | { kind: 'sample'; offset: number; rescueRange: boolean };
+
+/**
+ * Cases for Property 25, all listing Required_Interventions: the case file
+ * itself, and test variants (not case content) with the insult at 5 s and a
+ * 2 s rescue hold, so rescues occur often within a short action sequence.
+ */
+const GATE_CASES: CaseData[] = [
+  CASE_WITH_PLAY,
+  ...[['needle-decompression-left'], ['needle-decompression-left', 'needle-decompression-right']].map(
+    (ids): CaseData => {
+      const c = structuredClone(CASE);
+      c.timeline.scheduledInsults = c.timeline.scheduledInsults.map((insult) => ({ ...insult, timeSeconds: 5 }));
+      c.play!.endings.rescued = { ...c.play!.endings.rescued, holdSeconds: 2, requiredInterventions: ids };
+      return c;
+    },
+  ),
+];
+
+/** Mostly samples, Interventions and forks; caseLoaded and sessionLoaded are rare because each resets the Ending or switches the Branch. */
+const arbGateOp: fc.Arbitrary<GateOpSpec> = fc.oneof(
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('case' as const), variant: fc.nat() }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('session' as const), branchPick: fc.nat() }) },
+  { weight: 2, arbitrary: fc.record({ kind: fc.constant('checkpoints' as const), mask: fc.nat({ max: 63 }) }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('restore' as const), mask: fc.nat({ max: 1023 }) }) },
+  {
+    weight: 3,
+    arbitrary: fc.record({
+      kind: fc.constant('intervention' as const),
+      side: fc.constantFrom<Side>('Left', 'Left', 'Right'),
+    }),
+  },
+  {
+    weight: 3,
+    arbitrary: fc.record({ kind: fc.constant('fork' as const), at: fc.integer({ min: 0, max: 4 }).map((n) => n / 4) }),
+  },
+  {
+    weight: 8,
+    arbitrary: fc.record({
+      kind: fc.constant('sample' as const),
+      offset: fc.integer({ min: 1, max: 12 }).map((n) => n / 2),
+      rescueRange: fc.oneof({ weight: 4, arbitrary: fc.constant(true) }, { weight: 1, arbitrary: fc.constant(false) }),
+    }),
+  },
+);
+
+/** Session metadata for a generated Branch tree with the given current Branch. */
+function lineageSession(lc: LineageCase, currentBranchId: string): SessionMetadata {
+  return {
+    session_id: 's1',
+    case_id: 'adult-tension-pneumothorax',
+    created_at: '2026-11-20T10:00:00Z',
+    current_branch_id: currentBranchId,
+    branches: lc.branches,
+  };
+}
+
+/** Turns a GateOpSpec into a valid action for `state`, or `null` when it does not apply yet. */
+function toGateAction(state: SessionUiState, lc: LineageCase, op: GateOpSpec, forks: number): SessionAction | null {
+  const branchStart = state.lineage[0]?.forkTime ?? 0;
+  const now = Math.max(branchStart, state.latestSample?.simulation_time ?? branchStart);
+  switch (op.kind) {
+    case 'case':
+      return { type: 'caseLoaded', caseData: GATE_CASES[op.variant % GATE_CASES.length], storedView: null };
+    case 'session': {
+      const ids = [lc.currentBranchId, ...lc.branches.map((b) => b.branch_id)];
+      return { type: 'sessionLoaded', session: lineageSession(lc, ids[op.branchPick % ids.length]) };
+    }
+    case 'checkpoints': {
+      const ids = Object.keys(lc.checkpointsByBranch).sort();
+      const byBranch = Object.fromEntries(
+        ids.filter((_, i) => (op.mask >> i) & 1).map((id) => [id, lc.checkpointsByBranch[id]]),
+      );
+      return { type: 'checkpointsLoaded', byBranch };
+    }
+    case 'restore':
+      return { type: 'interventionRecordRestored', record: lc.record.filter((_, i) => (op.mask >> i) & 1) };
+    case 'intervention':
+      if (state.currentBranchId === null) return null;
+      return { type: 'interventionSucceeded', entry: decompression(op.side, now, state.currentBranchId) };
+    case 'fork': {
+      if (state.session === null || state.currentBranchId === null) return null;
+      const parentId = state.currentBranchId;
+      const forkTime = branchStart + Math.round(op.at * (now - branchStart) * 2) / 2;
+      const newBranchId = `gate-fork${forks + 1}`;
+      const session: SessionMetadata = {
+        ...state.session,
+        current_branch_id: newBranchId,
+        branches: [
+          ...(state.session.branches ?? []),
+          {
+            branch_id: newBranchId,
+            parent_branch_id: parentId,
+            forked_from_checkpoint: `${parentId}-cp-${forkTime}`,
+            created_at: '2026-11-20T10:06:00Z',
+            event_count: 0,
+          },
+        ],
+      };
+      return { type: 'forkSucceeded', session, newBranchId, forkTime };
+    }
+    case 'sample':
+      // Default vitals satisfy the case's Rescue_Condition; SpO2 0.9 breaks it.
+      return { type: 'sampleReceived', sample: sample(now + op.offset, op.rescueRange ? {} : { spo2: 0.9 }) };
+  }
+}
+
+describe('sessionReducer: Rescue_Gate_Time property', () => {
+  // Feature: play-mode, Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage
+  it('Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage', () => {
+    /** Validates: Requirements 6.21, 6.23, 6.24 */
+    fc.assert(
+      fc.property(
+        arbLineage,
+        fc.nat(),
+        fc.boolean(),
+        fc.array(arbGateOp, { minLength: 10, maxLength: 60, size: 'medium' }),
+        (lc, variant, warmStart, ops) => {
+          // Usually start like a page load: case, session and every Checkpoint list.
+          const prefix: GateOpSpec[] = warmStart
+            ? [
+                { kind: 'case', variant },
+                { kind: 'session', branchPick: 0 },
+                { kind: 'checkpoints', mask: 63 },
+              ]
+            : [];
+          let state = initialSessionState();
+          let forks = 0;
+          // Set after a fork leaves a Required_Intervention inactive on the new Branch.
+          let closedByFork = false;
+          for (const op of [...prefix, ...ops]) {
+            const action = toGateAction(state, lc, op, forks);
+            if (action === null) continue;
+            const next = reduce(state, action);
+
+            const gate = gateOf(next);
+            expect(gate).toBe(expectedGate(next));
+            // Checked while the Ending is `none` (6.24): once an Ending is set, a gate
+            // change leaves the Ending state, including rescueStart, as it is.
+            const start = next.ending.rescueStart;
+            if (next.ending.ending === 'none' && start !== null) {
+              expect(gate).not.toBeNull();
+              expect(start).toBeGreaterThanOrEqual(gate!);
+            }
+
+            if (action.type === 'forkSucceeded') {
+              forks += 1;
+              const required = requiredInterventions(next.caseData?.play);
+              const active = activeInterventions(next.interventionRecord, next.lineage);
+              const missing = required.some((id) => !active.some((e) => e.interventionId === id));
+              if (missing) expect(gate).toBeNull();
+              closedByFork = missing;
+            } else if (closedByFork) {
+              const required = requiredInterventions(next.caseData?.play);
+              if (
+                action.type === 'sampleReceived' ||
+                (action.type === 'interventionSucceeded' && !required.includes(action.entry.interventionId))
+              ) {
+                expect(gate).toBeNull();
+                expect(next.ending.ending).not.toBe('rescued');
+              }
+              if (gate !== null) closedByFork = false;
+            }
+            state = next;
+          }
+        },
+      ),
       PBT_PARAMS,
     );
   });

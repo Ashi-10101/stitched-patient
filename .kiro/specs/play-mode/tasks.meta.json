@@ -43,6 +43,10 @@
     "10.8 Redraw the Avatar as one cohesive scene": {
       "status": "passed",
       "lastRunTimestamp": 1795223633374
+    },
+    "11.3 Gate the rescue on the Required_Interventions": {
+      "status": "passed",
+      "lastRunTimestamp": 1795367698758
     }
   },
   "executionHistory": {
@@ -605,6 +609,23 @@
         "executionId": "66e7d8fc-1e32-49ad-9d3a-8358886f01c7",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795231570045
+      },
+      {
+        "executionId": "1674f355-f40a-431a-9936-7bdbb7511e63",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795366020913
+      },
+      {
+        "executionId": "1674f355-f40a-431a-9936-7bdbb7511e63",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795367866751
+      }
+    ],
+    "11.3 Gate the rescue on the Required_Interventions": [
+      {
+        "executionId": "1674f355-f40a-431a-9936-7bdbb7511e63",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795366030448
       }
     ]
   }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { buildInterventionEntry } from '@/lib/interventionRecord';
 import { playButtonText } from '@/lib/playCase';
 import type { Ending } from '@/lib/endingEvaluator';
 import { initialSessionState, sessionReducer, type SessionAction, type SessionUiState } from '@/lib/sessionState';
@@ -71,6 +72,11 @@ const LOST: SessionAction[] = [
 /** Rescue conditions held from t = 40 s for the case's 30 s hold. */
 const RESCUED: SessionAction[] = [
   ...LOADED,
+  // The case's Required_Intervention, so the Rescue_Gate_Time opens at 40 s (6.18).
+  {
+    type: 'interventionSucceeded',
+    entry: buildInterventionEntry(CASE.interventions.find((i) => i.id === 'needle-decompression-left')!, 40, 'b1'),
+  },
   { type: 'sampleReceived', sample: sample(40) },
   { type: 'sampleReceived', sample: sample(70) },
 ];

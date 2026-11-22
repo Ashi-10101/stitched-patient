@@ -8,7 +8,16 @@
 
 import { BREATH_DEPTH_DEFAULT, DEFAULT_BEAT_PERIOD_S, DEFAULT_BREATH_PERIOD_S, mapAvatar } from './avatarMapper';
 import { activeInterventions, buildLineage } from './branchLineage';
-import { buildEndingContext, initialEndingState, stepEnding, type EndingContext, type EndingState } from './endingEvaluator';
+import {
+  buildEndingContext,
+  initialEndingState,
+  requiredInterventions,
+  rescueGateTime,
+  setRescueGate,
+  stepEnding,
+  type EndingContext,
+  type EndingState,
+} from './endingEvaluator';
 import { computeSides } from './sides';
 import { readVital } from './vitals';
 import type {
@@ -88,7 +97,12 @@ function defaultAvatar(): AvatarParameters {
 }
 
 export function initialSessionState(): SessionUiState {
-  const endingCtx: EndingContext = { play: undefined, rescueFromTime: 0 };
+  // Same gate as `buildEndingContext` gives without a Play_Section: -Infinity.
+  const endingCtx: EndingContext = {
+    play: undefined,
+    rescueFromTime: 0,
+    rescueGateTime: rescueGateTime(requiredInterventions(undefined), []),
+  };
   return {
     caseStatus: 'loading',
     caseData: null,
@@ -151,6 +165,21 @@ function withSides(
     activeInterventions(interventionRecord, state.lineage),
   );
   return { ...state, interventionRecord, avatar: { ...state.avatar, ...sides } };
+}
+
+/**
+ * Recomputes the Rescue_Gate_Time from the case's Required_Interventions and
+ * the lineage's Active_Interventions, and applies it with `setRescueGate`
+ * (6.23, 6.24). Returns the same state when the gate is unchanged.
+ */
+function withRescueGate(state: SessionUiState): SessionUiState {
+  const gate = rescueGateTime(
+    requiredInterventions(state.caseData?.play),
+    activeInterventions(state.interventionRecord, state.lineage),
+  );
+  const next = setRescueGate(state.endingCtx, state.ending, gate);
+  if (next.ctx === state.endingCtx && next.state === state.ending) return state;
+  return { ...state, endingCtx: next.ctx, ending: next.state };
 }
 
 function onFork(
@@ -280,7 +309,7 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
       const hasPlay = caseData.play !== undefined;
       const view: View = hasPlay ? (storedView ?? 'play') : 'clinician';
       const endingCtx = buildEndingContext(caseData);
-      return {
+      return withRescueGate({
         ...state,
         caseStatus: 'loaded',
         caseData,
@@ -289,7 +318,7 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
         ending: initialEndingState(endingCtx),
         endingSnapshot: null,
         view,
-      };
+      });
     }
 
     case 'caseFailed':
@@ -298,22 +327,22 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
     case 'sessionLoaded': {
       const { session } = action;
       const currentBranchId = session.current_branch_id;
-      return {
+      return withRescueGate({
         ...state,
         session,
         currentBranchId,
         lineage: lineageFor(session, currentBranchId, state.checkpointsByBranch),
-      };
+      });
     }
 
     case 'checkpointsLoaded': {
       // A newly loaded list replaces that Branch's earlier list; other Branches keep theirs.
       const checkpointsByBranch = { ...state.checkpointsByBranch, ...action.byBranch };
-      return {
+      return withRescueGate({
         ...state,
         checkpointsByBranch,
         lineage: lineageFor(state.session, state.currentBranchId, checkpointsByBranch),
-      };
+      });
     }
 
     case 'connectionChanged':
@@ -335,13 +364,14 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
     }
 
     case 'interventionRecordRestored':
-      return withSides(state, action.record);
+      return withRescueGate(withSides(state, action.record));
 
     case 'interventionSucceeded':
-      return withSides(state, [...state.interventionRecord, action.entry]);
+      return withRescueGate(withSides(state, [...state.interventionRecord, action.entry]));
 
     case 'forkSucceeded':
-      return onFork(state, action.session, action.newBranchId, action.forkTime);
+      // onFork resets the Ending state; the gate is then recomputed for the new lineage (6.21).
+      return withRescueGate(onFork(state, action.session, action.newBranchId, action.forkTime));
 
     case 'hintRevealed':
       return onHint(state, action.wallClockTime);

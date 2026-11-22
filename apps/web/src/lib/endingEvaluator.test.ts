@@ -1,5 +1,5 @@
 /**
- * Ending_Evaluator tests (Requirement 6; Properties 12, 13, 14).
+ * Ending_Evaluator tests (Requirement 6; Properties 12, 13, 14, 24).
  *
  * All Play_Sections here use round test values, not case content.
  */
@@ -10,6 +10,7 @@ import type {
   CaseData,
   ComparisonOp,
   ConditionGroup,
+  InterventionRecordEntry,
   PlaySection,
   ScheduledInsult,
   VitalCondition,
@@ -21,8 +22,12 @@ import {
   conditionHolds,
   evaluateEnding,
   initialEndingState,
+  requiredInterventions,
+  rescueGateTime,
+  setRescueGate,
   stepEnding,
   type Ending,
+  type EndingContext,
   type EndingState,
   type Sample,
 } from './endingEvaluator';
@@ -302,6 +307,165 @@ describe('conditionHolds and missing vitals', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Rescue_Gate_Time (Requirements 6.18-6.24, 12.17)
+// ---------------------------------------------------------------------------
+
+/**
+ * PLAY_OVERLAP with a Required_Intervention, so `buildEndingContext` gives a
+ * `null` gate. Rescue and lost conditions can hold at once.
+ */
+const PLAY_OVERLAP_REQUIRED = makePlay({
+  ...PLAY_OVERLAP.endings,
+  rescued: { ...PLAY_OVERLAP.endings.rescued, requiredInterventions: ['needle-decompression-left'] },
+});
+
+function entry(interventionId: string, simulationTime: number, branchId = 'main'): InterventionRecordEntry {
+  const side = interventionId.endsWith('-right') ? 'Right' : 'Left';
+  return { interventionId, action: 'SENeedleDecompression', side, simulationTime, branchId };
+}
+
+/** Folds `stepEnding` one sample at a time and returns the state after each sample. */
+function states(ctx: EndingContext, samples: Sample[]): EndingState[] {
+  const out: EndingState[] = [];
+  let s = initialEndingState(ctx);
+  for (const sample of samples) {
+    s = stepEnding(ctx, s, sample);
+    out.push(s);
+  }
+  return out;
+}
+
+describe('Rescue_Gate_Time in the Ending_Evaluator', () => {
+  it('with a fixed finite gate, samples before it add no rescue hold time; a holdSeconds stretch from it returns rescued (6.3)', () => {
+    const ctx: EndingContext = { ...CTX, rescueGateTime: 20 };
+    expect(ctx.rescueFromTime).toBe(0);
+    // GOOD satisfies the Rescue_Condition at every sample from t = 0.
+    const before = evaluateEnding(ctx, run(0, 19, GOOD));
+    expect(before.rescueStart).toBeNull();
+    expect(before.ending).toBe('none');
+    expect(evaluateEnding(ctx, run(0, 29, GOOD))).toMatchObject({ ending: 'none', rescueStart: 20 });
+    expect(evaluateEnding(ctx, run(0, 30, GOOD))).toMatchObject({ ending: 'rescued', endedAt: 30, rescueStart: 20 });
+    // The same stretch starting exactly at the gate, without earlier samples.
+    expect(evaluateEnding(ctx, run(20, 30, GOOD))).toMatchObject({ ending: 'rescued', endedAt: 30, rescueStart: 20 });
+    expect(evaluateEnding(ctx, run(20, 29, GOOD)).ending).toBe('none');
+  });
+
+  it('with Required_Interventions and a null gate, rescue never holds; lost still comes through a group and the Time_Limit', () => {
+    const ctx = buildEndingContext(caseWith(PLAY_OVERLAP_REQUIRED));
+    expect(ctx.rescueGateTime).toBeNull();
+
+    // Every sample satisfies the Rescue_Condition (spO2 >= 0.5) and the lost group (MAP <= 60).
+    const byGroup = states(ctx, run(0, 10, { spo2: 0.9, mean_arterial_pressure: 50 }));
+    expect(byGroup.every((s) => s.ending !== 'rescued' && s.rescueStart === null)).toBe(true);
+    expect(byGroup[byGroup.length - 1]).toMatchObject({ ending: 'lost', endedAt: 10 });
+
+    // Every sample satisfies the Rescue_Condition only; the Time_Limit is 100 s.
+    const byLimit = states(ctx, run(0, 100, { spo2: 0.9, mean_arterial_pressure: 90 }));
+    expect(byLimit.every((s) => s.ending !== 'rescued' && s.rescueStart === null)).toBe(true);
+    expect(byLimit[byLimit.length - 2].ending).toBe('none');
+    expect(byLimit[byLimit.length - 1]).toMatchObject({ ending: 'lost', endedAt: 100 });
+  });
+
+  it('a sequence modelled on the 2026-11-20 run, with no Intervention, returns none at 61 s and later (6.3, 6.18)', () => {
+    // The real case: insult at 30 s, Required_Interventions listed, no Intervention applied.
+    const ctx = buildEndingContext(CASE);
+    expect(ctx.rescueFromTime).toBe(30);
+    expect(requiredInterventions(CASE.play)).toEqual(['needle-decompression-left']);
+    expect(ctx.rescueGateTime).toBeNull();
+    const rescue = CASE.play!.endings.rescued;
+
+    // Vitals that satisfy every rescue condition at every sample, from the insult time onward.
+    const vitals = { spo2: 0.974, heart_rate: 72, mean_arterial_pressure: 95, respiratory_rate: 16 };
+    const samples = run(0, 300, vitals);
+    expect(samples.every((s) => rescue.conditions.every((c) => conditionHolds(c, s)))).toBe(true);
+
+    const all = states(ctx, samples);
+    samples.forEach((s, i) => {
+      if (s.simulation_time >= 61) expect(all[i].ending).toBe('none');
+    });
+    // Without the gate the same sequence was rescued once the hold completed after the insult.
+    expect(evaluateEnding({ ...ctx, rescueGateTime: Number.NEGATIVE_INFINITY }, samples)).toMatchObject({
+      ending: 'rescued',
+      endedAt: 30 + rescue.holdSeconds,
+    });
+  });
+
+  it('rescueGateTime is the largest earliest entry time, null for a missing id, and ignores the other side (6.18, 6.19)', () => {
+    const left = 'needle-decompression-left';
+    const right = 'needle-decompression-right';
+    // Earliest per id: left 5, right 20; the gate is the largest of those.
+    expect(rescueGateTime([left, right], [entry(left, 10), entry(right, 30), entry(left, 5), entry(right, 20)])).toBe(20);
+    expect(rescueGateTime([left, right], [entry(right, 20), entry(left, 40)])).toBe(40);
+    expect(rescueGateTime([left], [entry(left, 42.5)])).toBe(42.5);
+    // One required id has no entry.
+    expect(rescueGateTime([left, right], [entry(left, 10)])).toBeNull();
+    expect(rescueGateTime([left], [])).toBeNull();
+    // Only the right side is active while the left one is required.
+    expect(rescueGateTime([left], [entry(right, 10), entry(right, 50)])).toBeNull();
+    // No Required_Interventions.
+    expect(rescueGateTime([], [entry(left, 10)])).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it('without Required_Interventions the gate is -Infinity and the Endings equal those without a gate (6.20)', () => {
+    expect(requiredInterventions(PLAY)).toEqual([]);
+    expect(requiredInterventions(undefined)).toEqual([]);
+    const sequences: Sample[][] = [
+      run(0, 10, GOOD),
+      run(0, 40, GOOD),
+      [...run(0, 5, GOOD), at(6, NEUTRAL), ...run(7, 17, GOOD)],
+      run(0, 10, LOW_SPO2),
+      run(0, 100, NEUTRAL),
+      [...run(0, 89, NEUTRAL), ...run(90, 100, GOOD)],
+    ];
+    for (const insults of [[], [20]]) {
+      const ctx = buildEndingContext(caseWith(PLAY, insultsAt(insults)));
+      expect(ctx.rescueGateTime).toBe(Number.NEGATIVE_INFINITY);
+      for (const samples of sequences) {
+        const state = evaluateEnding(ctx, samples);
+        expect({ ending: state.ending, endedAt: state.endedAt }).toEqual(refEnding(PLAY, insults, samples));
+      }
+    }
+  });
+
+  it('setRescueGate ends an open stretch before a later or null gate and keeps the other fields (6.24)', () => {
+    const ctx = buildEndingContext(caseWith(PLAY_OVERLAP));
+    expect(ctx.rescueGateTime).toBe(Number.NEGATIVE_INFINITY);
+    // Both the rescue and the lost stretch are open from t = 0.
+    const open = evaluateEnding(ctx, run(0, 5, { spo2: 0.9, mean_arterial_pressure: 50 }));
+    expect(open).toMatchObject({ ending: 'none', rescueStart: 0, lastTime: 5, lostStarts: [0] });
+
+    for (const gate of [3, null]) {
+      const next = setRescueGate(ctx, open, gate);
+      expect(next.ctx.rescueGateTime).toBe(gate);
+      expect(next.ctx.rescueFromTime).toBe(ctx.rescueFromTime);
+      expect(next.state.rescueStart).toBeNull();
+      expect(next.state.ending).toBe(open.ending);
+      expect(next.state.endedAt).toBe(open.endedAt);
+      expect(next.state.lastTime).toBe(open.lastTime);
+      expect(next.state.lostStarts).toBe(open.lostStarts);
+    }
+
+    // A gate at or before the stretch start leaves it open; an unchanged gate returns the same objects.
+    const atStart = setRescueGate(ctx, open, 0);
+    expect(atStart.state).toBe(open);
+    expect(atStart.ctx.rescueGateTime).toBe(0);
+    const same = setRescueGate(ctx, open, Number.NEGATIVE_INFINITY);
+    expect(same.ctx).toBe(ctx);
+    expect(same.state).toBe(open);
+
+    // After a later gate, a new stretch starts only at a sample at or after it.
+    const later = setRescueGate(ctx, open, 8);
+    const resumed = evaluateEnding(later.ctx, run(6, 9, { spo2: 0.9, mean_arterial_pressure: 90 }), later.state);
+    expect(resumed).toMatchObject({ ending: 'none', rescueStart: 8 });
+
+    // An Ending already set is never changed.
+    const rescued = evaluateEnding(ctx, run(0, 10, GOOD));
+    expect(rescued.ending).toBe('rescued');
+    expect(setRescueGate(ctx, rescued, null).state).toBe(rescued);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Reference model (independent of endingEvaluator.ts)
 // ---------------------------------------------------------------------------
 
@@ -328,11 +492,16 @@ function refAll(conditions: VitalCondition[], sample: Sample): boolean {
 /**
  * Filters the accepted samples, then returns the Ending at the first accepted
  * sample where a rescue run, a lost-group run or the Time_Limit is reached.
+ *
+ * With a `gate`, a rescue run counts only from samples at or after it, and no
+ * rescue run counts when it is `null`. Without a `gate` (omitted) this is the
+ * ungated reference that applies only the earliest-insult bound.
  */
 function refEnding(
   play: PlaySection | undefined,
   insultTimes: number[],
   samples: Sample[],
+  gate?: number | null,
 ): { ending: Ending; endedAt: number | null } {
   if (play === undefined) return { ending: 'none', endedAt: null };
   const finiteInsults = insultTimes.filter((t) => Number.isFinite(t));
@@ -346,7 +515,9 @@ function refEnding(
     accepted.push(s);
   }
 
-  const rescueAt = (s: Sample) => s.simulation_time >= from && refAll(play.endings.rescued.conditions, s);
+  const afterGate = (t: number) => gate === undefined || (gate !== null && t >= gate);
+  const rescueAt = (s: Sample) =>
+    s.simulation_time >= from && afterGate(s.simulation_time) && refAll(play.endings.rescued.conditions, s);
   const groups: ConditionGroup[] = play.endings.lost.groups ?? [];
   const limit = play.endings.lost.timeLimitSeconds;
 
@@ -377,13 +548,28 @@ interface Scenario {
   play: PlaySection | undefined;
   insults: ScheduledInsult[];
   samples: Sample[];
+  /** Fixed Rescue_Gate_Time put in the context: `-Infinity`, `null` or a finite time. */
+  gate: number | null;
 }
+
+/**
+ * Fixed Rescue_Gate_Time: `-Infinity` (no Required_Interventions), `null`
+ * (one not active) or a finite time. Finite gates fall mostly on 5 s steps, so
+ * they often coincide with the start of a focused segment or a rescue stretch.
+ */
+const arbGate: fc.Arbitrary<number | null> = fc.oneof(
+  { weight: 2, arbitrary: fc.constant(Number.NEGATIVE_INFINITY) },
+  { weight: 1, arbitrary: fc.constant(null) },
+  { weight: 2, arbitrary: fc.integer({ min: 0, max: 12 }).map((n) => n * 5) },
+  { weight: 1, arbitrary: fc.integer({ min: 0, max: 120 }).map((n) => n / 2) },
+);
 
 /** Generic scenario from the shared generators: random conditions over random vitals. */
 const arbGenericScenario: fc.Arbitrary<Scenario> = fc.record({
   play: fc.option(arbPlaySection, { nil: undefined, freq: 10 }),
   insults: arbInsults,
   samples: arbSampleSequence,
+  gate: arbGate,
 });
 
 /**
@@ -459,6 +645,7 @@ const arbFocusBase: fc.Arbitrary<Scenario> = fc
           }),
         ),
       insults: fc.array(fc.constantFrom(0, 5, 15, 30), { maxLength: 2 }).map(insultsAt),
+      gate: arbGate,
       samples: fc
         .record({
           start: fc.constantFrom(0, 0, 3),
@@ -495,7 +682,7 @@ const arbFocusScenario: fc.Arbitrary<Scenario> = fc
     const { rescued, lost } = play.endings;
     if (steer === 'limit') {
       const rescueOnly = makePlay({ rescued, lost: {} });
-      const r = refEnding(rescueOnly, sc.insults.map((i) => i.timeSeconds), sc.samples);
+      const r = refEnding(rescueOnly, sc.insults.map((i) => i.timeSeconds), sc.samples, sc.gate);
       if (r.ending !== 'rescued' || r.endedAt === null) return sc;
       return { ...sc, play: makePlay({ rescued, lost: { ...lost, timeLimitSeconds: r.endedAt } }) };
     }
@@ -511,8 +698,9 @@ const arbScenario: fc.Arbitrary<Scenario> = fc.oneof(
   { weight: 3, arbitrary: arbFocusScenario },
 );
 
-function contextOf(sc: Scenario) {
-  return buildEndingContext(caseWith(sc.play, sc.insults));
+/** The scenario's context with its fixed Rescue_Gate_Time. */
+function contextOf(sc: Scenario): EndingContext {
+  return { ...buildEndingContext(caseWith(sc.play, sc.insults)), rescueGateTime: sc.gate };
 }
 
 // ---------------------------------------------------------------------------
@@ -529,6 +717,7 @@ describe('Ending_Evaluator: properties', () => {
           sc.play,
           sc.insults.map((i) => i.timeSeconds),
           sc.samples,
+          sc.gate,
         );
         expect({ ending: state.ending, endedAt: state.endedAt }).toEqual(ref);
       }),
@@ -584,4 +773,119 @@ describe('Ending_Evaluator: properties', () => {
       PBT_PARAMS,
     );
   });
+
+  // Feature: play-mode, Property 24: Rescue never comes before the Rescue_Gate_Time
+  it('Property 24: Rescue never comes before the Rescue_Gate_Time', () => {
+    /** Validates: Requirements 6.3, 6.18, 6.19, 6.20, 6.22, 6.24 */
+    fc.assert(
+      fc.property(
+        arbGateIds,
+        arbGateEntries,
+        arbGateEntries,
+        arbScenario,
+        fc.nat(),
+        arbGate,
+        fc.constantFrom<'absolute' | 'afterLast'>('absolute', 'afterLast'),
+        fc.constantFrom(0, 0.5, 1, 3),
+        fc.boolean(),
+        (ids, entries, others, sc, rawCut, absoluteGate, gateKind, shift, prefixUngated) => {
+          // rescueGateTime against an independent model; entries of other ids change nothing.
+          const gate = rescueGateTime(ids, entries);
+          expect(gate).toBe(refGate(ids, entries));
+          const required = entries.filter((e) => ids.includes(e.interventionId));
+          const notRequired = others.filter((e) => !ids.includes(e.interventionId));
+          expect(rescueGateTime(ids, required)).toBe(gate);
+          expect(rescueGateTime(ids, [...notRequired, ...entries, ...notRequired])).toBe(gate);
+
+          const ctx = contextOf(sc);
+          const withGate = (g: number | null): EndingState =>
+            evaluateEnding({ ...ctx, rescueGateTime: g }, sc.samples);
+
+          // A -Infinity gate gives the ungated reference fold (earliest-insult bound only).
+          const ungated = withGate(Number.NEGATIVE_INFINITY);
+          expect({ ending: ungated.ending, endedAt: ungated.endedAt }).toEqual(
+            refEnding(sc.play, sc.insults.map((i) => i.timeSeconds), sc.samples),
+          );
+          // A null gate never rescues.
+          expect(withGate(null).ending).not.toBe('rescued');
+
+          // Finite gates: the scenario's own, and one at or just after the ungated rescue stretch start.
+          const finiteGates: number[] = [];
+          if (sc.gate !== null && Number.isFinite(sc.gate)) finiteGates.push(sc.gate);
+          if (ungated.ending === 'rescued' && ungated.rescueStart !== null) finiteGates.push(ungated.rescueStart + shift);
+          for (const g of finiteGates) {
+            const state = withGate(g);
+            if (state.ending !== 'rescued') continue;
+            const hold = sc.play!.endings.rescued.holdSeconds;
+            expect(state.rescueStart).not.toBeNull();
+            expect(state.rescueStart!).toBeGreaterThanOrEqual(g);
+            expect(state.endedAt!).toBeGreaterThanOrEqual(g + hold);
+          }
+
+          // setRescueGate on the state after any prefix of the samples (under the
+          // scenario's gate, or -Infinity so open stretches are common), with an
+          // absolute new gate or one just after the last accepted time.
+          const prefixCtx: EndingContext = prefixUngated ? { ...ctx, rescueGateTime: Number.NEGATIVE_INFINITY } : ctx;
+          // An even rawCut picks a prefix that ends inside an open rescue stretch, when one exists.
+          const prefixStates = [initialEndingState(prefixCtx)];
+          for (const s of sc.samples) prefixStates.push(stepEnding(prefixCtx, prefixStates[prefixStates.length - 1], s));
+          const openAt = prefixStates.flatMap((s, i) => (s.ending === 'none' && s.rescueStart !== null ? [i] : []));
+          const pick = Math.floor(rawCut / 2);
+          const cut =
+            rawCut % 2 === 0 && openAt.length > 0 ? openAt[pick % openAt.length] : pick % (sc.samples.length + 1);
+          const prefix = evaluateEnding(prefixCtx, sc.samples.slice(0, cut));
+          const newGate = gateKind === 'afterLast' ? (prefix.lastTime ?? 0) + 0.5 : absoluteGate;
+          const next = setRescueGate(prefixCtx, prefix, newGate);
+          expect(next.ctx.rescueGateTime).toBe(newGate);
+          expect(next.state.ending).toBe(prefix.ending);
+          expect(next.state.endedAt).toBe(prefix.endedAt);
+          expect(next.state.lastTime).toBe(prefix.lastTime);
+          expect(next.state.lostStarts).toEqual(prefix.lostStarts);
+          if (next.state.ending === 'none' && next.state.rescueStart !== null) {
+            expect(newGate).not.toBeNull();
+            expect(next.state.rescueStart).toBeGreaterThanOrEqual(newGate!);
+          }
+        },
+      ),
+      PBT_PARAMS,
+    );
+  });
 });
+
+// ---------------------------------------------------------------------------
+// Property 24 generators and gate model
+// ---------------------------------------------------------------------------
+
+const GATE_IDS = ['needle-decompression-left', 'needle-decompression-right', 'id-a', 'id-b'] as const;
+
+/** Required ids: 0 to 3 unique ids from a small pool, so entries often match them. */
+const arbGateIds: fc.Arbitrary<string[]> = fc.uniqueArray(fc.constantFrom(...GATE_IDS), { maxLength: 3 });
+
+/** Active_Interventions entries over the pool and one more id; times on a small grid, sometimes non-finite. */
+const arbGateEntries: fc.Arbitrary<InterventionRecordEntry[]> = fc.array(
+  fc
+    .record({
+      id: fc.constantFrom(...GATE_IDS, 'id-other'),
+      time: fc.oneof(
+        { weight: 8, arbitrary: fc.integer({ min: 0, max: 120 }).map((n) => n / 2) },
+        { weight: 1, arbitrary: fc.constantFrom(Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY) },
+      ),
+      branchId: fc.constantFrom('main', 'branch-1'),
+    })
+    .map(({ id, time, branchId }) => entry(id, time, branchId)),
+  { maxLength: 8 },
+);
+
+/** Independent model of the Rescue_Gate_Time (6.18-6.20). */
+function refGate(ids: readonly string[], entries: readonly InterventionRecordEntry[]): number | null {
+  if (ids.length === 0) return Number.NEGATIVE_INFINITY;
+  const earliest: number[] = [];
+  for (const id of ids) {
+    const times = entries
+      .filter((e) => e.interventionId === id && Number.isFinite(e.simulationTime))
+      .map((e) => e.simulationTime);
+    if (times.length === 0) return null;
+    earliest.push(Math.min(...times));
+  }
+  return Math.max(...earliest);
+}

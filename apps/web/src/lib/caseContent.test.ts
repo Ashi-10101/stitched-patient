@@ -1,7 +1,7 @@
 /**
  * Content checks for the Play_Section and Play_Labels of
  * `cases/adult-tension-pneumothorax.yaml` (Requirements 2.14, 2.15, 2.16,
- * 2.19, 5.9, 6.14, 9.8).
+ * 2.19, 2.22, 2.23, 5.9, 6.14, 9.8).
  *
  * The case is read with `yaml` parseDocument and a LineCounter so the
  * TODO(author) check can map each value to its source line.
@@ -291,6 +291,68 @@ function checkTodoMarkers(doc: Document, lineCounter: LineCounter, lines: string
   return failures;
 }
 
+// ---------------------------------------------------------------------------
+// Required_Interventions (Requirements 2.22, 2.23)
+// ---------------------------------------------------------------------------
+
+const REQUIRED_PATH = 'play.endings.rescued.requiredInterventions';
+
+/** Every entry of `endings.rescued.requiredInterventions` is the `id` of an Intervention of the case (2.22). */
+function checkRequiredInterventionsExist(c: CaseData): string[] {
+  const play = c.play;
+  if (!play) return [MISSING];
+  const ids = new Set((c.interventions ?? []).map((i) => i.id));
+  const failures: string[] = [];
+  (play.endings?.rescued?.requiredInterventions ?? []).forEach((id, i) => {
+    if (!ids.has(id)) failures.push(`${REQUIRED_PATH}[${i}] "${id}" is not the id of an Intervention in the case`);
+  });
+  return failures;
+}
+
+/** The comment on a line, or the comment-only line directly above it. */
+function commentsAround(lines: string[], lineIdx: number): string[] {
+  const above = lines[lineIdx - 1] ?? '';
+  return [lineComment(lines[lineIdx] ?? ''), above.trimStart().startsWith('#') ? above.trim() : undefined].filter(
+    (cm): cm is string => cm !== undefined,
+  );
+}
+
+/**
+ * `requiredInterventions` lists exactly `needle-decompression-left`, with a
+ * comment on its line or the line directly above that states the author's
+ * decision of 2026-11-20, and no `TODO(author)` marker there (2.23).
+ */
+function checkRequiredInterventionsDecision(doc: Document, lineCounter: LineCounter, lines: string[]): string[] {
+  if (!isMap(doc.get('play', true))) return [MISSING];
+  const seq = doc.getIn(['play', 'endings', 'rescued', 'requiredInterventions'], true);
+  if (!isSeq(seq)) return [`${REQUIRED_PATH} is missing`];
+  const values = seq.items.map((item) => (isScalar(item) ? item.value : item));
+  if (values.length !== 1 || values[0] !== 'needle-decompression-left') {
+    return [`${REQUIRED_PATH} is ${JSON.stringify(values)}, expected ["needle-decompression-left"]`];
+  }
+  const item = seq.items[0];
+  const start = isScalar(item) ? item.range?.[0] : undefined;
+  if (start === undefined) return [`${REQUIRED_PATH}[0] has no source position`];
+  const lineIdx = lineCounter.linePos(start).line - 1;
+  const comments = commentsAround(lines, lineIdx);
+  const failures: string[] = [];
+  const decision = comments.some(
+    (cm) =>
+      /author's decision/i.test(cm) &&
+      cm.includes('2026-11-20') &&
+      /rescue counts only after the left needle decompression/i.test(cm),
+  );
+  if (!decision) {
+    failures.push(
+      `${REQUIRED_PATH} (line ${lineIdx + 1}) has no comment stating the author's decision of 2026-11-20 on its line or the line directly above`,
+    );
+  }
+  if (comments.some((cm) => cm.includes('TODO(author)'))) {
+    failures.push(`${REQUIRED_PATH} (line ${lineIdx + 1}) carries a TODO(author) marker`);
+  }
+  return failures;
+}
+
 const DATA_CHECKERS: Array<[string, (c: CaseData) => string[]]> = [
   ['checkNoDiagnosisTermsInSentences', checkNoDiagnosisTermsInSentences],
   ['checkRequiredDiagnosisTerms', checkRequiredDiagnosisTerms],
@@ -333,6 +395,52 @@ describe('adult-tension-pneumothorax case content', () => {
 
   it('every number, Hint text, sentence and draft text has a TODO(author) marker ending with the draft suffix', () => {
     expect(checkTodoMarkers(PARSED.doc, PARSED.lineCounter, PARSED.lines)).toEqual([]);
+  });
+
+  it('every requiredInterventions entry is the id of an Intervention in the case (2.22)', () => {
+    expect(PARSED.data.play?.endings.rescued.requiredInterventions?.length ?? 0).toBeGreaterThan(0);
+    expect(checkRequiredInterventionsExist(PARSED.data)).toEqual([]);
+  });
+
+  it('requiredInterventions is exactly needle-decompression-left, with the 2026-11-20 decision comment and no TODO(author) (2.23)', () => {
+    expect(PARSED.data.play?.endings.rescued.requiredInterventions).toEqual(['needle-decompression-left']);
+    expect(checkRequiredInterventionsDecision(PARSED.doc, PARSED.lineCounter, PARSED.lines)).toEqual([]);
+  });
+});
+
+describe('Required_Interventions checkers', () => {
+  it('names each unknown requiredInterventions entry (2.22)', () => {
+    const c = structuredClone(PARSED.data);
+    c.play!.endings.rescued.requiredInterventions = ['needle-decompression-left', 'chest-tube', 'needle-left'];
+    expect(checkRequiredInterventionsExist(c)).toEqual([
+      'play.endings.rescued.requiredInterventions[1] "chest-tube" is not the id of an Intervention in the case',
+      'play.endings.rescued.requiredInterventions[2] "needle-left" is not the id of an Intervention in the case',
+    ]);
+  });
+
+  it('fails without the decision comment, with a TODO(author) marker, or with another list (2.23)', () => {
+    const decision = CASE_TEXT.split(/\r?\n/).find((l) => l.includes("Author's decision of 2026-11-20"));
+    expect(decision).toBeDefined();
+    const entryLine = '      requiredInterventions: ["needle-decompression-left"]';
+    expect(CASE_TEXT).toContain(entryLine);
+
+    const check = (text: string) => {
+      const p = parseCase(text);
+      return checkRequiredInterventionsDecision(p.doc, p.lineCounter, p.lines);
+    };
+    const noComment = check(CASE_TEXT.replace(`${decision}\n`, ''));
+    expect(noComment).toHaveLength(1);
+    expect(noComment[0]).toContain("has no comment stating the author's decision of 2026-11-20");
+
+    const withTodo = check(CASE_TEXT.replace(entryLine, `${entryLine} # TODO(author): review`));
+    expect(withTodo).toEqual([`${REQUIRED_PATH} (line ${PARSED.lines.indexOf(entryLine) + 1}) carries a TODO(author) marker`]);
+
+    const both = check(
+      CASE_TEXT.replace(entryLine, '      requiredInterventions: ["needle-decompression-left", "needle-decompression-right"]'),
+    );
+    expect(both).toEqual([
+      `${REQUIRED_PATH} is ["needle-decompression-left","needle-decompression-right"], expected ["needle-decompression-left"]`,
+    ]);
   });
 });
 

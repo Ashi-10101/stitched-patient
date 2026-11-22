@@ -121,6 +121,8 @@ play:
         - { vital: "heartRate", op: "<=", value: 110 }
       # TODO(author): rescue hold duration - draft from engine runs on 2026-11-20 (commit 1e71454), pending author review
       holdSeconds: 30
+      # Author's decision of 2026-11-20: rescue counts only after the left needle decompression (Requirements 2.21-2.23, 6.18)
+      requiredInterventions: ["needle-decompression-left"]
     lost:
       groups:
         - conditions:
