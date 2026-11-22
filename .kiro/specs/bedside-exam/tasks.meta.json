@@ -1,5 +1,10 @@
 {
-  "pbtResults": {},
+  "pbtResults": {
+    "1.2 Implement `services/physiology/case_resolver.py` with its tests": {
+      "status": "passed",
+      "lastRunTimestamp": 1795377818833
+    }
+  },
   "executionHistory": {
     "1.1 Register the `pulse` marker and mark the nine slow tests": [
       {
@@ -13,6 +18,13 @@
         "executionId": "f363f764-f5a9-4d99-9edc-68a8a835a791",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795377347808
+      }
+    ],
+    "1. Python test markers and the Case_Resolver": [
+      {
+        "executionId": "f363f764-f5a9-4d99-9edc-68a8a835a791",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795378062613
       }
     ]
   }
