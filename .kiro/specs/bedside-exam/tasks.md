@@ -94,7 +94,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 1.1, 1.2, 1.3, 1.6, 1.7, 1.8, 1.9, 1.10, 1.12, 1.13, 2.1, 2.2, 2.3, 2.4, 2.5, 2.8, 4.1, 4.2, 4.3, 4.4, 4.5, 12.1, 14.9_
     - _Properties: 3_
 
-- [ ] 4. Session_API, Session metadata and the Variant_Source
+- [x] 4. Session_API, Session metadata and the Variant_Source
   - [x] 4.1 Select the Variant at session creation in `models.py`, `main.py` and `session_manager.py`
     - Files: `services/physiology/models.py`, `services/physiology/main.py`, `services/physiology/session_manager.py`, `services/physiology/test_session_variants.py` (new). No other file changes
     - `models.py`: `SessionRequest.variant_id: Optional[str] = None` (no pattern) and `SessionMetadata.variant_id: Optional[str] = None`, as in the design section "Request, metadata and the create flow"
@@ -118,7 +118,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 6_
 
 - [ ] 5. Existing physiology tests request the left Variant
-  - [ ] 5.1 Update the setup of the slow tests that depend on the left insult
+  - [x] 5.1 Update the setup of the slow tests that depend on the left insult
     - Files: `services/physiology/test_case_actions.py`, `test_fork.py`, `test_checkpoints_interventions.py`, `test_vitals_socket.py` (under `services/physiology/`). No other file changes
     - Existing tests whose setup changes, from the design list "Physiology tests whose setup changes" (the `pulse` markers are already in place from task 1.1):
       - `test_case_actions.py`, `test_case_needle_decompression_beats_untreated_fork`: `case_loader.load_case(...)` becomes `case_loader.load_resolved_case("adult-tension-pneumothorax", "left")`

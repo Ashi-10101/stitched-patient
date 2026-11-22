@@ -90,7 +90,7 @@ def test_pause_only_on_last_disconnect(caplog):
     caplog.set_level(logging.INFO, logger="main")
 
     with TestClient(main.app) as client:
-        resp = client.post("/sessions", json={"case_id": CASE_ID})
+        resp = client.post("/sessions", json={"case_id": CASE_ID, "variant_id": "left"})
         assert resp.status_code == 200, resp.text
         sid = resp.json()["session_id"]
         session = main.session_manager.sessions[sid]

@@ -61,6 +61,20 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795379381378
       }
+    ],
+    "4. Session_API, Session metadata and the Variant_Source": [
+      {
+        "executionId": "8947f418-c214-416e-a03c-8dc0377d13cf",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795379812226
+      }
+    ],
+    "5.1 Update the setup of the slow tests that depend on the left insult": [
+      {
+        "executionId": "fd6ee78c-c77e-408d-8f41-d940ba4d8aa6",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795379855933
+      }
     ]
   }
 }

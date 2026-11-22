@@ -129,7 +129,7 @@ def _row(label: str, v: VitalSigns) -> str:
 
 @pytest.mark.pulse
 async def test_case_needle_decompression_beats_untreated_fork():
-    case_data = case_loader.load_case("adult-tension-pneumothorax")
+    case_data = case_loader.load_resolved_case("adult-tension-pneumothorax", "left")
     manager = SessionManager()
     session = manager.create_session("adult-tension-pneumothorax", case_data)
     try:

@@ -381,7 +381,7 @@ async def test_fork_unknown_checkpoint_raises_value_error(tmp_path, loader):
 @pytest.mark.pulse
 async def test_real_fork_vitals_match_parent_at_checkpoint():
     """Req 7.6: a fork from the t=30 checkpoint reproduces the parent's t=30 vitals."""
-    case_data = case_loader.load_case(CASE_ID)
+    case_data = case_loader.load_resolved_case(CASE_ID, "left")
     manager = SessionManager()
     session = manager.create_session(CASE_ID, case_data)
     original = session.current_branch
@@ -420,7 +420,7 @@ async def test_real_fork_vitals_match_parent_at_checkpoint():
 # ---------------------------------------------------------------------------
 
 def _create_http_session(client: TestClient) -> Tuple[str, Session, Path]:
-    resp = client.post("/sessions", json={"case_id": CASE_ID})
+    resp = client.post("/sessions", json={"case_id": CASE_ID, "variant_id": "left"})
     assert resp.status_code == 200, resp.text
     sid = resp.json()["session_id"]
     session = main.session_manager.sessions[sid]

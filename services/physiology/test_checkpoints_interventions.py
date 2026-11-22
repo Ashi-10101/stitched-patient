@@ -261,7 +261,7 @@ def advanced_session(client: TestClient) -> Iterator[Tuple[str, Any]]:
     for the clock to settle. Yields (session_id, server-side Session). The
     session is deleted on exit.
     """
-    resp = client.post("/sessions", json={"case_id": CASE_ID})
+    resp = client.post("/sessions", json={"case_id": CASE_ID, "variant_id": "left"})
     assert resp.status_code == 200, resp.text
     sid = resp.json()["session_id"]
     session = main.session_manager.sessions[sid]
