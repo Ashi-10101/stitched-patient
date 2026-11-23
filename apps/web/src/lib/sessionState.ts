@@ -7,7 +7,7 @@
  */
 
 import { BREATH_DEPTH_DEFAULT, DEFAULT_BEAT_PERIOD_S, DEFAULT_BREATH_PERIOD_S, mapAvatar } from './avatarMapper';
-import { activeInterventions, buildLineage } from './branchLineage';
+import { activeExamEntries, activeInterventions, buildLineage } from './branchLineage';
 import {
   buildEndingContext,
   initialEndingState,
@@ -15,20 +15,25 @@ import {
   rescueGateTime,
   setRescueGate,
   stepEnding,
+  type Ending,
   type EndingContext,
   type EndingState,
 } from './endingEvaluator';
-import { computeSides } from './sides';
+import { examFinding, isSidedAction } from './examFinding';
+import { buildExamEntry } from './examRecord';
+import { computeSides, foundSides, shownSwollenSides, type RevealedSides } from './sides';
 import { readVital } from './vitals';
 import type {
   AvatarParameters,
   CaseData,
   CheckpointMetadata,
+  ExamRecordEntry,
   HintRecordEntry,
   InterventionRecordEntry,
   LineageSegment,
   PlaybackSpeed,
   SessionMetadata,
+  Side,
   VitalSigns,
 } from '@/types';
 
@@ -63,6 +68,10 @@ export interface SessionUiState {
   hintsRevealed: number;
   hintRecord: HintRecordEntry[];
   interventionRecord: InterventionRecordEntry[];
+  /** Every Exam_Record entry of the Session, in recording order (bedside-exam 7.2). */
+  examRecord: ExamRecordEntry[];
+  /** True after examRecordRestored. The hook persists the record only after this. */
+  examRecordLoaded: boolean;
   playing: boolean;
   speed: PlaybackSpeed;
   view: View;
@@ -80,7 +89,9 @@ export type SessionAction =
   | { type: 'forkSucceeded'; session: SessionMetadata; newBranchId: string; forkTime: number }
   | { type: 'hintRevealed'; wallClockTime: string }
   | { type: 'viewSelected'; view: View }
-  | { type: 'playbackChanged'; playing?: boolean; speed?: PlaybackSpeed };
+  | { type: 'playbackChanged'; playing?: boolean; speed?: PlaybackSpeed }
+  | { type: 'examRecordRestored'; record: ExamRecordEntry[] }
+  | { type: 'examPerformed'; actionId: string; side: Side | null; wallClockTime: string };
 
 /** Avatar shown before the first sample: the mapper's defaults with no bands. */
 function defaultAvatar(): AvatarParameters {
@@ -123,6 +134,8 @@ export function initialSessionState(): SessionUiState {
     hintsRevealed: 0,
     hintRecord: [],
     interventionRecord: [],
+    examRecord: [],
+    examRecordLoaded: false,
     playing: false,
     speed: '1x',
     view: 'play',
@@ -149,22 +162,57 @@ function currentSimulationTime(state: SessionUiState): number {
 }
 
 /**
+ * Which Swollen_Sides the Avatar may draw (bedside-exam 4.6, 9.1, 9.5): all of
+ * them for a case without an Exam_Section or after an Ending; otherwise only
+ * the Found_Sides of the lineage's Active_Exam_Entries.
+ */
+function revealedSidesFor(
+  caseData: CaseData | null,
+  ending: Ending,
+  examRecord: readonly ExamRecordEntry[],
+  lineage: LineageSegment[],
+): RevealedSides {
+  if (caseData?.play?.exam === undefined) return 'all';
+  if (ending !== 'none') return 'all';
+  return foundSides(activeExamEntries(examRecord, lineage));
+}
+
+/** Same length and the same sides in the same order. */
+function sameSides(a: readonly Side[], b: readonly Side[]): boolean {
+  return a.length === b.length && a.every((side, i) => side === b[i]);
+}
+
+/**
  * Recomputes only `swollenSides` and `decompressedSides` of the Avatar from the
- * lineage's Active_Interventions, at `currentSimulationTime` (4.14, 4.15, 4.20).
+ * lineage's Active_Interventions, at `currentSimulationTime` (4.14, 4.15, 4.20),
+ * with Swollen_Sides gated by `revealedSidesFor` (bedside-exam 9.1, 9.2).
+ * Returns the same state when both lists are unchanged element by element.
  * Like `onSample`, it leaves the Avatar as is without a loaded Play_Section.
  */
-function withSides(
-  state: SessionUiState,
-  interventionRecord: InterventionRecordEntry[],
-): SessionUiState {
+function withSides(state: SessionUiState): SessionUiState {
   const caseData = state.caseData;
-  if (caseData === null || caseData.play === undefined) return { ...state, interventionRecord };
+  if (caseData === null || caseData.play === undefined) return state;
   const sides = computeSides(
     currentSimulationTime(state),
     caseData.timeline?.scheduledInsults ?? [],
-    activeInterventions(interventionRecord, state.lineage),
+    activeInterventions(state.interventionRecord, state.lineage),
   );
-  return { ...state, interventionRecord, avatar: { ...state.avatar, ...sides } };
+  const swollenSides = shownSwollenSides(
+    sides.swollenSides,
+    revealedSidesFor(caseData, state.ending.ending, state.examRecord, state.lineage),
+  );
+  const sameSwollen = sameSides(swollenSides, state.avatar.swollenSides);
+  const sameDecompressed = sameSides(sides.decompressedSides, state.avatar.decompressedSides);
+  if (sameSwollen && sameDecompressed) return state;
+  // An unchanged list keeps its array, so only a changed list differs.
+  return {
+    ...state,
+    avatar: {
+      ...state.avatar,
+      swollenSides: sameSwollen ? state.avatar.swollenSides : swollenSides,
+      decompressedSides: sameDecompressed ? state.avatar.decompressedSides : sides.decompressedSides,
+    },
+  };
 }
 
 /**
@@ -218,7 +266,9 @@ function onFork(
           activeInterventions: activeInterventions(state.interventionRecord, lineage),
           previous: null,
           firstPositiveTidalVolumeMl: state.firstPositiveTidalVolumeMl,
-          revealedSides: 'all',
+          // The new Branch starts with Ending `none`; a side found only after
+          // the fork time is no longer drawn (bedside-exam 9.4).
+          revealedSides: revealedSidesFor(caseData, 'none', state.examRecord, lineage),
         })
       : defaultAvatar();
 
@@ -251,6 +301,42 @@ function onHint(state: SessionUiState, wallClockTime: string): SessionUiState {
   return { ...state, hintsRevealed: state.hintsRevealed + 1, hintRecord: [...state.hintRecord, entry] };
 }
 
+/**
+ * One Exam_Button activation (bedside-exam 6.3, 6.5, 6.8, 6.9, 7.1). Returns
+ * the same state, adding nothing, without an Exam_Section, without a current
+ * Branch, after an Ending, for an unknown action id, or for a side that does
+ * not fit the action. Otherwise appends one entry and recomputes the sides;
+ * no other field changes.
+ */
+function onExam(
+  state: SessionUiState,
+  actionId: string,
+  side: Side | null,
+  wallClockTime: string,
+): SessionUiState {
+  const caseData = state.caseData;
+  const exam = caseData?.play?.exam;
+  if (caseData === null || exam === undefined) return state;
+  const branchId = state.currentBranchId;
+  if (branchId === null) return state;
+  if (state.ending.ending !== 'none') return state;
+  const action = exam.actions.find((a) => a.id === actionId);
+  if (action === undefined) return state;
+  if (isSidedAction(action) ? side === null : side !== null) return state;
+
+  const simulationTime = currentSimulationTime(state);
+  const finding = examFinding({
+    action,
+    side,
+    caseData,
+    simulationTime,
+    sample: state.latestSample,
+    activeInterventions: activeInterventions(state.interventionRecord, state.lineage),
+  });
+  const entry = buildExamEntry({ actionId, side, simulationTime, branchId, finding, wallClockTime });
+  return withSides({ ...state, examRecord: [...state.examRecord, entry] });
+}
+
 function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
   // 1. Stale-sample guard: time-only, because messages carry no branch_id.
   const guard = state.staleGuard;
@@ -269,8 +355,13 @@ function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
     if (tv !== undefined && tv > 0) firstPositiveTidalVolumeMl = tv;
   }
 
-  // 4. Avatar, from the previous sample's parameters. Needs the case's alarms
+  // 4. Ending, advanced by this sample. Stepped before the Avatar because the
+  //    side gate reads it; `stepEnding` does not read the Avatar.
+  const ending = stepEnding(state.endingCtx, state.ending, sample);
+
+  // 5. Avatar, from the previous sample's parameters. Needs the case's alarms
   //    and Play_Section; without them the Avatar is not shown and stays as is.
+  //    The sample that changes the Ending is drawn ungated (bedside-exam 9.5).
   const caseData = state.caseData;
   const play = caseData?.play;
   const avatar =
@@ -283,12 +374,11 @@ function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
           activeInterventions: activeInterventions(state.interventionRecord, state.lineage),
           previous: state.avatar,
           firstPositiveTidalVolumeMl,
-          revealedSides: 'all',
+          revealedSides: revealedSidesFor(caseData, ending.ending, state.examRecord, state.lineage),
         })
       : state.avatar;
 
-  // 5. Ending, advanced by this sample; snapshot when it leaves `none`.
-  const ending = stepEnding(state.endingCtx, state.ending, sample);
+  // 6. Snapshot of the Avatar when the Ending leaves `none`.
   const endingSnapshot =
     state.ending.ending === 'none' && ending.ending !== 'none' ? avatar : state.endingSnapshot;
 
@@ -329,22 +419,27 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
     case 'sessionLoaded': {
       const { session } = action;
       const currentBranchId = session.current_branch_id;
-      return withRescueGate({
-        ...state,
-        session,
-        currentBranchId,
-        lineage: lineageFor(session, currentBranchId, state.checkpointsByBranch),
-      });
+      // A new lineage can make restored entries active (bedside-exam 9.2).
+      return withRescueGate(
+        withSides({
+          ...state,
+          session,
+          currentBranchId,
+          lineage: lineageFor(session, currentBranchId, state.checkpointsByBranch),
+        }),
+      );
     }
 
     case 'checkpointsLoaded': {
       // A newly loaded list replaces that Branch's earlier list; other Branches keep theirs.
       const checkpointsByBranch = { ...state.checkpointsByBranch, ...action.byBranch };
-      return withRescueGate({
-        ...state,
-        checkpointsByBranch,
-        lineage: lineageFor(state.session, state.currentBranchId, checkpointsByBranch),
-      });
+      return withRescueGate(
+        withSides({
+          ...state,
+          checkpointsByBranch,
+          lineage: lineageFor(state.session, state.currentBranchId, checkpointsByBranch),
+        }),
+      );
     }
 
     case 'connectionChanged':
@@ -366,10 +461,19 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
     }
 
     case 'interventionRecordRestored':
-      return withRescueGate(withSides(state, action.record));
+      return withRescueGate(withSides({ ...state, interventionRecord: action.record }));
 
     case 'interventionSucceeded':
-      return withRescueGate(withSides(state, [...state.interventionRecord, action.entry]));
+      return withRescueGate(
+        withSides({ ...state, interventionRecord: [...state.interventionRecord, action.entry] }),
+      );
+
+    case 'examRecordRestored':
+      // Replaces rather than merges, so a second dispatch is harmless (7.5).
+      return withSides({ ...state, examRecord: action.record, examRecordLoaded: true });
+
+    case 'examPerformed':
+      return onExam(state, action.actionId, action.side, action.wallClockTime);
 
     case 'forkSucceeded':
       // onFork resets the Ending state; the gate is then recomputed for the new lineage (6.21).

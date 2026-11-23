@@ -232,7 +232,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 6.6, 7.1, 7.4, 7.5, 7.6, 7.7, 10.6, 14.2_
     - _Properties: 13, 14_
 
-- [ ] 11. Avatar_Mapper side gate
+- [x] 11. Avatar_Mapper side gate
   - [x] 11.1 Add `revealedSides` to `AvatarInput` in `apps/web/src/lib/avatarMapper.ts`
     - Files: `apps/web/src/lib/avatarMapper.ts`, `apps/web/src/lib/avatarMapper.test.ts`, `apps/web/src/lib/sessionState.ts` (only the two `mapAvatar` calls), `apps/web/src/lib/sessionState.test.ts` (only the two literal `mapAvatar` calls). No other file changes
     - `AvatarInput` gains the required `revealedSides: RevealedSides`; `mapAvatar` sets `swollenSides: shownSwollenSides(sides.swollenSides, input.revealedSides)` and leaves `decompressedSides` and every other field as before (design "`avatarMapper.ts`")
@@ -249,7 +249,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 16_
 
 - [ ] 12. Session state and the session hook
-  - [ ] 12.1 Add the Exam_Record and the side gate to `apps/web/src/lib/sessionState.ts`
+  - [x] 12.1 Add the Exam_Record and the side gate to `apps/web/src/lib/sessionState.ts`
     - Files: `apps/web/src/lib/sessionState.ts`, `apps/web/src/lib/sessionState.test.ts`, `apps/web/src/lib/examFlow.test.ts` (new). No other file changes
     - Implement the design section "`sessionState.ts`": `examRecord` and `examRecordLoaded` in `SessionUiState` and `initialSessionState()`; the actions `examRecordRestored` (replaces, sets `examRecordLoaded`, then `withSides`) and `examPerformed` (the refusals and the four steps); `revealedSidesFor`; `withSides(state)` without the record argument, applying the gate and returning the same state when both side lists are unchanged; `sessionLoaded` and `checkpointsLoaded` also call `withSides`; `onSample` maps the Avatar with `revealedSidesFor(caseData, ending.ending, ...)` after stepping the Ending; `onFork` uses `revealedSidesFor(caseData, 'none', examRecord, newLineage)` and keeps `examRecord` whole. Replace the temporary `'all'` from task 11.1. The reducer stays pure
     - Existing tests whose setup changes: `sessionState.test.ts`, `CASE_WITH_PLAY` becomes `structuredClone(CASE)` with `play.exam` deleted. Reason (design): the shipped Exam_Section turns the gate on, and the existing swollen-side assertions expect `['Left']` before a Decompression; without the Exam_Section they keep testing play-mode behaviour, which 4.6 keeps. `CASE_LOST`, `CASE_P20`, the Property 21 case and the `viewSelected` key-by-key test stay unchanged. No assertion changes

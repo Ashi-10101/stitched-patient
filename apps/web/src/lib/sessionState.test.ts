@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BEAT_PERIOD_S, mapAvatar } from './avatarMapper';
 import { activeInterventions, buildLineage } from './branchLineage';
+import { examFinding, isSidedAction } from './examFinding';
 import {
   buildEndingContext,
   evaluateEnding,
@@ -22,6 +23,7 @@ import type {
   AvatarParameters,
   CaseData,
   CheckpointMetadata,
+  ExamRecordEntry,
   Hint,
   InterventionRecordEntry,
   PlaybackSpeed,
@@ -50,7 +52,16 @@ function reduce(state: SessionUiState, action: SessionAction): SessionUiState {
   return sessionReducer(deepFreeze(state), deepFreeze(action));
 }
 
-const CASE_WITH_PLAY: CaseData = structuredClone(CASE);
+/**
+ * The case without its Exam_Section: the shipped Exam_Section turns the side
+ * gate on (bedside-exam 9.1), and these play-mode tests expect play-mode
+ * behaviour, which 4.6 keeps for a case without one.
+ */
+const CASE_WITH_PLAY: CaseData = (() => {
+  const c = structuredClone(CASE);
+  delete c.play!.exam;
+  return c;
+})();
 const CASE_WITHOUT_PLAY: CaseData = (() => {
   const { play: _play, ...rest } = structuredClone(CASE);
   return rest;
@@ -1278,6 +1289,284 @@ describe('sessionReducer: Rescue_Gate_Time property', () => {
           }
         },
       ),
+      PBT_PARAMS,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bedside-exam task 12.1: the Exam_Record and the side gate
+// (Requirements 4.6, 6.3, 6.5, 6.8, 6.9, 6.14, 7.1, 7.2, 7.5, 9.2, 9.4, 9.5)
+// ---------------------------------------------------------------------------
+
+/** The case with its shipped Exam_Section: the side gate is on. The Left insult starts at t = 30. */
+const CASE_EXAM: CaseData = structuredClone(CASE);
+
+/** Test values: PLAY_P20's quick Lost Ending (5 s of SpO2 < 0.85) with the shipped Exam_Section. */
+const CASE_EXAM_LOST: CaseData = (() => {
+  const c = structuredClone(CASE);
+  c.play = { ...PLAY_P20, exam: c.play!.exam };
+  return c;
+})();
+
+const WALL = '2026-11-20T10:03:00.000Z';
+
+function exam(state: SessionUiState, actionId: string, side: Side | null, wallClockTime = WALL): SessionUiState {
+  return reduce(state, { type: 'examPerformed', actionId, side, wallClockTime });
+}
+
+/** A test entry; the sentence is a placeholder, not case content. */
+function examEntry(actionId: string, side: Side | undefined, simulationTime: number, branchId: string, abnormal: boolean): ExamRecordEntry {
+  return {
+    actionId,
+    ...(side === undefined ? {} : { side }),
+    simulationTime,
+    branchId,
+    sentence: 'Test finding',
+    abnormal,
+    wallClockTime: WALL,
+  };
+}
+
+describe('examRecordRestored', () => {
+  it('replaces the record rather than merging, so a second dispatch gives the same record (7.5)', () => {
+    const before = exam(feed(onMain(CASE_EXAM), [40]), 'look-chest', null);
+    expect(before.examRecord).toHaveLength(1);
+    expect(before.examRecordLoaded).toBe(false);
+
+    const record = [examEntry('listen', 'Right', 35, 'main', false)];
+    const once = reduce(before, { type: 'examRecordRestored', record });
+    const twice = reduce(once, { type: 'examRecordRestored', record });
+
+    expect(once.examRecord).toEqual(record);
+    expect(twice.examRecord).toEqual(record);
+    expect(once.examRecordLoaded).toBe(true);
+    expect(twice.examRecordLoaded).toBe(true);
+  });
+
+  it('draws a restored Found_Side at once (9.2)', () => {
+    const before = feed(onMain(CASE_EXAM), [40]);
+    expect(before.avatar.swollenSides).toEqual([]);
+    const next = reduce(before, { type: 'examRecordRestored', record: [examEntry('listen', 'Left', 35, 'main', true)] });
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+  });
+});
+
+describe('examPerformed: refusals return the same state object', () => {
+  it('without an Exam_Section', () => {
+    const state = feed(onMain(CASE_WITH_PLAY), [40]);
+    expect(exam(state, 'look-chest', null)).toBe(state);
+  });
+
+  it('without a current Branch', () => {
+    const state = loaded(CASE_EXAM);
+    expect(state.currentBranchId).toBeNull();
+    expect(exam(state, 'look-chest', null)).toBe(state);
+  });
+
+  it('after an Ending (6.9)', () => {
+    const state = feed(onMain(CASE_EXAM_LOST), range(40, 50), { spo2: 0.8 });
+    expect(state.ending.ending).toBe('lost');
+    expect(exam(state, 'listen', 'Left')).toBe(state);
+    expect(exam(state, 'look-chest', null)).toBe(state);
+  });
+
+  it('for an unknown action id', () => {
+    const state = feed(onMain(CASE_EXAM), [40]);
+    expect(exam(state, 'no-such-action', null)).toBe(state);
+    expect(exam(state, 'no-such-action', 'Left')).toBe(state);
+  });
+
+  it('for a side on a Side_Neutral_Action', () => {
+    const state = feed(onMain(CASE_EXAM), [40]);
+    expect(exam(state, 'look-chest', 'Left')).toBe(state);
+  });
+
+  it('for no side on a Sided_Action', () => {
+    const state = feed(onMain(CASE_EXAM), [40]);
+    expect(exam(state, 'listen', null)).toBe(state);
+  });
+});
+
+describe('examPerformed and the side gate', () => {
+  it('draws the Affected_Side swollen in the same step after an abnormal finding there (6.3, 7.1, 9.2)', () => {
+    const before = feed(onMain(CASE_EXAM), [40]);
+    // The insult has started, but no side is found yet.
+    expect(before.avatar.swollenSides).toEqual([]);
+
+    const next = exam(before, 'listen', 'Left');
+
+    expect(next.examRecord).toHaveLength(1);
+    expect(next.examRecord[0]).toMatchObject({
+      actionId: 'listen',
+      side: 'Left',
+      simulationTime: 40,
+      branchId: 'main',
+      abnormal: true,
+      wallClockTime: WALL,
+    });
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+    expect(withoutSides(next.avatar)).toEqual(withoutSides(before.avatar));
+    expect(next.avatar.decompressedSides).toBe(before.avatar.decompressedSides);
+  });
+
+  it('adds no side for a normal finding on the Other_Side or a side-neutral finding, and keeps the Avatar object', () => {
+    const before = feed(onMain(CASE_EXAM), [40]);
+    const other = exam(before, 'listen', 'Right');
+    expect(other.examRecord[0].abnormal).toBe(false);
+    expect(other.avatar).toBe(before.avatar);
+
+    const neutral = exam(before, 'look-chest', null);
+    expect(neutral.examRecord[0].abnormal).toBe(true);
+    expect(neutral.avatar).toBe(before.avatar);
+  });
+
+  it('no longer draws a side found only after the fork time once forked (9.4)', () => {
+    const late = exam(feed(onMain(CASE_EXAM), [40, 70]), 'listen', 'Left');
+    expect(late.avatar.swollenSides).toEqual(['Left']);
+    const forkedLate = fork(late, 60);
+    expect(forkedLate.examRecord).toBe(late.examRecord);
+    expect(forkedLate.avatar.swollenSides).toEqual([]);
+
+    // Found before the fork time: still drawn on the new Branch.
+    const early = fork(exam(feed(onMain(CASE_EXAM), [40]), 'listen', 'Left'), 60);
+    expect(early.avatar.swollenSides).toEqual(['Left']);
+  });
+
+  it('makes a restored ancestor entry active when the lineage grows on checkpointsLoaded (9.2)', () => {
+    let child = reduce(loaded(CASE_EXAM), { type: 'sessionLoaded', session: SESSION });
+    child = reduce(child, { type: 'examRecordRestored', record: [examEntry('listen', 'Left', 50, 'main', true)] });
+    child = feed(child, [70]);
+    // Without Checkpoint lists, `main` is outside the lineage.
+    expect(child.avatar.swollenSides).toEqual([]);
+    const next = reduce(child, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+  });
+
+  it('draws the Swollen_Sides ungated from the sample that sets an Ending, and snapshots them (9.5)', () => {
+    let before = onMain(CASE_EXAM_LOST);
+    let ended = before;
+    for (const t of range(40, 60)) {
+      ended = feed(before, [t], { spo2: 0.8 });
+      if (ended.ending.ending !== 'none') break;
+      before = ended;
+    }
+    expect(before.latestSample?.simulation_time).toBeGreaterThanOrEqual(40);
+    expect(before.ending.ending).toBe('none');
+    expect(before.avatar.swollenSides).toEqual([]);
+    expect(ended.ending.ending).toBe('lost');
+    expect(ended.avatar.swollenSides).toEqual(['Left']);
+    expect(ended.endingSnapshot?.swollenSides).toEqual(['Left']);
+  });
+});
+
+describe('withSides returns the same state when no side changes', () => {
+  it('keeps the Avatar object on sessionLoaded and checkpointsLoaded when both side lists are equal', () => {
+    // Without an Exam_Section the gate is 'all', and shownSwollenSides returns a new array with the same sides.
+    const before = feed(onMain(), [40]);
+    expect(before.avatar.swollenSides).toEqual(['Left']);
+    const reloaded = reduce(before, { type: 'sessionLoaded', session: SESSION_MAIN });
+    expect(reloaded.avatar).toBe(before.avatar);
+    const withLists = reduce(reloaded, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    expect(withLists.avatar).toBe(before.avatar);
+
+    // With the gate on and a Found_Side.
+    const gated = exam(feed(onMain(CASE_EXAM), [40]), 'listen', 'Left');
+    expect(reduce(gated, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS }).avatar).toBe(gated.avatar);
+  });
+});
+
+/** OpSpec plus an Exam_Button activation; unknown ids and sides that do not fit are generated on purpose. */
+type ExamOpSpec = OpSpec | { kind: 'exam'; actionId: string; side: Side | null };
+
+const EXAM_ACTION_IDS: string[] = [...CASE.play!.exam!.actions.map((a) => a.id), 'no-such-action'];
+
+const arbExamOp: fc.Arbitrary<ExamOpSpec> = fc.record({
+  kind: fc.constant('exam' as const),
+  actionId: fc.constantFrom(...EXAM_ACTION_IDS),
+  side: fc.constantFrom<Side | null>(null, 'Left', 'Right'),
+});
+
+/** Mixed sequence for Property 11: exams interleaved with every other generated action. */
+const arbP11Ops: fc.Arbitrary<ExamOpSpec[]> = fc.array(
+  fc.oneof(
+    { weight: 5, arbitrary: arbExamOp },
+    { weight: 5, arbitrary: arbSampleOp },
+    { weight: 2, arbitrary: arbInterventionOp },
+    { weight: 1, arbitrary: arbHintOp },
+    { weight: 2, arbitrary: arbViewOp },
+    { weight: 1, arbitrary: arbPlaybackOp },
+    { weight: 2, arbitrary: arbForkOp },
+  ),
+  { minLength: 1, maxLength: 30 },
+);
+
+describe('sessionReducer: Exam_Record property', () => {
+  // Feature: bedside-exam, Property 11: An exam changes only the Exam_Record and the drawn sides
+  it('Property 11: An exam changes only the Exam_Record and the drawn sides', () => {
+    /** Validates: Requirements 6.3, 6.5, 6.8, 6.9, 6.14, 7.1, 7.2 */
+    fc.assert(
+      fc.property(fc.constantFrom(CASE_EXAM, CASE_EXAM_LOST), arbP11Ops, (caseData, ops) => {
+        const model: OpModel = { branchStart: 0, forks: 0 };
+        let state = onMain(caseData);
+        ops.forEach((op, i) => {
+          const wallClockTime = new Date(Date.UTC(2026, 10, 20, 10, 0, i)).toISOString();
+          const action: SessionAction =
+            op.kind === 'exam'
+              ? { type: 'examPerformed', actionId: op.actionId, side: op.side, wallClockTime }
+              : toAction(state, model, op, i);
+          const prev = state;
+          const next = reduce(prev, action);
+
+          if (action.type !== 'examPerformed') {
+            // No other action removes or rewrites an entry, across forks and view switches too.
+            expect(next.examRecord).toBe(prev.examRecord);
+          } else {
+            const examAction = caseData.play!.exam!.actions.find((a) => a.id === action.actionId);
+            const fits =
+              examAction !== undefined && (isSidedAction(examAction) ? action.side !== null : action.side === null);
+            if (prev.ending.ending !== 'none' || !fits) {
+              expect(next).toBe(prev);
+            } else {
+              const t = prev.latestSample?.simulation_time ?? prev.lineage[0]?.forkTime ?? 0;
+              const finding = examFinding({
+                action: examAction!,
+                side: action.side,
+                caseData,
+                simulationTime: t,
+                sample: prev.latestSample,
+                activeInterventions: activeInterventions(prev.interventionRecord, prev.lineage),
+              });
+              expect(next.examRecord).toHaveLength(prev.examRecord.length + 1);
+              prev.examRecord.forEach((entry, k) => expect(next.examRecord[k]).toBe(entry));
+              expect(next.examRecord[prev.examRecord.length]).toEqual({
+                actionId: action.actionId,
+                ...(action.side === null ? {} : { side: action.side }),
+                simulationTime: t,
+                branchId: prev.currentBranchId,
+                sentence: finding.sentence,
+                abnormal: finding.abnormal,
+                wallClockTime,
+              });
+              // Every other field, including playing, speed, latestSample, history, connected,
+              // ending, interventionRecord, hintRecord, hintsRevealed and view, is the same object.
+              for (const key of Object.keys(prev) as (keyof SessionUiState)[]) {
+                if (key !== 'examRecord' && key !== 'avatar') expect(next[key]).toBe(prev[key]);
+              }
+              // Only avatar.swollenSides may differ.
+              for (const key of Object.keys(prev.avatar) as (keyof AvatarParameters)[]) {
+                if (key !== 'swollenSides') expect(next.avatar[key]).toBe(prev.avatar[key]);
+              }
+            }
+          }
+
+          if (action.type === 'forkSucceeded') {
+            model.branchStart = action.forkTime;
+            model.forks += 1;
+          }
+          state = next;
+        });
+      }),
       PBT_PARAMS,
     );
   });

@@ -23,6 +23,10 @@
     "11.1 Add `revealedSides` to `AvatarInput` in `apps/web/src/lib/avatarMapper.ts`": {
       "status": "passed",
       "lastRunTimestamp": 1795401457624
+    },
+    "12.1 Add the Exam_Record and the side gate to `apps/web/src/lib/sessionState.ts`": {
+      "status": "passed",
+      "lastRunTimestamp": 1795401960244
     }
   },
   "executionHistory": {
@@ -209,6 +213,20 @@
         "executionId": "a8227426-07e0-480a-a93f-63e97fd4aef8",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795401302706
+      }
+    ],
+    "11. Avatar_Mapper side gate": [
+      {
+        "executionId": "a8227426-07e0-480a-a93f-63e97fd4aef8",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795401523285
+      }
+    ],
+    "12.1 Add the Exam_Record and the side gate to `apps/web/src/lib/sessionState.ts`": [
+      {
+        "executionId": "83ac05c8-af81-4423-97d3-ffa7e9a54468",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795401568244
       }
     ]
   }
