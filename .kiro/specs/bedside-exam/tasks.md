@@ -361,7 +361,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 9.6, 10.4, 10.6, 10.7, 10.8, 10.9, 11.5, 12.6, 14.2_
     - _Properties: 17_
 
-- [ ] 17. Final checkpoint
+- [x] 17. Final checkpoint
   - [x] 17.1 Run the full web and fast Python suites and the case validation
     - Ensure all tests pass, ask the user if questions arise
     - No file changes in this task
