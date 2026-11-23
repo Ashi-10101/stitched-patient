@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_BEAT_PERIOD_S, mapAvatar } from './avatarMapper';
-import { activeInterventions, buildLineage } from './branchLineage';
+import { activeExamEntries, activeInterventions, buildLineage } from './branchLineage';
 import { examFinding, isSidedAction } from './examFinding';
 import {
   buildEndingContext,
@@ -19,6 +19,7 @@ import {
   type SessionUiState,
   type View,
 } from './sessionState';
+import { affectedInsult, computeSides, foundSides } from './sides';
 import type {
   AvatarParameters,
   CaseData,
@@ -32,7 +33,7 @@ import type {
   Side,
   VitalSigns,
 } from '@/types';
-import { CASE } from '@/test/caseFixtures';
+import { CASE, CASE_LEFT, CASE_RIGHT } from '@/test/caseFixtures';
 import { arbLineage, type LineageCase } from '@/test/generators';
 import { PBT_PARAMS } from '@/test/pbt';
 
@@ -1612,6 +1613,324 @@ describe('sessionReducer: Exam_Record property', () => {
           state = next;
         });
       }),
+      PBT_PARAMS,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// bedside-exam task 12.2: properties 15 and 16 (reducer half)
+// (Requirements 4.6, 8.9, 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 14.2)
+// ---------------------------------------------------------------------------
+
+/** The Resolved_Case with PLAY_P20's quick Lost (test values: 5 s of SpO2 < 0.85), so Endings come often. */
+function withQuickLost(caseData: CaseData): CaseData {
+  const c = structuredClone(caseData);
+  c.play = { ...c.play!, endings: { ...c.play!.endings, lost: PLAY_P20.endings.lost } };
+  return c;
+}
+
+/** The Resolved_Case without its Exam_Section: the side gate is off (4.6). */
+function withoutExam(caseData: CaseData): CaseData {
+  const c = structuredClone(caseData);
+  delete c.play!.exam;
+  return c;
+}
+
+const SIDED_EXAM_IDS: string[] = CASE.play!.exam!.actions.filter((a) => isSidedAction(a)).map((a) => a.id);
+const NEUTRAL_EXAM_IDS: string[] = CASE.play!.exam!.actions.filter((a) => !isSidedAction(a)).map((a) => a.id);
+
+/** One restored Exam_Record entry; resolved against the case and the state by `restoredEntry`. */
+interface RestoredSpec {
+  actionId: string;
+  side: Side | null;
+  abnormal: boolean;
+  /** Simulation_Time as a fraction (0 to 1) of the latest time. */
+  at: number;
+  /** Index (mod the Branch count) of the entry's Branch in the Session. */
+  branchPick: number;
+}
+
+/** ExamOpSpec plus `examRecordRestored` and `checkpointsLoaded`. */
+type SideOpSpec =
+  | ExamOpSpec
+  /** Restores a prefix (`keep`, 0 to 1) of the current record plus `extra` entries. */
+  | { kind: 'restore'; keep: number; extra: RestoredSpec[] }
+  /** Loads one Branch's Checkpoint list: the fork Checkpoints it holds, or an empty list. */
+  | { kind: 'checkpoints'; branchPick: number; empty: boolean };
+
+/** A sided exam; half of them on the Affected_Side, so Found_Sides come often. */
+const arbSidedExamOp: fc.Arbitrary<SideOpSpec> = fc.record({
+  kind: fc.constant('exam' as const),
+  actionId: fc.constantFrom(...SIDED_EXAM_IDS),
+  side: fc.constantFrom<Side | null>('Left', 'Right'),
+});
+
+/** A side-neutral exam, or an unknown id (refused); never a sided exam. */
+const arbNeutralExamOp: fc.Arbitrary<SideOpSpec> = fc.record({
+  kind: fc.constant('exam' as const),
+  actionId: fc.constantFrom(...NEUTRAL_EXAM_IDS, 'no-such-action'),
+  side: fc.constant(null),
+});
+
+function arbRestoreOp(neutralOnly: boolean): fc.Arbitrary<SideOpSpec> {
+  return fc.record({
+    kind: fc.constant('restore' as const),
+    keep: fc.integer({ min: 0, max: 4 }).map((n) => n / 4),
+    extra: fc.array(
+      fc.record({
+        actionId: fc.constantFrom(...(neutralOnly ? NEUTRAL_EXAM_IDS : [...SIDED_EXAM_IDS, ...NEUTRAL_EXAM_IDS])),
+        side: fc.constantFrom<Side | null>(null, 'Left', 'Right'),
+        abnormal: fc.boolean(),
+        at: fc.integer({ min: 0, max: 4 }).map((n) => n / 4),
+        branchPick: fc.nat({ max: 7 }),
+      }),
+      { maxLength: 3 },
+    ),
+  });
+}
+
+const arbCheckpointsOp: fc.Arbitrary<SideOpSpec> = fc.record({
+  kind: fc.constant('checkpoints' as const),
+  branchPick: fc.nat({ max: 7 }),
+  empty: fc.constantFrom(false, false, true),
+});
+
+/**
+ * A sample 10 to 30 s after the latest one, so runs pass the insult time
+ * (t = 30) often. Right after a fork it is dropped by the stale-sample guard.
+ */
+const arbLongSampleOp: fc.Arbitrary<SideOpSpec> = fc.record({
+  kind: fc.constant('sample' as const),
+  offset: fc.integer({ min: 10, max: 30 }),
+  spo2: fc.constantFrom(0.97, 0.8),
+  tidalVolume: fc.constantFrom(0, 480, 500),
+});
+
+/** Mixed sequence for Property 15: Property 11's actions, biased to sided exams, plus restores and Checkpoint loads. */
+const arbP15Ops: fc.Arbitrary<SideOpSpec[]> = fc.array(
+  fc.oneof(
+    { weight: 4, arbitrary: arbExamOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 4, arbitrary: arbSidedExamOp },
+    { weight: 6, arbitrary: arbSampleOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbLongSampleOp },
+    // Rare: a needle on the Affected_Side ends its swelling for good.
+    { weight: 1, arbitrary: arbInterventionOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbHintOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 1, arbitrary: arbViewOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 1, arbitrary: arbPlaybackOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbForkOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbRestoreOp(false) },
+    { weight: 2, arbitrary: arbCheckpointsOp },
+  ),
+  { minLength: 5, maxLength: 50, size: 'medium' },
+);
+
+/** Property 16's sequence: as Property 15 without interventions and without sided exams or sided restored entries. */
+const arbP16Ops: fc.Arbitrary<SideOpSpec[]> = fc.array(
+  fc.oneof(
+    { weight: 5, arbitrary: arbNeutralExamOp },
+    { weight: 6, arbitrary: arbSampleOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbLongSampleOp },
+    { weight: 2, arbitrary: arbHintOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 1, arbitrary: arbViewOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 1, arbitrary: arbPlaybackOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbForkOp as fc.Arbitrary<SideOpSpec> },
+    { weight: 2, arbitrary: arbRestoreOp(true) },
+    { weight: 2, arbitrary: arbCheckpointsOp },
+  ),
+  { minLength: 5, maxLength: 50, size: 'medium' },
+);
+
+/** One generated run on one case: the state and the running facts `toAction` needs. */
+interface GateRun {
+  caseData: CaseData;
+  affected: Side;
+  state: SessionUiState;
+  model: OpModel;
+  /** Fork time of every Branch forked in this run. */
+  forkTimes: Map<string, number>;
+}
+
+function startRun(caseData: CaseData): GateRun {
+  const affected = affectedInsult(caseData.timeline?.scheduledInsults ?? [])!.side;
+  return { caseData, affected, state: onMain(caseData), model: { branchStart: 0, forks: 0 }, forkTimes: new Map() };
+}
+
+/**
+ * A restored entry as the service could hold it: a sided action always has a
+ * side, a side-neutral action none, and only the Affected_Side can be abnormal
+ * for a sided action, as `examFinding` gives (an entry the reducer could have made).
+ */
+function restoredEntry(run: GateRun, spec: RestoredSpec, now: number): ExamRecordEntry {
+  // A case without an Exam_Section can still receive a restored record; the shipped actions say which are sided.
+  const action = (run.caseData.play?.exam ?? CASE.play!.exam!).actions.find((a) => a.id === spec.actionId)!;
+  const branches = run.state.session?.branches ?? [];
+  const branchId = branches[spec.branchPick % branches.length].branch_id;
+  const t = Math.round(spec.at * now * 2) / 2;
+  if (!isSidedAction(action)) return examEntry(spec.actionId, undefined, t, branchId, spec.abnormal);
+  const side = spec.side ?? run.affected;
+  return examEntry(spec.actionId, side, t, branchId, side === run.affected && spec.abnormal);
+}
+
+/** The Checkpoint list of one Branch: its own fork copy and the Checkpoints its children were forked from. */
+function checkpointList(run: GateRun, branchId: string): CheckpointMetadata[] {
+  const branches = run.state.session?.branches ?? [];
+  const list: CheckpointMetadata[] = [];
+  for (const b of branches) {
+    const forkTime = run.forkTimes.get(b.branch_id);
+    if (b.forked_from_checkpoint === undefined || forkTime === undefined) continue;
+    if (b.branch_id !== branchId && b.parent_branch_id !== branchId) continue;
+    list.push({
+      checkpoint_id: b.forked_from_checkpoint,
+      simulation_time: forkTime,
+      created_at: '2026-11-20T10:06:00Z',
+      is_automatic: b.branch_id !== branchId,
+    });
+  }
+  return list;
+}
+
+function toSideAction(run: GateRun, op: SideOpSpec, step: number): SessionAction {
+  const { state, model } = run;
+  const wallClockTime = new Date(Date.UTC(2026, 10, 20, 10, 0, step)).toISOString();
+  switch (op.kind) {
+    case 'exam':
+      return { type: 'examPerformed', actionId: op.actionId, side: op.side, wallClockTime };
+    case 'restore': {
+      const now = state.latestSample?.simulation_time ?? model.branchStart;
+      const kept = state.examRecord.slice(0, Math.round(op.keep * state.examRecord.length));
+      return { type: 'examRecordRestored', record: [...kept, ...op.extra.map((s) => restoredEntry(run, s, now))] };
+    }
+    case 'checkpoints': {
+      const branches = state.session?.branches ?? [];
+      const branchId = branches[op.branchPick % branches.length].branch_id;
+      return { type: 'checkpointsLoaded', byBranch: { [branchId]: op.empty ? [] : checkpointList(run, branchId) } };
+    }
+    default:
+      return toAction(state, model, op, step);
+  }
+}
+
+/** Applies one op to the run and returns the state before, the action and the state after. */
+function stepRun(
+  run: GateRun,
+  op: SideOpSpec,
+  step: number,
+): { prev: SessionUiState; action: SessionAction; next: SessionUiState } {
+  const prev = run.state;
+  const action = toSideAction(run, op, step);
+  const next = reduce(prev, action);
+  if (action.type === 'forkSucceeded') {
+    run.model.branchStart = action.forkTime;
+    run.model.forks += 1;
+    run.forkTimes.set(action.newBranchId, action.forkTime);
+  }
+  run.state = next;
+  return { prev, action, next };
+}
+
+/** The ungated sides for a state: `computeSides` at the reducer's current time over the lineage's Active_Interventions. */
+function ungatedSides(caseData: CaseData, state: SessionUiState): { swollenSides: Side[]; decompressedSides: Side[] } {
+  const t = state.latestSample?.simulation_time ?? state.lineage[0]?.forkTime ?? 0;
+  return computeSides(
+    t,
+    caseData.timeline?.scheduledInsults ?? [],
+    activeInterventions(state.interventionRecord, state.lineage),
+  );
+}
+
+/** Property 15's cases: both Resolved_Cases, with quick Endings, and without an Exam_Section. */
+const arbP15Case: fc.Arbitrary<CaseData> = fc.oneof(
+  { weight: 2, arbitrary: fc.constantFrom(CASE_LEFT, CASE_RIGHT) },
+  { weight: 2, arbitrary: fc.constantFrom(withQuickLost(CASE_LEFT), withQuickLost(CASE_RIGHT)) },
+  { weight: 1, arbitrary: fc.constantFrom(withoutExam(CASE_LEFT), withoutExam(CASE_RIGHT)) },
+);
+
+describe('sessionReducer: side gate properties', () => {
+  it('the Variants differ in the Affected_Side and both have an Exam_Section', () => {
+    expect(affectedInsult(CASE_LEFT.timeline?.scheduledInsults ?? [])?.side).toBe('Left');
+    expect(affectedInsult(CASE_RIGHT.timeline?.scheduledInsults ?? [])?.side).toBe('Right');
+    expect(CASE_LEFT.play?.exam).toBeDefined();
+    expect(CASE_RIGHT.play?.exam).toBeDefined();
+    expect(SIDED_EXAM_IDS.length).toBeGreaterThan(0);
+    expect(NEUTRAL_EXAM_IDS.length).toBeGreaterThan(0);
+  });
+
+  // Feature: bedside-exam, Property 15: Before an Ending, only found sides are drawn swollen
+  it('Property 15: Before an Ending, only found sides are drawn swollen', () => {
+    /** Validates: Requirements 4.6, 8.9, 9.1, 9.2, 9.3, 9.4, 9.5 */
+    fc.assert(
+      fc.property(arbP15Case, arbP15Ops, (caseData, ops) => {
+        const gated = caseData.play!.exam !== undefined;
+        const run = startRun(caseData);
+        ops.forEach((op, i) => {
+          const { prev, action, next } = stepRun(run, op, i);
+          const ungated = ungatedSides(caseData, next);
+          const found = foundSides(activeExamEntries(next.examRecord, next.lineage));
+
+          // Found_Sides holds only the Affected_Side.
+          expect(found.filter((s) => s !== run.affected)).toEqual([]);
+          // Needles are never gated.
+          expect(next.avatar.decompressedSides).toEqual(ungated.decompressedSides);
+
+          if (!gated) {
+            // A case without an Exam_Section is never gated.
+            expect(next.avatar.swollenSides).toEqual(ungated.swollenSides);
+          } else if (next.ending.ending === 'none') {
+            expect(next.avatar.swollenSides).toEqual(ungated.swollenSides.filter((s) => found.includes(s)));
+          }
+
+          if (action.type === 'hintRevealed') {
+            expect(next.avatar.swollenSides).toEqual(prev.avatar.swollenSides);
+          }
+
+          if (prev.ending.ending === 'none' && next.ending.ending !== 'none') {
+            expect(next.endingSnapshot?.swollenSides).toEqual(ungated.swollenSides);
+          }
+
+          if (action.type === 'forkSucceeded') {
+            // Sides whose abnormal active entries all lie after the fork time.
+            const prevActive = activeExamEntries(prev.examRecord, prev.lineage);
+            const onlyAfter = foundSides(prevActive).filter((s) =>
+              prevActive
+                .filter((e) => e.side === s && e.abnormal)
+                .every((e) => e.simulationTime > action.forkTime),
+            );
+            for (const s of onlyAfter) {
+              expect(found).not.toContain(s);
+              if (gated) expect(next.avatar.swollenSides).not.toContain(s);
+            }
+          }
+        });
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: bedside-exam, Property 16: The Avatar is the same in both Variants until a side is found or a needle is used
+  it('Property 16: The Avatar is the same in both Variants until a side is found or a needle is used', () => {
+    /** Validates: Requirements 9.7 */
+    fc.assert(
+      fc.property(
+        fc.constantFrom<[CaseData, CaseData]>(
+          [CASE_LEFT, CASE_RIGHT],
+          [withQuickLost(CASE_LEFT), withQuickLost(CASE_RIGHT)],
+        ),
+        arbP16Ops,
+        ([leftCase, rightCase], ops) => {
+          const left = startRun(leftCase);
+          const right = startRun(rightCase);
+          expect(right.state.avatar).toEqual(left.state.avatar);
+          ops.forEach((op, i) => {
+            const a = stepRun(left, op, i).next;
+            const b = stepRun(right, op, i).next;
+            if (a.ending.ending === 'none' && b.ending.ending === 'none') {
+              expect(b.avatar).toEqual(a.avatar);
+            }
+          });
+        },
+      ),
       PBT_PARAMS,
     );
   });

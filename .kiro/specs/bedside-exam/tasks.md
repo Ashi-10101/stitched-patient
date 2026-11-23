@@ -262,7 +262,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 4.6, 6.3, 6.4, 6.5, 6.8, 6.9, 6.14, 7.1, 7.2, 7.5, 9.2, 9.4, 9.5, 14.2, 14.4_
     - _Properties: 11_
 
-  - [ ] 12.2 Add Properties 15 and 16 (reducer half) to `apps/web/src/lib/sessionState.test.ts`
+  - [x] 12.2 Add Properties 15 and 16 (reducer half) to `apps/web/src/lib/sessionState.test.ts`
     - Files: `apps/web/src/lib/sessionState.test.ts`. No other file changes
     - **Property 15: Before an Ending, only found sides are drawn swollen** (generated sequences as in Property 11 plus `examRecordRestored` and `checkpointsLoaded`, on `CASE_LEFT` and `CASE_RIGHT`; the ungated reference from `computeSides`; `hintRevealed`, including the last Hint, never changes `avatar.swollenSides`; the `endingSnapshot` holds the ungated sides; a case without `exam` is never gated). Tag: `// Feature: bedside-exam, Property 15: Before an Ending, only found sides are drawn swollen`
     - **Property 16** reducer half: the same generated sequence without `interventionSucceeded` and without sided exams gives equal `avatar` on `CASE_LEFT` and `CASE_RIGHT`. Tag: `// Feature: bedside-exam, Property 16: The Avatar is the same in both Variants until a side is found or a needle is used`
