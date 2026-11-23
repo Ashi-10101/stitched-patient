@@ -2,6 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { getAlarmState } from './alarms';
 import { examButtonText, examButtons, examFinding } from './examFinding';
+import type { ExamFindingInput } from './examFinding';
 import { VITAL_FIELD, VITAL_NAMES } from './vitals';
 import type {
   AlarmState,
@@ -21,7 +22,7 @@ import type {
   VitalName,
   VitalSigns,
 } from '@/types';
-import { CASE_LEFT } from '@/test/caseFixtures';
+import { CASE_LEFT, CASE_RIGHT } from '@/test/caseFixtures';
 import {
   arbActiveInterventions,
   arbExamAction,
@@ -509,6 +510,189 @@ describe('examFinding properties', () => {
         expect(got).toEqual(expected);
         expect(got.sentence).toBe(expected.sentence);
         expect([...s.action.rules.map((r) => r.sentence), s.action.defaultSentence]).toContain(got.sentence);
+      }),
+      PBT_PARAMS,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Helpers for Properties 9 and 10
+// ---------------------------------------------------------------------------
+
+function toInput(s: Scenario): ExamFindingInput {
+  return {
+    action: s.action,
+    side: s.side,
+    caseData: { timeline: { scheduledInsults: s.insults }, alarms: s.alarms },
+    simulationTime: s.time,
+    sample: s.sample,
+    activeInterventions: s.active,
+  };
+}
+
+/** Freezes `value` and every object reachable from it (the data has no cycles). */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
+/**
+ * Runs `fn` with `globalThis.fetch` and `Date.now` replaced by functions that
+ * throw, and restores both afterwards, also when `fn` throws.
+ */
+function withoutClockOrNetwork<T>(fn: () => T): T {
+  const realFetch = globalThis.fetch;
+  const realNow = Date.now;
+  globalThis.fetch = (() => {
+    throw new Error('examFinding must not call fetch');
+  }) as typeof fetch;
+  Date.now = () => {
+    throw new Error('examFinding must not read Date.now');
+  };
+  try {
+    return fn();
+  } finally {
+    globalThis.fetch = realFetch;
+    Date.now = realNow;
+  }
+}
+
+/** Mirrors a valid side; an off-domain value is left unchanged. */
+function mirror<T>(side: T): T {
+  return (side === 'Left' ? 'Right' : side === 'Right' ? 'Left' : side) as T;
+}
+
+/** Every `side` of the insults mirrored; an absent side stays absent. */
+function mirrorInsults(insults: ScheduledInsult[]): ScheduledInsult[] {
+  return insults.map((i) =>
+    'side' in i.parameters ? { ...i, parameters: { ...i.parameters, side: mirror(i.parameters.side) } } : i,
+  );
+}
+
+/** Every `side` of the Active_Interventions mirrored; an absent side stays absent. */
+function mirrorActive(active: InterventionRecordEntry[]): InterventionRecordEntry[] {
+  return active.map((e) => ('side' in e ? { ...e, side: mirror(e.side) } : e));
+}
+
+const SHIPPED_ACTIONS: ExamAction[] = CASE_LEFT.play!.exam!.actions;
+
+interface CaseScenario {
+  action: ExamAction;
+  side: Side | null;
+  time: number;
+  sample: Partial<VitalSigns> | null;
+  alarms: AlarmThresholds;
+  active: InterventionRecordEntry[];
+}
+
+/**
+ * Inputs for the `left` and `right` Resolved_Cases: an Exam_Action from the
+ * shipped Exam_Section or from `arbExamAction`, with times near the case insult
+ * time and the Decompression times.
+ */
+const arbCaseScenario: fc.Arbitrary<CaseScenario> = fc
+  .record({
+    action: fc.oneof(fc.constantFrom(...SHIPPED_ACTIONS), arbExamAction),
+    sample: fc.option(arbSample, { nil: null, freq: 5 }),
+    alarms: arbAlarms,
+    active: arbActiveInterventions,
+  })
+  .chain((base) => {
+    const anchors = [
+      ...CASE_LEFT.timeline.scheduledInsults.map((i) => i.timeSeconds),
+      ...base.active.map((e) => e.simulationTime),
+    ];
+    const arbTime = fc.oneof(
+      {
+        weight: 3,
+        arbitrary: fc.constantFrom(...anchors).chain((a) => fc.constantFrom(a - 0.5, a - 1e-6, a, a + 1e-6, a + 0.5)),
+      },
+      { weight: 1, arbitrary: arbHalfSeconds },
+    );
+    const arbSide: fc.Arbitrary<Side | null> =
+      base.action.labels !== undefined ? fc.constantFrom<Side>('Left', 'Right') : fc.constant(null);
+    const n = base.action.rules.length;
+    const arbEdits = fc.array(
+      fc.record({ match: fc.boolean(), picks: fc.array(fc.nat(), { minLength: 6, maxLength: 6 }) }),
+      { minLength: n, maxLength: n },
+    );
+    return fc.record({ time: arbTime, side: arbSide, edits: arbEdits }).map(({ time, side, edits }) => ({
+      action: matchVitals(base.action, base.sample, base.alarms, edits),
+      side,
+      time,
+      sample: base.sample,
+      alarms: base.alarms,
+      active: base.active,
+    }));
+  });
+
+describe('examFinding purity and side symmetry', () => {
+  // Feature: bedside-exam, Property 9: The Exam_Finding_Selector is deterministic and pure
+  // **Validates: Requirements 5.1, 5.9**
+  it('gives deep-equal results for a deep-frozen input and its structured clone, without Date.now or fetch', () => {
+    fc.assert(
+      fc.property(arbScenario, (s) => {
+        const input = toInput(s);
+        const frozen = deepFreeze(structuredClone(input));
+        const clone = structuredClone(input);
+        const [fromFrozen, fromClone] = withoutClockOrNetwork((): [ExamFinding, ExamFinding] => [
+          examFinding(frozen),
+          examFinding(clone),
+        ]);
+        expect(fromClone).toEqual(fromFrozen);
+        expect(clone).toEqual(input);
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: bedside-exam, Property 10: Findings are side-relative
+  // **Validates: Requirements 5.4, 5.6, 14.3**
+  it('gives the same finding for the left case with side S and the right case with the mirrored side', () => {
+    expect(refAffected(CASE_LEFT.timeline.scheduledInsults)?.side).toBe('Left');
+    expect(refAffected(CASE_RIGHT.timeline.scheduledInsults)?.side).toBe('Right');
+    fc.assert(
+      fc.property(arbCaseScenario, (s) => {
+        const mirroredSide = s.side === null ? null : mirror(s.side);
+        if (s.action.labels === undefined) expect(mirroredSide).toBeNull();
+        const left = examFinding({
+          action: s.action,
+          side: s.side,
+          caseData: { timeline: CASE_LEFT.timeline, alarms: s.alarms },
+          simulationTime: s.time,
+          sample: s.sample,
+          activeInterventions: s.active,
+        });
+        const right = examFinding({
+          action: s.action,
+          side: mirroredSide,
+          caseData: { timeline: CASE_RIGHT.timeline, alarms: s.alarms },
+          simulationTime: s.time,
+          sample: s.sample,
+          activeInterventions: mirrorActive(s.active),
+        });
+        expect(right).toEqual(left);
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: bedside-exam, Property 10: Findings are side-relative
+  // **Validates: Requirements 5.4, 5.6, 14.3**
+  it('gives the same finding when every side of generated insults, interventions and the button is mirrored', () => {
+    fc.assert(
+      fc.property(arbScenario, (s) => {
+        const mirrored: Scenario = {
+          ...s,
+          side: s.side === null ? null : mirror(s.side),
+          insults: mirrorInsults(s.insults),
+          active: mirrorActive(s.active),
+        };
+        expect(examFinding(toInput(mirrored))).toEqual(examFinding(toInput(s)));
       }),
       PBT_PARAMS,
     );

@@ -208,7 +208,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 6.1, 6.2, 14.1, 14.2_
     - _Properties: 8_
 
-  - [ ] 9.2 Add Properties 9 and 10 to `apps/web/src/lib/examFinding.test.ts`
+  - [x] 9.2 Add Properties 9 and 10 to `apps/web/src/lib/examFinding.test.ts`
     - Files: `apps/web/src/lib/examFinding.test.ts`. No other file changes
     - **Property 9: The Exam_Finding_Selector is deterministic and pure** (deep-frozen input and a structured clone give deep-equal results; the clone is unchanged; `globalThis.fetch` and `Date.now` replaced by throwing functions and restored afterwards). Tag: `// Feature: bedside-exam, Property 9: The Exam_Finding_Selector is deterministic and pure`
     - **Property 10: Findings are side-relative** (actions from the shipped Exam_Section and from `arbExamAction`; `CASE_LEFT` with side S against `CASE_RIGHT` with the mirrored side and mirrored Active_Interventions; `null` side for side-neutral actions; a second check that mirrors every side of generated insult lists). Tag: `// Feature: bedside-exam, Property 10: Findings are side-relative`
