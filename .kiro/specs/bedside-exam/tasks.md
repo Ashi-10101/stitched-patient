@@ -325,7 +325,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 19_
 
 - [ ] 15. Case-content checks per Resolved_Case
-  - [ ] 15.1 Check the Variants, Hints and Side_Reveal_Texts per Resolved_Case in `apps/web/src/lib/caseContent.test.ts`
+  - [x] 15.1 Check the Variants, Hints and Side_Reveal_Texts per Resolved_Case in `apps/web/src/lib/caseContent.test.ts`
     - Files: `apps/web/src/lib/caseContent.test.ts`. No other file changes
     - Build the Base_Case and both Resolved_Cases with `BASE_CASE` and `resolveCaseForTest` from `src/test/caseFixtures.ts` (14.6). A per-Variant wrapper runs each check once per Resolved_Case and prefixes each failure with `variant '<id>': `, then the field path and the text
     - Assertion change in `checkHints` and its test "has exactly 3 Hints; only the last names an Intervention, and it names the left Play_Label" (rename it). Reason: the last-Hint rule changes from "contains the Play_Label of the left Intervention" to "contains the Play_Label of this Resolved_Case's single Required_Intervention" (11.3), because the `right` Variant's last Hint names the right needle and 14.6 replaces the left-only check. Add the Side_Word check for Hints 1 and 2 (11.1). The broken-copy test "names the Hint text that gives the answer early" keeps its expected string, because `checkHints` keeps its message format

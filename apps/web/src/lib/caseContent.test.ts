@@ -8,6 +8,12 @@
  *
  * Every checker returns a list of failure messages. An empty list means the
  * check passed. A missing Play_Section is a failure for every checker.
+ *
+ * Bedside-exam checks (Requirements 2.1 to 2.8, 10.1 to 10.3, 11.1 to 11.4,
+ * 12.4, 12.5, 14.6, 14.7) run once per Resolved_Case. The Resolved_Cases are
+ * built from `BASE_CASE` with the independent test resolver
+ * `resolveCaseForTest`, and `perVariant` prefixes each failure with
+ * `variant '<id>': `.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -20,8 +26,8 @@ import {
   type Document,
   type Scalar,
 } from 'yaml';
-import type { CaseData } from '@/types';
-import { CASE_TEXT } from '@/test/caseFixtures';
+import type { CaseData, PlaySection, Side } from '@/types';
+import { BASE_CASE, CASE_LEFT, CASE_RIGHT, CASE_TEXT, resolveCaseForTest } from '@/test/caseFixtures';
 import { conditionsDisjoint, interventionSide, playButtonText } from './playCase';
 
 const MISSING = 'Play_Section is missing';
@@ -112,7 +118,10 @@ function checkLostGroupsDisjointFromRescue(c: CaseData): string[] {
 
 /**
  * Exactly 3 Hints; Hints before the last name no Intervention `label` or
- * `playLabel`; the last Hint contains the left Play_Label (9.8).
+ * `playLabel`; the last Hint contains the Play_Label of the case's single
+ * Required_Intervention (play-mode 9.8, bedside-exam 11.2, 11.3). Run once per
+ * Resolved_Case through `perVariant`. The Side_Word rule for Hints 1 and 2
+ * (11.1) is in `checkNoSideWords`.
  */
 function checkHints(c: CaseData): string[] {
   const play = c.play;
@@ -133,15 +142,22 @@ function checkHints(c: CaseData): string[] {
     }
   });
 
-  const left = (c.interventions ?? []).find((i) => interventionSide(i) === 'Left');
-  const leftPlayLabel = left?.playLabel;
+  const required = play.endings?.rescued?.requiredInterventions ?? [];
   const last = hints[hints.length - 1];
-  if (typeof leftPlayLabel !== 'string' || !/\S/.test(leftPlayLabel)) {
-    failures.push('no left Intervention has a Play_Label');
-  } else if (last) {
-    const text = String(last.text ?? '');
-    if (!text.toLowerCase().includes(leftPlayLabel.toLowerCase())) {
-      failures.push(`last Hint "${text}" does not contain the left Play_Label "${leftPlayLabel}"`);
+  if (required.length !== 1) {
+    failures.push(`${REQUIRED_PATH} has ${required.length} entries, expected exactly one`);
+  } else {
+    const requiredId = required[0];
+    const playLabel = (c.interventions ?? []).find((i) => i.id === requiredId)?.playLabel;
+    if (typeof playLabel !== 'string' || !/\S/.test(playLabel)) {
+      failures.push(`the Required_Intervention "${requiredId}" has no Play_Label`);
+    } else if (last) {
+      const text = String(last.text ?? '');
+      if (!text.toLowerCase().includes(playLabel.toLowerCase())) {
+        failures.push(
+          `last Hint "${text}" does not contain the Play_Label "${playLabel}" of the Required_Intervention "${requiredId}"`,
+        );
+      }
     }
   }
   return failures;
@@ -431,6 +447,309 @@ function checkRequiredInterventionsDecision(doc: Document, lineCounter: LineCoun
   return failures;
 }
 
+// ---------------------------------------------------------------------------
+// Bedside exam: Variants and Resolved_Cases (Requirements 2, 10, 11, 12, 14.6, 14.7)
+// ---------------------------------------------------------------------------
+
+type BaseCase = typeof BASE_CASE;
+
+/** One Resolved_Case with its Variant_Id. */
+interface ResolvedEntry {
+  id: string;
+  data: CaseData;
+}
+
+const NO_VARIANTS = 'no variants to check';
+const TENSION_ACTION = 'SETensionPneumothorax';
+const NEEDLE_ACTION = 'SENeedleDecompression';
+const OVERRIDE_KEYS = ['insultSide', 'requiredInterventions', 'hints', 'sideRevealText'] as const;
+/** The `insultSide` and `requiredInterventions` of each shipped Variant (2.3, 2.4). */
+const EXPECTED_VARIANT_VALUES: Record<string, { insultSide: Side; requiredInterventions: string[] }> = {
+  left: { insultSide: 'Left', requiredInterventions: ['needle-decompression-left'] },
+  right: { insultSide: 'Right', requiredInterventions: ['needle-decompression-right'] },
+};
+const NO_INSULT_SIDE = `timeline.scheduledInsults has no single Left or Right ${TENSION_ACTION} side`;
+
+/** Each Variant's Resolved_Case, built with the test resolver (14.6), in file order. */
+function resolveAll(base: BaseCase): ResolvedEntry[] {
+  return (base.variants ?? []).map((v) => ({ id: v.id, data: resolveCaseForTest(base, v.id) }));
+}
+
+const RESOLVED = resolveAll(BASE_CASE);
+
+/**
+ * Runs `check` once per Resolved_Case and prefixes each failure with
+ * `variant '<id>': `. An empty list fails with `no variants to check` (14.7).
+ */
+function perVariant(cases: ResolvedEntry[], check: (c: CaseData) => string[]): string[] {
+  if (cases.length === 0) return [NO_VARIANTS];
+  return cases.flatMap(({ id, data }) => check(data).map((f) => `variant '${id}': ${f}`));
+}
+
+/** The Side_Words ("left", "right" as whole words, case-insensitive) in a text, lower-cased, without repeats. */
+function sideWordsIn(text: string): string[] {
+  return [...new Set([...text.matchAll(/\b(left|right)\b/gi)].map((m) => m[1].toLowerCase()))];
+}
+
+/** The side of the case's `SETensionPneumothorax` Scheduled_Insults when they all name one Left or Right side. */
+function insultSide(c: CaseData): Side | undefined {
+  const sides = new Set(
+    (c.timeline?.scheduledInsults ?? []).filter((i) => i.action === TENSION_ACTION).map((i) => i.parameters?.side),
+  );
+  if (sides.size !== 1) return undefined;
+  const [side] = [...sides];
+  return side === 'Left' || side === 'Right' ? side : undefined;
+}
+
+interface Difference {
+  path: string;
+  actual: unknown;
+  expected: unknown;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/** The leaf paths where `actual` and `expected` differ (deep equality, as `toEqual`). */
+function differences(actual: unknown, expected: unknown, path: string, out: Difference[] = []): Difference[] {
+  if (Object.is(actual, expected)) return out;
+  if (Array.isArray(actual) && Array.isArray(expected) && actual.length === expected.length) {
+    actual.forEach((v, i) => differences(v, expected[i], `${path}[${i}]`, out));
+    return out;
+  }
+  if (isPlainObject(actual) && isPlainObject(expected)) {
+    for (const key of new Set([...Object.keys(actual), ...Object.keys(expected)])) {
+      differences(actual[key], expected[key], path ? `${path}.${key}` : key, out);
+    }
+    return out;
+  }
+  out.push({ path: path || '(root)', actual, expected });
+  return out;
+}
+
+/** A short description of a differing value for a failure message. */
+function describeValue(v: unknown): string {
+  if (v === undefined) return 'absent';
+  if (Array.isArray(v)) return `a list of ${v.length}`;
+  if (isPlainObject(v)) return 'an object';
+  return JSON.stringify(v);
+}
+
+/**
+ * The Variants are `left` and `right` in that order; each sets all four
+ * Variant_Overrides keys; `insultSide` and `requiredInterventions` hold the
+ * values of 2.3 and 2.4 (2.1 to 2.4).
+ */
+function checkVariants(base: BaseCase): string[] {
+  const variants = base.variants ?? [];
+  if (variants.length === 0) return [NO_VARIANTS];
+  const failures: string[] = [];
+  const ids = variants.map((v) => v?.id);
+  if (JSON.stringify(ids) !== JSON.stringify(['left', 'right'])) {
+    failures.push(`variants are ${JSON.stringify(ids)}, expected ["left","right"]`);
+  }
+  for (const v of variants) {
+    const overrides = v?.overrides ?? {};
+    for (const key of OVERRIDE_KEYS) {
+      if (overrides[key] === undefined) failures.push(`variant '${v.id}': overrides has no ${key}`);
+    }
+    const expected = EXPECTED_VARIANT_VALUES[v.id];
+    if (!expected) continue;
+    if (overrides.insultSide !== undefined && overrides.insultSide !== expected.insultSide) {
+      failures.push(
+        `variant '${v.id}': overrides.insultSide is ${JSON.stringify(overrides.insultSide)}, expected "${expected.insultSide}"`,
+      );
+    }
+    if (
+      overrides.requiredInterventions !== undefined &&
+      JSON.stringify(overrides.requiredInterventions) !== JSON.stringify(expected.requiredInterventions)
+    ) {
+      failures.push(
+        `variant '${v.id}': overrides.requiredInterventions is ${JSON.stringify(overrides.requiredInterventions)}, expected ${JSON.stringify(expected.requiredInterventions)}`,
+      );
+    }
+  }
+  return failures;
+}
+
+/** The `left` Resolved_Case deep-equals the Base_Case without `variants` (2.5). */
+function checkLeftEqualsBase(base: BaseCase): string[] {
+  const variants = base.variants ?? [];
+  if (variants.length === 0) return [NO_VARIANTS];
+  if (!variants.some((v) => v?.id === 'left')) return ["no variant 'left' to compare"];
+  const baseWithout = structuredClone(base);
+  delete baseWithout.variants;
+  return differences(resolveCaseForTest(base, 'left'), baseWithout, '').map(
+    (d) =>
+      `variant 'left': ${d.path} is ${describeValue(d.actual)}, ${describeValue(d.expected)} in the Base_Case without variants`,
+  );
+}
+
+/**
+ * The `variants` key has, on its line or the line directly above, a comment
+ * stating that the side variants and their `insultSide` and
+ * `requiredInterventions` values are the author's game-rule decision recorded
+ * in the bedside-exam spec; `insultSide` and `requiredInterventions` inside
+ * the Variants carry no `TODO(author)` marker (2.6).
+ */
+function checkVariantsDecision(doc: Document, lineCounter: LineCounter, lines: string[]): string[] {
+  const root = doc.contents;
+  if (!isMap(root)) return ['the case is not a map'];
+  const pair = root.items.find((p) => isScalar(p.key) && p.key.value === 'variants');
+  if (!pair || !isScalar(pair.key)) return ['variants is missing'];
+  const keyStart = pair.key.range?.[0];
+  if (keyStart === undefined) return ['variants has no source position'];
+  const lineIdx = lineCounter.linePos(keyStart).line - 1;
+  const failures: string[] = [];
+  const decision = commentsAround(lines, lineIdx).some(
+    (cm) =>
+      /author's game-rule decision/i.test(cm) &&
+      cm.includes(BEDSIDE_EXAM_MARK) &&
+      /side variants/i.test(cm) &&
+      cm.includes('insultSide') &&
+      cm.includes('requiredInterventions'),
+  );
+  if (!decision) {
+    failures.push(
+      `variants (line ${lineIdx + 1}) has no comment stating the author's game-rule decision recorded in the bedside-exam spec on its line or the line directly above`,
+    );
+  }
+  const seq = pair.value;
+  if (!isSeq(seq) || seq.items.length === 0) return [...failures, NO_VARIANTS];
+  seq.items.forEach((variant, v) => {
+    const overrides = isMap(variant) ? variant.get('overrides', true) : undefined;
+    if (!isMap(overrides)) return;
+    for (const p of overrides.items) {
+      if (!isScalar(p.key)) continue;
+      const key = String(p.key.value);
+      if (key !== 'insultSide' && key !== 'requiredInterventions') continue;
+      const start = p.key.range?.[0];
+      if (start === undefined) {
+        failures.push(`variants[${v}].overrides.${key} has no source position`);
+        continue;
+      }
+      const idx = lineCounter.linePos(start).line - 1;
+      if (commentsAround(lines, idx).some((cm) => cm.includes('TODO(author)'))) {
+        failures.push(`variants[${v}].overrides.${key} (line ${idx + 1}) carries a TODO(author) marker`);
+      }
+    }
+  });
+  return failures;
+}
+
+/** Each needle Required_Intervention's `side` equals the `SETensionPneumothorax` insult side (2.8). */
+function checkNeedleSideMatchesInsult(c: CaseData): string[] {
+  const play = c.play;
+  if (!play) return [MISSING];
+  const side = insultSide(c);
+  if (!side) return [NO_INSULT_SIDE];
+  const failures: string[] = [];
+  (play.endings?.rescued?.requiredInterventions ?? []).forEach((id, i) => {
+    const intervention = (c.interventions ?? []).find((x) => x.id === id);
+    if (!intervention || intervention.action !== NEEDLE_ACTION) return;
+    if (interventionSide(intervention) !== side) {
+      failures.push(
+        `${REQUIRED_PATH}[${i}] "${id}" has side "${String(intervention.parameters?.side)}", expected the insultSide "${side}"`,
+      );
+    }
+  });
+  return failures;
+}
+
+/**
+ * No Side_Word in any Status_Rule sentence, the status `defaultSentence`, the
+ * Goal_Text, or any Hint before the last (10.1, 10.2, 11.1).
+ */
+function checkNoSideWords(c: CaseData): string[] {
+  const play = c.play;
+  if (!play) return [MISSING];
+  const texts: Array<{ path: string; text: unknown }> = [
+    ...(play.status?.rules ?? []).map((r, i) => ({ path: `play.status.rules[${i}].sentence`, text: r?.sentence })),
+    { path: 'play.status.defaultSentence', text: play.status?.defaultSentence },
+    { path: 'play.goalText', text: play.goalText },
+    ...(play.hints ?? []).slice(0, -1).map((h, i) => ({ path: `play.hints[${i}].text`, text: h?.text })),
+  ];
+  const failures: string[] = [];
+  for (const { path, text } of texts) {
+    if (typeof text !== 'string') {
+      failures.push(`${path} is not a string`);
+      continue;
+    }
+    for (const word of sideWordsIn(text)) failures.push(`${path} "${text}" contains Side_Word "${word}"`);
+  }
+  return failures;
+}
+
+/**
+ * The `sideRevealText` contains the Side_Word of the insult side and not the
+ * other Side_Word (12.4), and no Diagnosis_Term by case-insensitive substring
+ * match (12.5).
+ */
+function checkSideRevealText(c: CaseData): string[] {
+  const play = c.play;
+  if (!play) return [MISSING];
+  const text = play.sideRevealText;
+  if (typeof text !== 'string') return ['play.sideRevealText is missing'];
+  const side = insultSide(c);
+  if (!side) return [NO_INSULT_SIDE];
+  const own = side.toLowerCase();
+  const other = side === 'Left' ? 'right' : 'left';
+  const words = sideWordsIn(text);
+  const failures: string[] = [];
+  if (!words.includes(own)) {
+    failures.push(`play.sideRevealText "${text}" does not contain the Side_Word "${own}" of the insultSide "${side}"`);
+  }
+  if (words.includes(other)) failures.push(`play.sideRevealText "${text}" contains the other Side_Word "${other}"`);
+  const terms = (play.diagnosisTerms ?? []).filter((t) => typeof t === 'string' && t.length > 0);
+  if (terms.length === 0) failures.push('play.diagnosisTerms is empty');
+  for (const term of terms) {
+    if (text.toLowerCase().includes(term.toLowerCase())) {
+      failures.push(`play.sideRevealText "${text}" contains Diagnosis_Term "${term}"`);
+    }
+  }
+  return failures;
+}
+
+/** A copy of a Resolved_Case without the four Override_Targets. */
+function withoutOverrideTargets(c: CaseData): unknown {
+  const copy = structuredClone(c);
+  for (const insult of copy.timeline?.scheduledInsults ?? []) {
+    if (insult.action === TENSION_ACTION) delete insult.parameters.side;
+  }
+  const play: Partial<PlaySection> | undefined = copy.play;
+  if (play) {
+    delete play.hints;
+    delete play.sideRevealText;
+    if (play.endings?.rescued) delete play.endings.rescued.requiredInterventions;
+  }
+  return copy;
+}
+
+/** Every field outside the four Override_Targets is equal in all Resolved_Cases (10.3). */
+function checkSharedFieldsEqual(cases: ResolvedEntry[]): string[] {
+  if (cases.length === 0) return [NO_VARIANTS];
+  const [first, ...rest] = cases;
+  const reference = withoutOverrideTargets(first.data);
+  return rest.flatMap(({ id, data }) =>
+    differences(withoutOverrideTargets(data), reference, '').map(
+      (d) => `variant '${id}': ${d.path} is ${describeValue(d.actual)}, ${describeValue(d.expected)} in variant '${first.id}'`,
+    ),
+  );
+}
+
+/** The Hints before the last are equal in all Resolved_Cases (11.4). */
+function checkEarlyHintsShared(cases: ResolvedEntry[]): string[] {
+  if (cases.length === 0) return [NO_VARIANTS];
+  const early = (c: CaseData) => (c.play?.hints ?? []).slice(0, -1);
+  const [first, ...rest] = cases;
+  return rest.flatMap(({ id, data }) =>
+    differences(early(data), early(first.data), 'play.hints').map(
+      (d) => `variant '${id}': ${d.path} is ${describeValue(d.actual)}, ${describeValue(d.expected)} in variant '${first.id}'`,
+    ),
+  );
+}
+
 const DATA_CHECKERS: Array<[string, (c: CaseData) => string[]]> = [
   ['checkNoDiagnosisTermsInSentences', checkNoDiagnosisTermsInSentences],
   ['checkRequiredDiagnosisTerms', checkRequiredDiagnosisTerms],
@@ -461,10 +780,6 @@ describe('adult-tension-pneumothorax case content', () => {
   it('each Lost_Condition group is disjoint from the Rescue_Condition on a shared vital', () => {
     expect(PARSED.data.play?.endings.lost.groups?.length ?? 0).toBeGreaterThan(0);
     expect(checkLostGroupsDisjointFromRescue(PARSED.data)).toEqual([]);
-  });
-
-  it('has exactly 3 Hints; only the last names an Intervention, and it names the left Play_Label', () => {
-    expect(checkHints(PARSED.data)).toEqual([]);
   });
 
   it('each Play_Label differs from its label and names its own side', () => {
@@ -602,5 +917,167 @@ describe('case content checkers', () => {
     if (!isMap(listen)) throw new Error('play.exam.actions[1] is not a map');
     listen.set('references', parsed.doc.createNode(['A citation']));
     expect(checkTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines)).toEqual([]);
+  });
+});
+
+// Feature: bedside-exam, Property 3: Both shipped Variants resolve and validate, and the left Variant equals the Base_Case
+// Vitest half, example-based, through the independent test resolver (D7). Schema validation stays in pytest.
+describe('Property 3: both shipped Variants resolve, and the left Variant equals the Base_Case', () => {
+  it('the Base_Case has two variants and a non-empty play.exam.actions, so no per-Variant check passes on an empty list (14.7)', () => {
+    expect(BASE_CASE.variants).toHaveLength(2);
+    expect(RESOLVED).toHaveLength(2);
+    expect(RESOLVED.map((r) => r.data)).toEqual([CASE_LEFT, CASE_RIGHT]);
+    expect(BASE_CASE.play?.exam?.actions.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('the Variants are left and right in that order, and each sets all four keys with the values of 2.3 and 2.4 (2.1 to 2.4)', () => {
+    expect(checkVariants(BASE_CASE)).toEqual([]);
+  });
+
+  it('the left Resolved_Case deep-equals the Base_Case without variants (2.5)', () => {
+    expect(checkLeftEqualsBase(BASE_CASE)).toEqual([]);
+  });
+
+  it('the variants key carries the game-rule decision comment, and insultSide and requiredInterventions carry no TODO(author) (2.6)', () => {
+    expect(checkVariantsDecision(PARSED.doc, PARSED.lineCounter, PARSED.lines)).toEqual([]);
+  });
+
+  it('per Resolved_Case, every requiredInterventions id names an Intervention, and each needle Required_Intervention side equals the insultSide (2.8)', () => {
+    expect(perVariant(RESOLVED, checkRequiredInterventionsExist)).toEqual([]);
+    expect(perVariant(RESOLVED, checkNeedleSideMatchesInsult)).toEqual([]);
+  });
+});
+
+// Feature: bedside-exam, Property 18: The shipped case names no side early and no diagnosis in its exam and reveal text
+// Hints, Status, Goal and Side_Reveal_Text rules (example-based).
+describe('Property 18: the shipped case names no side early (Hints, Status, Goal, Side_Reveal_Text)', () => {
+  it('per Resolved_Case, has exactly 3 Hints; only the last names an Intervention, and it names the Play_Label of the single Required_Intervention (11.2, 11.3)', () => {
+    expect(perVariant(RESOLVED, checkHints)).toEqual([]);
+  });
+
+  it('per Resolved_Case, no Side_Word in a Status_Rule sentence, the status defaultSentence, the Goal_Text or Hints 1 and 2 (10.1, 10.2, 11.1)', () => {
+    expect(perVariant(RESOLVED, checkNoSideWords)).toEqual([]);
+  });
+
+  it('every field outside the four Override_Targets is equal in both Resolved_Cases (10.3)', () => {
+    expect(checkSharedFieldsEqual(RESOLVED)).toEqual([]);
+  });
+
+  it('Hints 1 and 2 are equal in both Variants (11.4)', () => {
+    expect(checkEarlyHintsShared(RESOLVED)).toEqual([]);
+  });
+
+  it('per Resolved_Case, the sideRevealText holds only its own Side_Word and no Diagnosis_Term (12.4, 12.5)', () => {
+    expect(perVariant(RESOLVED, checkSideRevealText)).toEqual([]);
+  });
+});
+
+describe('per-Variant checkers on broken copies', () => {
+  const BROKEN_LEFT_NEEDLE_HINT = 'His right side is the quiet one. Press "Let the trapped air out - left side (needle)".';
+
+  it('every per-Variant check fails with "no variants to check" on an empty list (14.7)', () => {
+    const noVariants = structuredClone(BASE_CASE);
+    noVariants.variants = [];
+    expect(resolveAll(noVariants)).toEqual([]);
+    for (const check of [checkHints, checkNoSideWords, checkSideRevealText, checkNeedleSideMatchesInsult, checkRequiredInterventionsExist]) {
+      expect(perVariant(resolveAll(noVariants), check), check.name).toEqual([NO_VARIANTS]);
+    }
+    expect(checkVariants(noVariants)).toEqual([NO_VARIANTS]);
+    expect(checkLeftEqualsBase(noVariants)).toEqual([NO_VARIANTS]);
+    expect(checkSharedFieldsEqual([])).toEqual([NO_VARIANTS]);
+    expect(checkEarlyHintsShared([])).toEqual([NO_VARIANTS]);
+  });
+
+  it("names the Variant whose overrides miss a key (2.2)", () => {
+    const b = structuredClone(BASE_CASE);
+    delete b.variants![1].overrides.sideRevealText;
+    expect(checkVariants(b)).toEqual(["variant 'right': overrides has no sideRevealText"]);
+  });
+
+  it('names the field where the left Resolved_Case differs from the Base_Case (2.5)', () => {
+    const b = structuredClone(BASE_CASE);
+    b.play!.sideRevealText = 'The trapped air was in his chest.';
+    expect(checkLeftEqualsBase(b)).toEqual([
+      `variant 'left': play.sideRevealText is "The trapped air was in the left side of his chest.", "The trapped air was in his chest." in the Base_Case without variants`,
+    ]);
+  });
+
+  it('fails without the game-rule decision comment, or with a TODO(author) marker on insultSide (2.6)', () => {
+    const decision = PARSED.lines.find((l) => l.startsWith("# Author's game-rule decision"));
+    expect(decision).toBeDefined();
+    const variantsLine = PARSED.lines.indexOf('variants:');
+    expect(variantsLine).toBeGreaterThan(0);
+    const check = (text: string) => {
+      const p = parseCase(text);
+      return checkVariantsDecision(p.doc, p.lineCounter, p.lines);
+    };
+    // Removing the comment line moves `variants:` up one line, to line number `variantsLine`.
+    expect(check(CASE_TEXT.replace(`${decision}\n`, ''))).toEqual([
+      `variants (line ${variantsLine}) has no comment stating the author's game-rule decision recorded in the bedside-exam spec on its line or the line directly above`,
+    ]);
+
+    const sideLine = '      insultSide: Right';
+    expect(PARSED.lines).toContain(sideLine);
+    expect(check(CASE_TEXT.replace(sideLine, `${sideLine} # TODO(author): check the side`))).toEqual([
+      `variants[1].overrides.insultSide (line ${PARSED.lines.indexOf(sideLine) + 1}) carries a TODO(author) marker`,
+    ]);
+  });
+
+  it('names the needle Required_Intervention whose side differs from the insultSide (2.8)', () => {
+    const b = structuredClone(BASE_CASE);
+    b.variants![1].overrides.requiredInterventions = ['needle-decompression-left'];
+    expect(perVariant(resolveAll(b), checkNeedleSideMatchesInsult)).toEqual([
+      `variant 'right': play.endings.rescued.requiredInterventions[0] "needle-decompression-left" has side "Left", expected the insultSide "Right"`,
+    ]);
+  });
+
+  it("names the right Variant's last Hint that names the left Play_Label (11.3)", () => {
+    const b = structuredClone(BASE_CASE);
+    b.variants![1].overrides.hints![2] = { text: BROKEN_LEFT_NEEDLE_HINT };
+    expect(perVariant(resolveAll(b), checkHints)).toEqual([
+      `variant 'right': last Hint "${BROKEN_LEFT_NEEDLE_HINT}" does not contain the Play_Label "Let the trapped air out - right side (needle)" of the Required_Intervention "needle-decompression-right"`,
+    ]);
+  });
+
+  it('names the defaultSentence that contains a Side_Word, once per Variant (10.1)', () => {
+    const b = structuredClone(BASE_CASE);
+    b.play!.status.defaultSentence = 'He is breathing calmly on his left side.';
+    expect(perVariant(resolveAll(b), checkNoSideWords)).toEqual([
+      `variant 'left': play.status.defaultSentence "He is breathing calmly on his left side." contains Side_Word "left"`,
+      `variant 'right': play.status.defaultSentence "He is breathing calmly on his left side." contains Side_Word "left"`,
+    ]);
+  });
+
+  it('names the shared field that differs between the Resolved_Cases (10.3)', () => {
+    const right = structuredClone(CASE_RIGHT);
+    right.title = 'Another title';
+    expect(checkSharedFieldsEqual([{ id: 'left', data: CASE_LEFT }, { id: 'right', data: right }])).toEqual([
+      `variant 'right': title is "Another title", ${JSON.stringify(CASE_LEFT.title)} in variant 'left'`,
+    ]);
+  });
+
+  it('names the early Hint that differs between the Variants (11.4)', () => {
+    const b = structuredClone(BASE_CASE);
+    b.variants![1].overrides.hints![1] = { text: 'Listen to his chest.' };
+    expect(checkEarlyHintsShared(resolveAll(b))).toEqual([
+      `variant 'right': play.hints[1].text is "Listen to his chest.", "Listen to both sides of his chest. Is one side quieter than the other?" in variant 'left'`,
+    ]);
+  });
+
+  it('names the sideRevealText with the wrong Side_Word or a Diagnosis_Term (12.4, 12.5)', () => {
+    const wrongSide = structuredClone(BASE_CASE);
+    const leftText = 'The trapped air was in the left side of his chest.';
+    wrongSide.variants![1].overrides.sideRevealText = leftText;
+    expect(perVariant(resolveAll(wrongSide), checkSideRevealText)).toEqual([
+      `variant 'right': play.sideRevealText "${leftText}" does not contain the Side_Word "right" of the insultSide "Right"`,
+      `variant 'right': play.sideRevealText "${leftText}" contains the other Side_Word "left"`,
+    ]);
+
+    const diagnosis = structuredClone(BASE_CASE);
+    const tensionText = 'The tension was in the left side of his chest.';
+    diagnosis.variants![0].overrides.sideRevealText = tensionText;
+    expect(perVariant(resolveAll(diagnosis), checkSideRevealText)).toEqual([
+      `variant 'left': play.sideRevealText "${tensionText}" contains Diagnosis_Term "tension"`,
+    ]);
   });
 });
