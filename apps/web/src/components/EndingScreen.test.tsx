@@ -3,6 +3,7 @@ import fc from 'fast-check';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AvatarParameters } from '@/types';
 import { PBT_PARAMS } from '@/test/pbt';
+import { CASE } from '@/test/caseFixtures';
 import { SPEECH_BAND_HEIGHT } from './StitchedPatient';
 import {
   ENDING_HEADING,
@@ -287,6 +288,26 @@ describe('EndingScreen Side_Reveal_Text', () => {
       }),
       PBT_PARAMS,
     );
+  });
+
+  it('shows a 120-character text and the shipped case text in full inside side-reveal', () => {
+    const long = 'x'.repeat(119) + 'z';
+    expect(long).toHaveLength(120);
+    const shipped = CASE.play?.sideRevealText;
+    expect(typeof shipped).toBe('string');
+    expect(shipped!.length).toBeGreaterThan(0);
+    for (const ending of ENDINGS) {
+      for (const text of [long, shipped!]) {
+        const html = renderWithSide(ending, text);
+        const tag = '<p data-part="side-reveal" class="text-base">';
+        const start = html.indexOf(tag);
+        expect(start).toBeGreaterThan(-1);
+        const contentStart = start + tag.length;
+        const end = html.indexOf('</p>', contentStart);
+        expect(end).toBeGreaterThan(-1);
+        expect(html.slice(contentStart, end)).toBe(escapeHtml(text));
+      }
+    }
   });
 
   it('uses the with-side overhead in the Avatar width only when the text is present', () => {
