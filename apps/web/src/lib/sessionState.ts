@@ -218,6 +218,7 @@ function onFork(
           activeInterventions: activeInterventions(state.interventionRecord, lineage),
           previous: null,
           firstPositiveTidalVolumeMl: state.firstPositiveTidalVolumeMl,
+          revealedSides: 'all',
         })
       : defaultAvatar();
 
@@ -282,6 +283,7 @@ function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
           activeInterventions: activeInterventions(state.interventionRecord, state.lineage),
           previous: state.avatar,
           firstPositiveTidalVolumeMl,
+          revealedSides: 'all',
         })
       : state.avatar;
 

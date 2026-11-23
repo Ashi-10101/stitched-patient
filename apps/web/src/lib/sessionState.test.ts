@@ -318,6 +318,7 @@ describe('sampleReceived: history, Ending and Ending snapshot', () => {
         activeInterventions: [],
         previous,
         firstPositiveTidalVolumeMl: firstTv,
+        revealedSides: 'all',
       });
       avatars.set(s.simulation_time, previous);
     }
@@ -553,6 +554,7 @@ describe('forkSucceeded', () => {
       activeInterventions: [decompression('Left', 25, 'main')],
       previous: null,
       firstPositiveTidalVolumeMl: 480,
+      revealedSides: 'all',
     });
     const { checkpointsByBranch, ...rest } = next;
     const { checkpointsByBranch: _old, ...stateRest } = state;

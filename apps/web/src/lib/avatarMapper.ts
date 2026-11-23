@@ -8,7 +8,7 @@
  * every speed (4.6, 4.10).
  */
 
-import { computeSides } from './sides';
+import { computeSides, shownSwollenSides, type RevealedSides } from './sides';
 import { getVitalBand, overallStatus, thresholdsFor } from './vitalBands';
 import { VITAL_NAMES, readVital } from './vitals';
 import type {
@@ -44,6 +44,11 @@ export interface AvatarInput {
   previous: AvatarParameters | null;
   /** Tidal volume of the first sample of the Session with TV > 0. */
   firstPositiveTidalVolumeMl: number | null;
+  /**
+   * Which Swollen_Sides may be drawn; `'all'` keeps play-mode behaviour.
+   * Required, so no caller forgets the gate (bedside-exam 9.1).
+   */
+  revealedSides: RevealedSides;
 }
 
 const SKIN_TONE: Record<AlarmState, SkinTone> = {
@@ -122,7 +127,7 @@ export function mapAvatar(input: AvatarInput): AvatarParameters {
   const mapState = bands.meanArterialPressure?.state ?? 'normal';
   const hrState = bands.heartRate?.state ?? 'normal';
 
-  const { swollenSides, decompressedSides } = computeSides(
+  const sides = computeSides(
     sample.simulation_time,
     input.scheduledInsults,
     input.activeInterventions,
@@ -133,8 +138,9 @@ export function mapAvatar(input: AvatarInput): AvatarParameters {
     breathing: { ...breathing, depth },
     heartbeat,
     sweating: mapState !== 'normal' || hrState === 'critical',
-    swollenSides,
-    decompressedSides,
+    // Only found sides are drawn swollen (bedside-exam 9.1); needles are ungated (9.3).
+    swollenSides: shownSwollenSides(sides.swollenSides, input.revealedSides),
+    decompressedSides: sides.decompressedSides,
     overallStatus: overallStatus(bands),
     bands,
   };

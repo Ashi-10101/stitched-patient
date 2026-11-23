@@ -10,20 +10,23 @@ import {
   mapAvatar,
   type AvatarInput,
 } from './avatarMapper';
+import { foundSides } from './sides';
 import { VITAL_FIELD, VITAL_NAMES } from './vitals';
 import type {
   AlarmState,
   AlarmThresholds,
   AvatarParameters,
+  ExamRecordEntry,
   PlaybackSpeed,
   PlaySection,
   VitalName,
   VitalSigns,
 } from '@/types';
-import { CASE, VITAL_OFFSETS } from '@/test/caseFixtures';
+import { CASE, CASE_LEFT, CASE_RIGHT, VITAL_OFFSETS } from '@/test/caseFixtures';
 import {
   arbActiveInterventions,
   arbAvatarParameters,
+  arbExamRecordEntry,
   arbInsults,
   arbSample,
   arbThreshold,
@@ -72,6 +75,7 @@ function makeInput(
     activeInterventions: [],
     previous: null,
     firstPositiveTidalVolumeMl: null,
+    revealedSides: 'all',
     ...rest,
   };
 }
@@ -207,6 +211,39 @@ describe('mapAvatar: sides, Overall_Status and bands', () => {
     );
     expect(treated.swollenSides).toEqual([]);
     expect(treated.decompressedSides).toEqual(['Left']);
+  });
+
+  it('revealedSides gates only swollenSides; decompressedSides is ungated', () => {
+    // Left insult at 30 s is untreated at 40 s; a Right needle leaves Left swollen.
+    const rest = {
+      scheduledInsults: INSULTS,
+      activeInterventions: [
+        {
+          interventionId: 'needle-decompression-right',
+          action: 'SENeedleDecompression',
+          side: 'Right' as const,
+          simulationTime: 35,
+          branchId: 'main',
+        },
+      ],
+    };
+    const sample = { simulation_time: 40, heart_rate: 130, spo2: 0.85 };
+    const found = mapAvatar(makeInput(sample, { ...rest, revealedSides: ['Left'] }));
+    const none = mapAvatar(makeInput(sample, { ...rest, revealedSides: [] }));
+    const wrong = mapAvatar(makeInput(sample, { ...rest, revealedSides: ['Right'] }));
+    const all = mapAvatar(makeInput(sample, { ...rest, revealedSides: 'all' }));
+
+    expect(found.swollenSides).toEqual(['Left']);
+    expect(none.swollenSides).toEqual([]);
+    expect(wrong.swollenSides).toEqual([]);
+    expect(all.swollenSides).toEqual(['Left']);
+
+    const { swollenSides: _a, ...allOthers } = all;
+    for (const out of [found, none, wrong]) {
+      const { swollenSides: _s, ...others } = out;
+      expect(others).toStrictEqual(allOthers);
+      expect(out.decompressedSides).toEqual(['Right']);
+    }
   });
 
   it('Overall_Status is the most severe band', () => {
@@ -384,6 +421,7 @@ describe('mapAvatar properties', () => {
             activeInterventions: [],
             previous,
             firstPositiveTidalVolumeMl,
+            revealedSides: 'all',
           });
 
           const state = (v: VitalName): AlarmState =>
@@ -455,6 +493,7 @@ describe('mapAvatar properties', () => {
       arbFirstPositive,
       fc.constantFrom(0, -5, Number.NaN, Number.POSITIVE_INFINITY),
     ),
+    revealedSides: fc.constant<AvatarInput['revealedSides']>('all'),
   });
 
   function deepFreeze<T>(value: T): T {
@@ -502,6 +541,7 @@ describe('mapAvatar properties', () => {
             activeInterventions: [],
             previous,
             firstPositiveTidalVolumeMl: first,
+            revealedSides: 'all',
           });
         }).not.toThrow();
         const p = out!;
@@ -531,6 +571,49 @@ describe('mapAvatar properties', () => {
         expect(p.breathing.depth).toBeGreaterThanOrEqual(BREATH_DEPTH_MIN);
         expect(p.breathing.depth).toBeLessThanOrEqual(BREATH_DEPTH_MAX);
       }),
+      PBT_PARAMS,
+    );
+  });
+
+  /** Exam_Record entries of Side_Neutral_Actions (no `side` key), abnormal or not. */
+  const arbSideNeutralRecord: fc.Arbitrary<ExamRecordEntry[]> = fc.array(
+    arbExamRecordEntry.map(({ side: _side, ...entry }) => entry),
+    { maxLength: 6 },
+  );
+
+  /** Play_Section with the shipped Exam_Section. */
+  const arbPlayWithExam: fc.Arbitrary<PlaySection> = arbPlay.map((play) => ({
+    ...play,
+    exam: CASE_LEFT.play!.exam,
+  }));
+
+  /** Active_Interventions without any Decompression. */
+  const arbNoDecompression = arbActiveInterventions.map((list) =>
+    list.filter((e) => e.action !== 'SENeedleDecompression'),
+  );
+
+  // Feature: bedside-exam, Property 16: The Avatar is the same in both Variants until a side is found or a needle is used
+  it('Property 16: The Avatar is the same in both Variants until a side is found or a needle is used (mapper)', () => {
+    /** Validates: Requirements 9.1, 9.3, 14.2 */
+    expect(CASE_LEFT.play?.exam).toBeDefined();
+    expect(CASE_LEFT.timeline.scheduledInsults).not.toEqual(CASE_RIGHT.timeline.scheduledInsults);
+    fc.assert(
+      fc.property(
+        arbSample,
+        arbAlarms,
+        arbPlayWithExam,
+        arbSideNeutralRecord,
+        arbNoDecompression,
+        arbPrevious,
+        arbFirstPositive,
+        (sample, alarms, play, record, activeInterventions, previous, firstPositiveTidalVolumeMl) => {
+          const revealedSides = foundSides(record);
+          const base = { sample, alarms, play, activeInterventions, previous, firstPositiveTidalVolumeMl, revealedSides };
+          const left = mapAvatar({ ...base, scheduledInsults: CASE_LEFT.timeline.scheduledInsults });
+          const right = mapAvatar({ ...base, scheduledInsults: CASE_RIGHT.timeline.scheduledInsults });
+          expect(left).toStrictEqual(right);
+        },
+      ),
       PBT_PARAMS,
     );
   });

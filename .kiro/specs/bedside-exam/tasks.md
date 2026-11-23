@@ -233,7 +233,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 13, 14_
 
 - [ ] 11. Avatar_Mapper side gate
-  - [ ] 11.1 Add `revealedSides` to `AvatarInput` in `apps/web/src/lib/avatarMapper.ts`
+  - [x] 11.1 Add `revealedSides` to `AvatarInput` in `apps/web/src/lib/avatarMapper.ts`
     - Files: `apps/web/src/lib/avatarMapper.ts`, `apps/web/src/lib/avatarMapper.test.ts`, `apps/web/src/lib/sessionState.ts` (only the two `mapAvatar` calls), `apps/web/src/lib/sessionState.test.ts` (only the two literal `mapAvatar` calls). No other file changes
     - `AvatarInput` gains the required `revealedSides: RevealedSides`; `mapAvatar` sets `swollenSides: shownSwollenSides(sides.swollenSides, input.revealedSides)` and leaves `decompressedSides` and every other field as before (design "`avatarMapper.ts`")
     - `sessionState.ts`: pass `revealedSides: 'all'` in its two `mapAvatar` calls (`onFork` and `onSample`), so the reducer behaves exactly as before and `tsc` passes. Task 12.1 replaces `'all'` with `revealedSidesFor(...)`
