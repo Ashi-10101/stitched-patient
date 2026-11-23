@@ -39,6 +39,11 @@
     "14.2 Add the exam layout to `apps/web/src/components/PlayView.tsx`": {
       "status": "passed",
       "lastRunTimestamp": 1795404696081
+    },
+    "16.1 Add `apps/web/src/components/sideSymmetry.test.tsx`": {
+      "status": "failed",
+      "failingExample": "Counterexample: [[]] (empty sequence, seed 20261031). Got error: variant 'left', PlayView: Side_Words outside the allowed texts: \"left\" in …10:00 left… / \"left\" in …Hint (3 left)… / \"left\" in …Time left…. The equal-markup / no Side_Reveal_Text / no Variant_Id half passed 100 runs.",
+      "lastRunTimestamp": 1795406396409
     }
   },
   "executionHistory": {
@@ -346,6 +351,39 @@
         "executionId": "b99704d3-a046-4bbd-8572-24cfcba4848e",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795405547546
+      }
+    ],
+    "15. Case-content checks per Resolved_Case": [
+      {
+        "executionId": "b99704d3-a046-4bbd-8572-24cfcba4848e",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795405935037
+      }
+    ],
+    "16.1 Add `apps/web/src/components/sideSymmetry.test.tsx`": [
+      {
+        "executionId": "b99704d3-a046-4bbd-8572-24cfcba4848e",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795405970280
+      },
+      {
+        "executionId": "7e82374d-a624-42f0-89de-665c7ec249a3",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795407361042
+      }
+    ],
+    "16. Screen symmetry": [
+      {
+        "executionId": "7e82374d-a624-42f0-89de-665c7ec249a3",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795407361082
+      }
+    ],
+    "17.1 Run the full web and fast Python suites and the case validation": [
+      {
+        "executionId": "7e82374d-a624-42f0-89de-665c7ec249a3",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795407366041
       }
     ]
   }

@@ -324,7 +324,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 4.6, 6.1, 6.3, 6.4, 6.5, 6.9, 6.10, 6.11, 6.12, 6.13, 6.14, 6.15, 12.2, 12.6, 14.5_
     - _Properties: 19_
 
-- [ ] 15. Case-content checks per Resolved_Case
+- [x] 15. Case-content checks per Resolved_Case
   - [x] 15.1 Check the Variants, Hints and Side_Reveal_Texts per Resolved_Case in `apps/web/src/lib/caseContent.test.ts`
     - Files: `apps/web/src/lib/caseContent.test.ts`. No other file changes
     - Build the Base_Case and both Resolved_Cases with `BASE_CASE` and `resolveCaseForTest` from `src/test/caseFixtures.ts` (14.6). A per-Variant wrapper runs each check once per Resolved_Case and prefixes each failure with `variant '<id>': `, then the field path and the text
@@ -350,11 +350,11 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 8.10, 14.6, 14.7_
     - _Properties: 18_
 
-- [ ] 16. Screen symmetry
-  - [ ] 16.1 Add `apps/web/src/components/sideSymmetry.test.tsx`
+- [x] 16. Screen symmetry
+  - [x] 16.1 Add `apps/web/src/components/sideSymmetry.test.tsx`
     - Files: `apps/web/src/components/sideSymmetry.test.tsx` (new). No other file changes
     - Drive `sessionReducer` on `CASE_LEFT` and `CASE_RIGHT` with the same generated sequence (at most 12 actions: samples, side-neutral exams, view switches, playback changes, forks, and fewer Hint reveals than the Play_Section defines; no Ending, no Intervention), with Session_Metadata that differs only in `variant_id` (`'left'` and `'right'`). Render `PlayView` and `ClinicianView` with `renderToStaticMarkup` and a `stubActions()` that includes `performExam`
-      - **Property 17: Both views render the same markup in both Variants before the side is found**: equal markup strings; no Variant_Id and no Side_Reveal_Text in the markup; Side_Words only in the Exam_Button and Intervention texts. Tag: `// Feature: bedside-exam, Property 17: Both views render the same markup in both Variants before the side is found`
+      - **Property 17: Both views render the same markup in both Variants before the side is found**: equal markup strings; no Variant_Id and no Side_Reveal_Text in the markup; Side_Words only in the Exam_Button and Intervention texts and in the app's fixed "remaining" wording (the Goal bar `M:SS left` label, `aria-label="Time left"`, `hintButtonText` and `NO_HINTS_LEFT_TEXT`), which the test strips using the components' own constants and helpers where they are exported. Tag: `// Feature: bedside-exam, Property 17: Both views render the same markup in both Variants before the side is found`
     - If the property fails, stop and report the first differing markup; do not change app code in this task
     - From `apps/web/`: `npx tsc --noEmit > /tmp/sp-tsc.log 2>&1; echo "exit $?"` (no new errors compared with the baseline) and `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
     - Quote the tsc result and the Vitest summary line in the task report
@@ -362,7 +362,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 17_
 
 - [ ] 17. Final checkpoint
-  - [ ] 17.1 Run the full web and fast Python suites and the case validation
+  - [x] 17.1 Run the full web and fast Python suites and the case validation
     - Ensure all tests pass, ask the user if questions arise
     - No file changes in this task
     - From `apps/web/`: `npx tsc --noEmit > /tmp/sp-tsc.log 2>&1; echo "exit $?"` and `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
