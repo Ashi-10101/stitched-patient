@@ -121,6 +121,13 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795380884755
       }
+    ],
+    "8.2 Add `affectedInsult`, `foundSides` and `shownSwollenSides` to `apps/web/src/lib/sides.ts`": [
+      {
+        "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795399643135
+      }
     ]
   }
 }

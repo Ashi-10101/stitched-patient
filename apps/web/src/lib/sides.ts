@@ -7,7 +7,7 @@
  * viewer's left half (x in [0, 100]) (Requirement 3.7).
  */
 
-import type { InterventionRecordEntry, ScheduledInsult, Side } from '@/types';
+import type { ExamRecordEntry, InterventionRecordEntry, ScheduledInsult, Side } from '@/types';
 
 export const PNEUMOTHORAX_ACTION = 'SETensionPneumothorax';
 export const DECOMPRESSION_ACTION = 'SENeedleDecompression';
@@ -59,6 +59,48 @@ export function computeSides(
     swollenSides: SIDE_ORDER.filter((s) => swollen.has(s)),
     decompressedSides: SIDE_ORDER.filter((s) => decompressed.has(s)),
   };
+}
+
+/** Which Swollen_Sides may be drawn; `'all'` keeps play-mode behaviour (bedside-exam 9.1, 9.5). */
+export type RevealedSides = readonly Side[] | 'all';
+
+/**
+ * The Affected_Side insult: the first `SETensionPneumothorax` insult in list
+ * order with a valid side and a finite `timeSeconds`, else `null`.
+ */
+export function affectedInsult(
+  insults: readonly ScheduledInsult[],
+): { side: Side; timeSeconds: number } | null {
+  for (const insult of insults) {
+    if (insult.action !== PNEUMOTHORAX_ACTION) continue;
+    const side = asSide(insult.parameters?.side);
+    if (!side || !Number.isFinite(insult.timeSeconds)) continue;
+    return { side, timeSeconds: insult.timeSeconds };
+  }
+  return null;
+}
+
+/**
+ * Found_Sides: the sides of Active_Exam_Entries with `abnormal === true` and a
+ * side, in `['Left', 'Right']` order without duplicates (bedside-exam 9.1,
+ * decision 14). Side-neutral entries and normal findings add no side.
+ */
+export function foundSides(active: readonly ExamRecordEntry[]): Side[] {
+  const found = new Set<Side>();
+  for (const entry of active) {
+    const side = asSide(entry.side);
+    if (entry.abnormal === true && side) found.add(side);
+  }
+  return SIDE_ORDER.filter((s) => found.has(s));
+}
+
+/**
+ * Shown_Swollen_Sides: a copy of `swollen` for `'all'`, else the sides in both
+ * `swollen` and `revealed`, in `swollen` order (bedside-exam 9.1).
+ */
+export function shownSwollenSides(swollen: readonly Side[], revealed: RevealedSides): Side[] {
+  if (revealed === 'all') return [...swollen];
+  return swollen.filter((s) => revealed.includes(s));
 }
 
 export type ViewerHalf = 'viewerLeft' | 'viewerRight';

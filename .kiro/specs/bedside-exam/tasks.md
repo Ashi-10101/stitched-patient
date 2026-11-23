@@ -177,7 +177,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 7.3, 14.2_
     - _Properties: 12_
 
-  - [ ] 8.2 Add `affectedInsult`, `foundSides` and `shownSwollenSides` to `apps/web/src/lib/sides.ts`
+  - [x] 8.2 Add `affectedInsult`, `foundSides` and `shownSwollenSides` to `apps/web/src/lib/sides.ts`
     - Files: `apps/web/src/lib/sides.ts`, `apps/web/src/lib/sides.test.ts`. No other file changes
     - Add `RevealedSides`, `affectedInsult` (first `SETensionPneumothorax` insult in list order with a valid side and a finite time, else `null`), `foundSides` (sides of entries with `abnormal === true` and a side, in `['Left', 'Right']` order) and `shownSwollenSides` (`swollen` for `'all'`, else the sides in both lists in `swollen` order). `computeSides` stays unchanged
     - Existing tests: no change

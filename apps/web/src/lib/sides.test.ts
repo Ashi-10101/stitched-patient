@@ -1,7 +1,14 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { computeSides, sideGeometry, viewerHalf } from './sides';
-import type { InterventionRecordEntry, ScheduledInsult, Side } from '@/types';
+import {
+  affectedInsult,
+  computeSides,
+  foundSides,
+  shownSwollenSides,
+  sideGeometry,
+  viewerHalf,
+} from './sides';
+import type { ExamRecordEntry, InterventionRecordEntry, ScheduledInsult, Side } from '@/types';
 import { arbActiveInterventions, arbInsults } from '@/test/generators';
 import { PBT_PARAMS } from '@/test/pbt';
 
@@ -275,5 +282,164 @@ describe('Property 6: Swollen and decompressed sides follow insults and Decompre
       }),
       PBT_PARAMS,
     );
+  });
+});
+
+const insultOn = (side: Side, timeSeconds = 30): ScheduledInsult => ({
+  timeSeconds,
+  action: 'SETensionPneumothorax',
+  parameters: { side, type: 'Closed', severity: 0.75 },
+});
+
+const examEntry = (overrides: Partial<ExamRecordEntry> = {}): ExamRecordEntry => ({
+  actionId: 'listen-chest',
+  side: 'Left',
+  simulationTime: 60,
+  branchId: 'main',
+  sentence: 'A finding sentence.',
+  abnormal: true,
+  wallClockTime: '2026-11-15T12:00:00.000Z',
+  ...overrides,
+});
+
+describe('affectedInsult (bedside-exam glossary Affected_Side)', () => {
+  it('returns null when there is no SETensionPneumothorax insult', () => {
+    expect(affectedInsult([])).toBeNull();
+    expect(
+      affectedInsult([{ timeSeconds: 10, action: 'SEHemorrhage', parameters: { side: 'Left' } }]),
+    ).toBeNull();
+  });
+
+  it('skips an insult with an invalid side', () => {
+    const insults: ScheduledInsult[] = [
+      { timeSeconds: 10, action: 'SETensionPneumothorax', parameters: { side: 'left' as Side } },
+      { timeSeconds: 10, action: 'SETensionPneumothorax', parameters: {} },
+    ];
+    expect(affectedInsult(insults)).toBeNull();
+    expect(affectedInsult([...insults, insultOn('Right', 45)])).toEqual({ side: 'Right', timeSeconds: 45 });
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    'skips an insult whose timeSeconds is %s',
+    (t) => {
+      expect(affectedInsult([insultOn('Left', t)])).toBeNull();
+      expect(affectedInsult([insultOn('Left', t), insultOn('Right', 20)])).toEqual({
+        side: 'Right',
+        timeSeconds: 20,
+      });
+    },
+  );
+
+  it('returns the first valid insult in list order when there are two', () => {
+    expect(affectedInsult([insultOn('Right', 40), insultOn('Left', 30)])).toEqual({
+      side: 'Right',
+      timeSeconds: 40,
+    });
+    expect(affectedInsult([insultOn('Left', 30), insultOn('Right', 40)])).toEqual({
+      side: 'Left',
+      timeSeconds: 30,
+    });
+  });
+});
+
+describe('foundSides (bedside-exam 9.1, decision 14)', () => {
+  it('is empty for an empty list', () => {
+    expect(foundSides([])).toEqual([]);
+  });
+
+  it('ignores side-neutral and non-abnormal entries', () => {
+    const entries = [
+      examEntry({ side: undefined, abnormal: true }),
+      examEntry({ side: 'Left', abnormal: false }),
+      examEntry({ side: 'Right', abnormal: false }),
+    ];
+    expect(foundSides(entries)).toEqual([]);
+    expect(foundSides([...entries, examEntry({ side: 'Right', abnormal: true })])).toEqual(['Right']);
+  });
+
+  it("returns sides in ['Left', 'Right'] order without duplicates", () => {
+    const entries = [
+      examEntry({ side: 'Right' }),
+      examEntry({ side: 'Left' }),
+      examEntry({ side: 'Right', simulationTime: 90 }),
+    ];
+    expect(foundSides(entries)).toEqual(['Left', 'Right']);
+  });
+});
+
+describe('shownSwollenSides (bedside-exam 9.1)', () => {
+  it("returns the Swollen_Sides for 'all'", () => {
+    expect(shownSwollenSides([], 'all')).toEqual([]);
+    expect(shownSwollenSides(['Left'], 'all')).toEqual(['Left']);
+    expect(shownSwollenSides(['Left', 'Right'], 'all')).toEqual(['Left', 'Right']);
+  });
+
+  it('returns nothing when no side is revealed', () => {
+    expect(shownSwollenSides(['Left', 'Right'], [])).toEqual([]);
+  });
+
+  it('returns only revealed Swollen_Sides when one side is revealed', () => {
+    expect(shownSwollenSides(['Left'], ['Left'])).toEqual(['Left']);
+    expect(shownSwollenSides(['Right'], ['Left'])).toEqual([]);
+    expect(shownSwollenSides(['Left', 'Right'], ['Right'])).toEqual(['Right']);
+    expect(shownSwollenSides([], ['Right'])).toEqual([]);
+  });
+
+  it('returns the sides in both lists, in swollen order, when both are revealed', () => {
+    expect(shownSwollenSides(['Left', 'Right'], ['Right', 'Left'])).toEqual(['Left', 'Right']);
+    expect(shownSwollenSides(['Right'], ['Left', 'Right'])).toEqual(['Right']);
+  });
+});
+
+describe('computeSides: fixed inputs with a Right insult (bedside-exam 14.12, play-mode 12.2)', () => {
+  it('a Right insult adds Right to Swollen_Sides at and after timeSeconds, not before', () => {
+    const insults = [insultOn('Right', 30)];
+    expect(computeSides(29.9, insults, []).swollenSides).toEqual([]);
+    expect(computeSides(30, insults, []).swollenSides).toEqual(['Right']);
+    expect(computeSides(240, insults, []).swollenSides).toEqual(['Right']);
+    expect(computeSides(30, insults, []).decompressedSides).toEqual([]);
+  });
+
+  it('a Right Decompression removes Right from Swollen_Sides and adds it to Decompressed_Sides', () => {
+    const result = computeSides(120, [insultOn('Right', 30)], [decompression('Right', 90)]);
+    expect(result).toEqual({ swollenSides: [], decompressedSides: ['Right'] });
+  });
+
+  it('a Left Decompression with an untreated Right insult keeps Right swollen (Requirement 4.16)', () => {
+    const result = computeSides(120, [insultOn('Right', 30)], [decompression('Left', 90)]);
+    expect(result).toEqual({ swollenSides: ['Right'], decompressedSides: ['Left'] });
+  });
+
+  it('a Right Decompression earlier than the Right insult keeps Right swollen once applied (Requirement 4.18)', () => {
+    const active = [decompression('Right', 10)];
+    expect(computeSides(20, [insultOn('Right', 30)], active)).toEqual({
+      swollenSides: [],
+      decompressedSides: ['Right'],
+    });
+    expect(computeSides(30, [insultOn('Right', 30)], active)).toEqual({
+      swollenSides: ['Right'],
+      decompressedSides: ['Right'],
+    });
+  });
+
+  it('ignores other actions and side strings that are not exactly Left or Right', () => {
+    const insults: ScheduledInsult[] = [
+      { timeSeconds: 0, action: 'SEHemorrhage', parameters: { side: 'Left' } },
+      { timeSeconds: 0, action: 'SETensionPneumothorax', parameters: { side: 'right' as Side } },
+    ];
+    const active: InterventionRecordEntry[] = [
+      { ...decompression('Right', 5), action: 'seneedledecompression' },
+      { ...decompression('Left', 5), side: 'LEFT' as Side },
+    ];
+    expect(computeSides(60, insults, active)).toEqual({ swollenSides: [], decompressedSides: [] });
+  });
+
+  it('returns sides sorted and without duplicates', () => {
+    const insults: ScheduledInsult[] = [insultOn('Left', 0), insultOn('Right', 0), insultOn('Right', 10)];
+    const active = [decompression('Left', 50), decompression('Right', 1), decompression('Left', 60)];
+    expect(computeSides(60, insults, active)).toEqual({
+      swollenSides: ['Right'],
+      decompressedSides: ['Left', 'Right'],
+    });
   });
 });
