@@ -291,7 +291,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the tsc result and the Vitest summary line in the task report
     - _Requirements: 6.1, 6.2, 6.9, 6.11, 6.12, 10.6, 14.5_
 
-  - [ ] 13.2 Create `apps/web/src/components/FindingsList.tsx`
+  - [x] 13.2 Create `apps/web/src/components/FindingsList.tsx`
     - Files: `apps/web/src/components/FindingsList.tsx` (new), `apps/web/src/components/FindingsList.test.tsx` (new). No other file changes
     - `FindingsList` as the design section "`FindingsList.tsx`" states: `FINDINGS_EMPTY_TEXT = "You haven't checked anything yet."`; the box classes with the height caps from "Layout"; the empty `<p>`; `<ol aria-label="Your findings">` with `formatMSS(entry.simulationTime)` and `examButtonText(...)` in semibold, then `entry.sentence`; `text-base` and `break-words` on all text; the instant `scrollIntoView` on the first item only when the entry count grows after mount
     - `FindingsList.test.tsx`: the empty text (6.7); items in the given (newest-first) order with `M:SS` times, button texts and sentences (6.6); the `examButtonText` fallback for an unknown action id; `text-base` on all text (6.12); a restored entry shows its stored sentence (7.7)
