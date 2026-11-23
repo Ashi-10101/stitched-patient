@@ -1458,6 +1458,51 @@ describe('examPerformed and the side gate', () => {
     expect(ended.avatar.swollenSides).toEqual(['Left']);
     expect(ended.endingSnapshot?.swollenSides).toEqual(['Left']);
   });
+
+  it('gates the Swollen_Sides again right after a fork past the insult time from an Ending (9.4, 9.5)', () => {
+    // Lost on main with nothing found: the Ending draws Left ungated.
+    const ended = feed(onMain(CASE_EXAM_LOST), range(40, 50), { spo2: 0.8 });
+    expect(ended.ending.ending).not.toBe('none');
+    expect(ended.examRecord).toEqual([]);
+    expect(ended.avatar.swollenSides).toEqual(['Left']);
+
+    // Fork at t = 60, after the Left insult at 30: the new Branch's Ending is `none`, so the gate is on again.
+    const next = fork(ended, 60);
+    expect(next.ending.ending).toBe('none');
+    expect(next.avatar.swollenSides).toEqual([]);
+  });
+
+  it('chooses a `decompressed: true` finding only for a Decompression on the lineage (5.1, 4.15)', () => {
+    // Test-only case: placeholder text, not case content.
+    const caseDecompressedRule: CaseData = structuredClone(CASE_EXAM);
+    const lookChest = caseDecompressedRule.play!.exam!.actions.find((a) => a.id === 'look-chest')!;
+    lookChest.rules = [{ when: { decompressed: true }, sentence: 'rule: decompressed', abnormal: true }];
+    lookChest.defaultSentence = 'default: not decompressed';
+    const before = feed(onMain(caseDecompressedRule), [40]);
+
+    // A left Decompression at t = 35 (after the insult at 30, before the exam at 40) on a Branch outside the lineage.
+    const offLineage = reduce(before, { type: 'interventionSucceeded', entry: decompression('Left', 35, 'other') });
+    const offEntry = exam(offLineage, 'look-chest', null).examRecord[0];
+    expect(offEntry.simulationTime).toBe(40);
+    expect(offEntry.sentence).not.toBe('rule: decompressed');
+    expect(offEntry.sentence).toBe('default: not decompressed');
+
+    // The same Decompression on the current Branch `main`: the decompressed rule matches.
+    const onLineage = reduce(before, { type: 'interventionSucceeded', entry: decompression('Left', 35, 'main') });
+    expect(exam(onLineage, 'look-chest', null).examRecord[0].sentence).toBe('rule: decompressed');
+  });
+
+  it('draws a restored Found_Side on sessionLoaded without a new sample (9.2)', () => {
+    // A sample at t = 40, after the Left insult at 30, but no Session yet: the lineage is empty.
+    let state = feed(loaded(CASE_EXAM), [40]);
+    state = reduce(state, { type: 'examRecordRestored', record: [examEntry('listen', 'Left', 35, 'main', true)] });
+    expect(state.lineage).toEqual([]);
+    expect(state.avatar.swollenSides).toEqual([]);
+
+    const next = reduce(state, { type: 'sessionLoaded', session: SESSION_MAIN });
+    expect(next.latestSample).toBe(state.latestSample);
+    expect(next.avatar.swollenSides).toEqual(['Left']);
+  });
 });
 
 describe('withSides returns the same state when no side changes', () => {
