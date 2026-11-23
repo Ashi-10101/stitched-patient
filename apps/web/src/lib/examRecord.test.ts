@@ -137,6 +137,10 @@ describe('serializeExamRecord / parseExamRecord: fixed inputs (Requirements 7.4-
     const { sentence: _omit, ...noSentence } = LISTEN_LEFT;
     expect(parseExamRecord(raw(1, [LOOK, noSentence]))).toEqual([]);
   });
+
+  it('returns [] when a stored entry has "side": null', () => {
+    expect(parseExamRecord(raw(1, [LOOK, { ...LISTEN_LEFT, side: null }]))).toEqual([]);
+  });
 });
 
 describe('loadExamRecord / saveExamRecord (Requirements 7.4-7.6)', () => {
