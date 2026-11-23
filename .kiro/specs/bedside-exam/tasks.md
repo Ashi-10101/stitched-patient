@@ -217,7 +217,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 5.1, 5.4, 5.6, 5.9, 14.2, 14.3_
     - _Properties: 9, 10_
 
-- [ ] 10. Exam_Record storage
+- [x] 10. Exam_Record storage
   - [x] 10.1 Implement `apps/web/src/lib/examRecord.ts`
     - Files: `apps/web/src/lib/examRecord.ts` (new), `apps/web/src/lib/examRecord.test.ts` (new). No other file changes
     - Implement `examRecordKey`, `buildExamEntry` (leaves `side` out when `null`), `serializeExamRecord` (`{"v":1,"entries":[...]}` with only the seven fields), `parseExamRecord` (strict, never throws, one bad entry gives `[]`), `loadExamRecord` (`[]` when `getItem` throws), `saveExamRecord` (swallows `setItem` errors) and `findingsNewestFirst` (`simulationTime` descending, then record index descending), as the design section "`examRecord.ts`" states. The module mirrors `interventionRecord.ts`
