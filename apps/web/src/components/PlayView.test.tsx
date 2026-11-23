@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import fc from 'fast-check';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { examButtons } from '@/lib/examFinding';
+import { buildExamEntry } from '@/lib/examRecord';
 import { buildInterventionEntry } from '@/lib/interventionRecord';
+import { PBT_PARAMS } from '@/test/pbt';
 import { playButtonText } from '@/lib/playCase';
 import type { Ending } from '@/lib/endingEvaluator';
 import { initialSessionState, sessionReducer, type SessionAction, type SessionUiState } from '@/lib/sessionState';
@@ -16,6 +20,7 @@ import {
   REWIND_BUTTON_TEXT,
   STREAM_STOPPED_TEXT,
   WHAT_CAN_YOU_DO_TEXT,
+  examButtonsDisabled,
   interventionDoneText,
   interventionsDisabled,
   initialRewindOpener,
@@ -121,10 +126,19 @@ function splitAtEnding(html: string): { view: string; ending: string | null } {
   return { view: html.slice(0, root), ending: html.slice(root) };
 }
 
+/**
+ * End of the Intervention wrapper's markup: the findings column when present
+ * (exam layout, where it follows the Intervention buttons), else the Hint panel.
+ */
+function interventionsEnd(html: string, start: number): number {
+  const findings = html.indexOf('data-part="findings-column"', start);
+  return findings >= 0 ? findings : html.indexOf('data-part="hint-panel"', start);
+}
+
 /** The Intervention buttons' markup, in render order. */
 function interventionButtons(html: string): string[] {
   const start = html.indexOf('data-part="play-interventions"');
-  const end = html.indexOf('data-part="hint-panel"', start);
+  const end = interventionsEnd(html, start);
   expect(start).toBeGreaterThanOrEqual(0);
   expect(end).toBeGreaterThan(start);
   return html.slice(start, end).match(/<button[^>]*>.*?<\/button>/g) ?? [];
@@ -383,7 +397,7 @@ describe('PlayView messages stack, Intervention variant and Hint row', () => {
     for (const state of [connected, disconnected]) {
       const html = render(state);
       const start = html.indexOf('data-part="play-interventions"');
-      const wrapper = html.slice(start, html.indexOf('data-part="hint-panel"', start));
+      const wrapper = html.slice(start, interventionsEnd(html, start));
       expect(wrapper).toContain('data-part="intervention-panel"');
       expect(wrapper).not.toContain('<h3');
       expect(textOf(wrapper)).not.toContain('Interventions');
@@ -436,5 +450,182 @@ describe('PlayView toolbarStart', () => {
     expect(without).toContain('aria-label="Play"');
     expect(renderWith(state, { toolbarStart: undefined })).toBe(without);
     expect(renderWith(state, { toolbarStart: null })).toBe(without);
+  });
+});
+
+describe('PlayView exam layout (bedside-exam)', () => {
+  const EXAM = CASE.play!.exam!;
+  const EXAM_BUTTON = /<button[^>]*data-control="exam"[^>]*>.*?<\/button>/g;
+
+  /** CASE without an Exam_Section (the `exam` key is left out). */
+  function withoutExam(): CaseData {
+    const play = { ...CASE.play! };
+    delete play.exam;
+    return { ...CASE, play };
+  }
+
+  /** CASE with another play.sideRevealText. */
+  function withSideReveal(sideRevealText: string): CaseData {
+    return { ...CASE, play: { ...CASE.play!, sideRevealText } };
+  }
+
+  const classOf = (html: string, part: string): string | undefined =>
+    new RegExp(`<div[^>]*data-part="${part}"[^>]*class="([^"]*)"`).exec(html)?.[1] ??
+    new RegExp(`<div[^>]*class="([^"]*)"[^>]*data-part="${part}"`).exec(html)?.[1];
+
+  /** Class of the grid that holds the columns: the div right before the patient column. */
+  function gridClass(html: string): string | undefined {
+    const before = html.slice(0, html.indexOf('data-part="patient-column"'));
+    const divs = [...before.matchAll(/<div class="([^"]*)">/g)];
+    return divs[divs.length - 1]?.[1];
+  }
+
+  const liveRegion = (html: string): string | undefined =>
+    /<div data-part="exam-live"[^>]*>(.*?)<\/div>/.exec(html)?.[1];
+
+  const running = build(...LOADED, { type: 'sampleReceived', sample: sample(10) });
+
+  it('shows the exam group above "What can you do?" with the five Exam_Buttons in case order', () => {
+    const html = render(running);
+    const column = html.indexOf('data-part="action-column"');
+    const panel = html.indexOf('data-part="exam-panel"');
+    const heading = html.indexOf(`>${WHAT_CAN_YOU_DO_TEXT}</h2>`);
+    expect(column).toBeGreaterThanOrEqual(0);
+    expect(panel).toBeGreaterThan(column);
+    expect(heading).toBeGreaterThan(panel);
+
+    const buttons = html.match(EXAM_BUTTON) ?? [];
+    const expected = examButtons(EXAM).flat().map((s) => s.text);
+    expect(expected).toHaveLength(5);
+    expect(buttons.map(textOf)).toEqual(expected);
+    // Every Exam_Button sits between the action column start and the heading.
+    for (const b of buttons) {
+      const at = html.indexOf(b);
+      expect(at).toBeGreaterThan(panel);
+      expect(at).toBeLessThan(heading);
+    }
+  });
+
+  it('uses three columns with an Exam_Section: patient, action, then findings with the Hint and Rewind row', () => {
+    const html = render(running);
+    expect(gridClass(html)).toBe(
+      'grid grid-cols-1 gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_minmax(0,4fr)]',
+    );
+    expect(classOf(html, 'play-view')).toBe(
+      'sp-play flex min-h-[calc(100vh-var(--notice-h))] flex-col gap-2 bg-[var(--sp-bg)] px-4 py-2 text-base text-[var(--sp-text)] [@media(min-width:1280px)_and_(min-height:720px)]:h-[calc(100vh-var(--notice-h))] [@media(min-width:1280px)_and_(min-height:720px)]:overflow-hidden',
+    );
+    expect(classOf(html, 'play-avatar')).toBe('mx-auto w-[min(100%,20rem)] max-w-full xl:w-[var(--sp-avatar-w-lg)]');
+
+    const order = [
+      'data-part="patient-column"',
+      'data-part="action-column"',
+      'data-part="exam-panel"',
+      'data-part="play-interventions"',
+      'data-part="findings-column"',
+      'data-part="findings-list"',
+      'data-part="hint-panel"',
+      'data-control="rewind"',
+      'data-part="exam-live"',
+    ].map((p) => html.indexOf(p));
+    for (const at of order) expect(at).toBeGreaterThanOrEqual(0);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html.split('data-part="findings-list"')).toHaveLength(2);
+    expect(html.split('data-part="hint-panel"')).toHaveLength(2);
+  });
+
+  it("keeps today's two-column markup without an Exam_Section (4.6)", () => {
+    const html = render(build(...loaded(withoutExam()), { type: 'sampleReceived', sample: sample(10) }));
+    expect(classOf(html, 'play-view')).toBe(
+      'sp-play flex min-h-[calc(100vh-var(--notice-h))] flex-col gap-2 bg-[var(--sp-bg)] px-4 py-2 text-base text-[var(--sp-text)] lg:h-[calc(100vh-var(--notice-h))] lg:overflow-hidden',
+    );
+    expect(gridClass(html)).toBe('grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]');
+    expect(classOf(html, 'play-avatar')).toBe('mx-auto w-[min(100%,20rem)] max-w-full lg:w-[var(--sp-avatar-w-lg)]');
+    for (const part of ['findings-column', 'findings-list', 'exam-panel', 'exam-live']) {
+      expect(html).not.toContain(`data-part="${part}"`);
+    }
+    expect(html).not.toContain('data-control="exam"');
+
+    // Action column: goal, heading, Intervention buttons, then the Hint and Rewind row.
+    const column = html.indexOf('data-part="action-column"');
+    const order = [
+      column,
+      html.indexOf(`>${WHAT_CAN_YOU_DO_TEXT}</h2>`),
+      html.indexOf('data-part="play-interventions"'),
+      html.indexOf('data-part="hint-panel"'),
+      html.indexOf('data-control="rewind"'),
+    ];
+    for (const at of order) expect(at).toBeGreaterThanOrEqual(0);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // The grid holds exactly the patient and action columns.
+    expect(html.split('-column"')).toHaveLength(3);
+  });
+
+  it('has an exam live region separate from the StatusLine region, empty for restored entries', () => {
+    const restored = buildExamEntry({
+      actionId: EXAM.actions[0].id,
+      side: null,
+      simulationTime: 5,
+      branchId: 'b1',
+      finding: { sentence: 'Placeholder restored finding.', abnormal: false },
+      wallClockTime: '2026-11-20T10:00:00Z',
+    });
+    const html = render(build(...LOADED, { type: 'examRecordRestored', record: [restored] }));
+
+    // The restored entry is active and listed, but not announced.
+    const findingsList = html.slice(html.indexOf('data-part="findings-list"'), html.indexOf('data-part="hint-panel"'));
+    expect(findingsList).toContain('Placeholder restored finding.');
+    expect(liveRegion(html)).toBe('');
+    expect(html).toContain('<div data-part="exam-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>');
+
+    // Separate from the StatusLine's own polite region, which is in the patient column.
+    const statusLine = html.slice(html.indexOf('data-part="status-line"'), html.indexOf('data-part="action-column"'));
+    expect(statusLine).toContain('aria-live="polite"');
+    expect(statusLine).not.toContain('exam-live');
+    expect(html.indexOf('data-part="exam-live"')).toBeGreaterThan(html.indexOf('data-part="findings-column"'));
+  });
+
+  it('disables the Exam_Buttons during an Ending and during a pending fork, not while disconnected', () => {
+    const enabled = render(running).match(EXAM_BUTTON) ?? [];
+    expect(enabled).toHaveLength(5);
+    for (const b of enabled) expect(b).not.toMatch(/\sdisabled=""/);
+
+    const disconnected = render(build(...LOADED.slice(0, 3))).match(EXAM_BUTTON) ?? [];
+    expect(disconnected).toHaveLength(5);
+    for (const b of disconnected) expect(b).not.toMatch(/\sdisabled=""/);
+
+    for (const actions of [LOST, RESCUED]) {
+      const state = build(...actions);
+      expect(state.ending.ending).not.toBe('none');
+      const { view } = splitAtEnding(render(state));
+      const buttons = view.match(EXAM_BUTTON) ?? [];
+      expect(buttons).toHaveLength(5);
+      for (const b of buttons) expect(b).toMatch(/\sdisabled=""/);
+    }
+
+    // The pending fork is PlayView's own state; the view passes it to this helper.
+    expect(examButtonsDisabled({ ending: 'none', forkPending: true })).toBe(true);
+    expect(examButtonsDisabled({ ending: 'none', forkPending: false })).toBe(false);
+  });
+
+  it("passes play.sideRevealText to the Ending_Screen", () => {
+    const { ending } = splitAtEnding(render(build(...RESCUED)));
+    expect(ending).not.toBeNull();
+    expect(ending).toContain(`<p data-part="side-reveal" class="text-base">${CASE.play!.sideRevealText}</p>`);
+  });
+
+  // Feature: bedside-exam, Property 19: The Side_Reveal_Text appears only on the Ending_Screen, in full
+  it('Property 19 (PlayView half): no side-reveal element while the Ending is none', () => {
+    // **Validates: Requirements 12.2**
+    const text = fc
+      .string({ minLength: 1, maxLength: 120 })
+      .filter((s) => s.trim() !== '');
+    fc.assert(
+      fc.property(text, fc.integer({ min: 0, max: 300 }), (sideRevealText, t) => {
+        const state = build(...loaded(withSideReveal(sideRevealText)), { type: 'sampleReceived', sample: sample(t) });
+        expect(state.ending.ending).toBe('none');
+        expect(render(state)).not.toContain('data-part="side-reveal"');
+      }),
+      PBT_PARAMS,
+    );
   });
 });

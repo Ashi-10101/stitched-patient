@@ -3,8 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { getAlarmBgColor, getAlarmColor, getAlarmState } from '@/lib/alarms';
 import { initialSessionState, sessionReducer, type SessionAction, type SessionUiState } from '@/lib/sessionState';
 import type { SimulationSessionActions, SimulationSessionNotices } from '@/hooks/useSimulationSession';
-import { CASE } from '@/test/caseFixtures';
-import type { SessionMetadata, VitalSigns } from '@/types';
+import { buildInterventionEntry } from '@/lib/interventionRecord';
+import { CASE, CASE_LEFT, CASE_RIGHT } from '@/test/caseFixtures';
+import type { CaseData, SessionMetadata, VitalSigns } from '@/types';
 import {
   ACTION_ERROR_TEXT,
   CASE_NOT_LOADED_TEXT,
@@ -194,6 +195,44 @@ describe('ClinicianView', () => {
     expect(interventionsDisabled(false, false)).toBe(true);
     expect(interventionsDisabled(true, true)).toBe(true);
   });
+});
+
+describe('ClinicianView without the bedside exam (bedside-exam decision 9, 12.6)', () => {
+  const VARIANTS: Array<[string, CaseData, string]> = [
+    ['left', CASE_LEFT, 'needle-decompression-left'],
+    ['right', CASE_RIGHT, 'needle-decompression-right'],
+  ];
+
+  it.each(VARIANTS)(
+    'shows no Exam_Button, no Findings_List and no Side_Reveal_Text for the %s Resolved_Case',
+    (_id, caseData, requiredId) => {
+      const base: SessionAction[] = [{ type: 'caseLoaded', caseData, storedView: 'clinician' }, ...LOADED.slice(1)];
+      const none = build(...base, { type: 'sampleReceived', sample: sample(10) });
+      const limit = caseData.play!.endings.lost.timeLimitSeconds as number;
+      const lost = build(...base, { type: 'sampleReceived', sample: sample(limit) });
+      const rescued = build(
+        ...base,
+        {
+          type: 'interventionSucceeded',
+          entry: buildInterventionEntry(caseData.interventions.find((i) => i.id === requiredId)!, 40, 'b1'),
+        },
+        { type: 'sampleReceived', sample: sample(40) },
+        { type: 'sampleReceived', sample: sample(70) },
+      );
+      expect(caseData.play?.exam).toBeDefined();
+      expect([none, lost, rescued].map((s) => s.ending.ending)).toEqual(['none', 'lost', 'rescued']);
+
+      const sideRevealText = caseData.play!.sideRevealText!;
+      expect(sideRevealText.trim()).not.toBe('');
+      for (const state of [none, lost, rescued]) {
+        const html = render(state);
+        expect(html).not.toContain('data-control="exam"');
+        expect(html).not.toContain('data-part="findings-list"');
+        expect(html).not.toContain('data-part="side-reveal"');
+        expect(html).not.toContain(sideRevealText);
+      }
+    },
+  );
 });
 
 describe('forkTimeFor', () => {

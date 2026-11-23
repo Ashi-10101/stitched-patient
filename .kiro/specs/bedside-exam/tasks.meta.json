@@ -35,6 +35,10 @@
     "14.1 Show the Side_Reveal_Text in `apps/web/src/components/EndingScreen.tsx`": {
       "status": "passed",
       "lastRunTimestamp": 1795403946887
+    },
+    "14.2 Add the exam layout to `apps/web/src/components/PlayView.tsx`": {
+      "status": "passed",
+      "lastRunTimestamp": 1795404696081
     }
   },
   "executionHistory": {
@@ -294,6 +298,23 @@
         "executionId": "49ea880c-131e-4a85-a6d3-f53e57d98bbc",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795403765858
+      },
+      {
+        "executionId": "362c6368-81c7-441d-8072-fe1a7dde86bd",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795404073648
+      },
+      {
+        "executionId": "362c6368-81c7-441d-8072-fe1a7dde86bd",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795404161758
+      }
+    ],
+    "14.2 Add the exam layout to `apps/web/src/components/PlayView.tsx`": [
+      {
+        "executionId": "362c6368-81c7-441d-8072-fe1a7dde86bd",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795404186437
       }
     ]
   }

@@ -14,6 +14,8 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { api } from '@/lib/api';
+import { examButtonsDisabled } from '@/components/PlayView';
+import type { Ending } from './endingEvaluator';
 import { loadExamRecord, saveExamRecord } from './examRecord';
 import { initialSessionState, sessionReducer, type SessionAction, type SessionUiState } from './sessionState';
 import type { CheckpointMetadata, SessionMetadata, VitalSigns } from '@/types';
@@ -77,6 +79,34 @@ const run = (state: SessionUiState, actions: SessionAction[]): SessionUiState =>
 
 afterEach(() => {
   vi.clearAllMocks();
+});
+
+describe('examButtonsDisabled (6.9)', () => {
+  const ENDINGS: Ending[] = ['none', 'rescued', 'lost'];
+  const BOOLS = [false, true];
+
+  it('is true for every Ending other than none and for a pending fork, whatever connected, playing and interventionPending are', () => {
+    for (const ending of ENDINGS) {
+      for (const forkPending of BOOLS) {
+        for (const connected of BOOLS) {
+          for (const playing of BOOLS) {
+            for (const interventionPending of BOOLS) {
+              // The extra fields are passed to show that the result ignores them.
+              const input = { ending, forkPending, connected, playing, interventionPending };
+              expect(examButtonsDisabled(input)).toBe(ending !== 'none' || forkPending);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('is false only with no Ending and no pending fork', () => {
+    expect(examButtonsDisabled({ ending: 'none', forkPending: false })).toBe(false);
+    expect(examButtonsDisabled({ ending: 'none', forkPending: true })).toBe(true);
+    expect(examButtonsDisabled({ ending: 'rescued', forkPending: false })).toBe(true);
+    expect(examButtonsDisabled({ ending: 'lost', forkPending: false })).toBe(true);
+  });
 });
 
 describe('exam flow: reducer and Exam_Record storage', () => {

@@ -311,7 +311,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 9.5, 12.2, 12.3, 14.5_
     - _Properties: 19_
 
-  - [ ] 14.2 Add the exam layout to `apps/web/src/components/PlayView.tsx`
+  - [x] 14.2 Add the exam layout to `apps/web/src/components/PlayView.tsx`
     - Files: `apps/web/src/components/PlayView.tsx`, `apps/web/src/components/PlayView.test.tsx`, `apps/web/src/components/ClinicianView.test.tsx`, `apps/web/src/lib/examFlow.test.ts`. No other file changes
     - Implement the design sections "`PlayView.tsx`" and "Layout": with `play.exam === undefined` the markup is exactly today's (4.6); otherwise the three-column grid at 1280 px and wider (`patient-column`, `action-column` with GoalBar, `ExamPanel`, "What can you do?" and InterventionPanel, and the new `findings-column` with `FindingsList` and today's Hint and Rewind row), the root and Avatar wrapper classes from "Layout", the `useMemo` for `findingsNewestFirst(activeExamEntries(...))` before the early `return null`, the exported `examButtonsDisabled({ ending, forkPending })`, `onExamine` calling `actions.performExam`, the `data-part="exam-live"` polite live region keyed by the record length and empty for restored entries, and `sideRevealText={play.sideRevealText}` on the Ending_Screen
     - Existing tests whose setup changes: in `PlayView.test.tsx`, the `interventionButtons` helper and the wrapper slice in "Intervention variant…" end at `data-part="findings-column"` when it is present, instead of `data-part="hint-panel"`. Reason: `CASE` now renders the exam layout, where the findings column sits between the Intervention buttons and the Hint panel; the slice must hold only the Intervention wrapper, as before. No assertion changes

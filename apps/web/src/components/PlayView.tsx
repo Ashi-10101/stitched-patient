@@ -27,15 +27,29 @@
  *   + Hint row 171 (Hint button 44 + 12 + three Hints in at most four
  *   full-width lines 115) + 3 gaps 24 = 423.75 <= 566. With the buttons enabled
  *   each is 44, the panel 96 and the column 375.75.
+ *
+ * Exam layout (bedside-exam design "PlayView.tsx" and "Layout"; Requirements
+ * 4.6, 6.1, 6.3–6.5, 6.9–6.15, 12.2): only when `play.exam` is present. Three
+ * columns from 1280 px (`xl:`, 5fr / 6fr / 4fr, so 400 / 480 / 320 px at
+ * 1280 x 720): the patient column; the action column with the goal, the exam
+ * group ("Check on him"), "What can you do?" and the Intervention buttons; and
+ * the findings column with the Findings_List and the Hint and Rewind row. The
+ * height is fixed only at 1280 x 720 and larger; otherwise the page scrolls.
+ * Without `play.exam` the markup is exactly the two-column one above (4.6).
  */
 
 'use client';
 
 import { useCallback, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import type { SimulationSession, SimulationSessionActions } from '@/hooks/useSimulationSession';
+import { activeExamEntries } from '@/lib/branchLineage';
 import type { Ending } from '@/lib/endingEvaluator';
+import { findingsNewestFirst } from '@/lib/examRecord';
 import { playButtonText } from '@/lib/playCase';
+import type { Side } from '@/types';
 import { EndingScreen } from './EndingScreen';
+import { ExamPanel } from './ExamPanel';
+import { FindingsList } from './FindingsList';
 import { GoalBar } from './GoalBar';
 import { HintPanel } from './HintPanel';
 import { InterventionPanel, NOT_AVAILABLE_TEXT } from './InterventionPanel';
@@ -77,6 +91,20 @@ export function interventionsDisabled({
   ending,
 }: InterventionsDisabledInput): boolean {
   return !connected || interventionPending || forkPending || ending !== 'none';
+}
+
+export interface ExamButtonsDisabledInput {
+  ending: Ending;
+  forkPending: boolean;
+}
+
+/**
+ * Exam_Buttons are disabled while there is an Ending and while a fork request
+ * from this view is pending (bedside-exam 6.9). They do not depend on the
+ * connection, playback or a pending Intervention.
+ */
+export function examButtonsDisabled({ ending, forkPending }: ExamButtonsDisabledInput): boolean {
+  return ending !== 'none' || forkPending;
 }
 
 /**
@@ -204,10 +232,21 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
   const openRewindFromEnding = useCallback(() => dispatchOpener({ type: 'open', origin: 'ending' }), []);
   const closeRewind = useCallback(() => dispatchOpener({ type: 'close' }), []);
   const showMonitor = useCallback(() => actions.selectView('clinician'), [actions]);
+  const onExamine = useCallback((id: string, side: Side | null) => actions.performExam(id, side), [actions]);
+
+  // Active_Exam_Entries newest first, for the Findings_List (bedside-exam 6.6, 7.3).
+  const findings = useMemo(
+    () => findingsNewestFirst(activeExamEntries(state.examRecord, state.lineage)),
+    [state.examRecord, state.lineage],
+  );
+  // Exam_Record length at mount: entries up to it were restored and are not announced (6.10).
+  const examCountAtMountRef = useRef(state.examRecord.length);
 
   const caseData = state.caseData;
   const play = caseData?.play;
   if (caseData === null || play === undefined) return null;
+
+  const exam = play.exam;
 
   const statusSentence = sim.statusSentence ?? play.status.defaultSentence;
   const latestTime = state.latestSample?.simulation_time ?? null;
@@ -231,10 +270,41 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
     />
   );
 
+  // Hint button and Rewind button share a row with the same top (design layout).
+  // The Hint panel spans both columns of row 1 and the Rewind button sits in
+  // column 2 of the same row, so the revealed Hints, which start below the
+  // Hint button (44 px + gap 12 px, the Rewind button is 44 px), run under both
+  // buttons at full width. DOM and focus order stay Hint button, Hints, Rewind.
+  // Without an Exam_Section it ends the action column; with one, the findings column.
+  const hintRow = (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 [&>[data-part=hint-panel]]:col-span-2 [&>[data-part=hint-panel]]:col-start-1 [&>[data-part=hint-panel]]:row-start-1">
+      <HintPanel hints={play.hints} hintsRevealed={state.hintsRevealed} onReveal={actions.revealHint} noTopMargin />
+      <button
+        ref={rewindButtonRef}
+        type="button"
+        data-control="rewind"
+        onClick={openRewindFromView}
+        className={`col-start-2 row-start-1 ${REWIND_BUTTON_CLASS}`}
+      >
+        <span aria-hidden="true">⟲</span>
+        <span>{REWIND_BUTTON_TEXT}</span>
+      </button>
+    </div>
+  );
+
+  // Newest Exam_Record entry recorded after mount, announced once (6.10).
+  const examCount = state.examRecord.length;
+  const newestExamSentence =
+    exam !== undefined && examCount > examCountAtMountRef.current ? state.examRecord[examCount - 1].sentence : null;
+
   return (
     <div
       data-part="play-view"
-      className="sp-play flex min-h-[calc(100vh-var(--notice-h))] flex-col gap-2 bg-[var(--sp-bg)] px-4 py-2 text-base text-[var(--sp-text)] lg:h-[calc(100vh-var(--notice-h))] lg:overflow-hidden"
+      className={
+        exam === undefined
+          ? 'sp-play flex min-h-[calc(100vh-var(--notice-h))] flex-col gap-2 bg-[var(--sp-bg)] px-4 py-2 text-base text-[var(--sp-text)] lg:h-[calc(100vh-var(--notice-h))] lg:overflow-hidden'
+          : 'sp-play flex min-h-[calc(100vh-var(--notice-h))] flex-col gap-2 bg-[var(--sp-bg)] px-4 py-2 text-base text-[var(--sp-text)] [@media(min-width:1280px)_and_(min-height:720px)]:h-[calc(100vh-var(--notice-h))] [@media(min-width:1280px)_and_(min-height:720px)]:overflow-hidden'
+      }
     >
       {toolbarStart === undefined || toolbarStart === null ? (
         playbackControls
@@ -245,11 +315,21 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      <div
+        className={
+          exam === undefined
+            ? 'grid grid-cols-1 gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]'
+            : 'grid grid-cols-1 gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)_minmax(0,4fr)]'
+        }
+      >
         <div data-part="patient-column" className="flex min-w-0 flex-col">
           <div
             data-part="play-avatar"
-            className="mx-auto w-[min(100%,20rem)] max-w-full lg:w-[var(--sp-avatar-w-lg)]"
+            className={
+              exam === undefined
+                ? 'mx-auto w-[min(100%,20rem)] max-w-full lg:w-[var(--sp-avatar-w-lg)]'
+                : 'mx-auto w-[min(100%,20rem)] max-w-full xl:w-[var(--sp-avatar-w-lg)]'
+            }
             style={AVATAR_WRAPPER_STYLE}
           >
             <StitchedPatient params={state.avatar} statusSentence={statusSentence} variant="live" />
@@ -259,6 +339,11 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
 
         <div data-part="action-column" className="flex min-w-0 flex-col gap-2">
           <GoalBar goalText={play.goalText} timeLimitSeconds={play.endings.lost.timeLimitSeconds} latestTime={latestTime} />
+
+          {/* The exam group sits above "What can you do?" (bedside-exam 6.1). */}
+          {exam !== undefined && (
+            <ExamPanel exam={exam} disabled={examButtonsDisabled({ ending, forkPending })} onExamine={onExamine} />
+          )}
 
           <h2 className="text-lg font-semibold">{WHAT_CAN_YOU_DO_TEXT}</h2>
 
@@ -273,31 +358,25 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
             />
           </div>
 
-          {/* Hint button and Rewind button share a row with the same top (design layout).
-              The Hint panel spans both columns of row 1 and the Rewind button sits in
-              column 2 of the same row, so the revealed Hints, which start below the
-              Hint button (44 px + gap 12 px, the Rewind button is 44 px), run under both
-              buttons at full width. DOM and focus order stay Hint button, Hints, Rewind. */}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 [&>[data-part=hint-panel]]:col-span-2 [&>[data-part=hint-panel]]:col-start-1 [&>[data-part=hint-panel]]:row-start-1">
-            <HintPanel
-              hints={play.hints}
-              hintsRevealed={state.hintsRevealed}
-              onReveal={actions.revealHint}
-              noTopMargin
-            />
-            <button
-              ref={rewindButtonRef}
-              type="button"
-              data-control="rewind"
-              onClick={openRewindFromView}
-              className={`col-start-2 row-start-1 ${REWIND_BUTTON_CLASS}`}
-            >
-              <span aria-hidden="true">⟲</span>
-              <span>{REWIND_BUTTON_TEXT}</span>
-            </button>
-          </div>
+          {exam === undefined && hintRow}
         </div>
+
+        {exam !== undefined && (
+          <div data-part="findings-column" className="flex min-w-0 flex-col gap-2">
+            <FindingsList entries={findings} exam={exam} />
+            {hintRow}
+          </div>
+        )}
       </div>
+
+      {/* Finding announcements, separate from the StatusLine's region; restored
+          entries are not announced. A new keyed child is announced even when
+          the sentence repeats an earlier one (bedside-exam 6.10). */}
+      {exam !== undefined && (
+        <div data-part="exam-live" className="sr-only" aria-live="polite" aria-atomic="true">
+          {newestExamSentence !== null && <p key={examCount}>{newestExamSentence}</p>}
+        </div>
+      )}
 
       {/* One fixed stack, centred at the bottom, so the toast and the lasting notices
           never overlap. The Toast positions itself as fixed; inside the stack it is
@@ -330,6 +409,7 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
           onRewind={openRewindFromEnding}
           onShowMonitor={showMonitor}
           rewindButtonRef={endingRewindButtonRef}
+          sideRevealText={play.sideRevealText}
         />
       )}
 
