@@ -12,7 +12,7 @@ import { readVital } from './vitals';
 import type { AlarmThresholds, PlaySection, StatusWhen, VitalSigns } from '@/types';
 
 /** 5.3, 5.4: thresholds and a finite value present, band equal, direction absent or equal. */
-function itemMatches(
+export function statusItemMatches(
   sample: Partial<VitalSigns>,
   alarms: AlarmThresholds,
   item: StatusWhen,
@@ -39,7 +39,7 @@ export function selectStatus(
   const { rules, defaultSentence } = play.status;
   if (sample === null) return defaultSentence;
   for (const rule of rules) {
-    if (rule.when.every((item) => itemMatches(sample, alarms, item))) return rule.sentence;
+    if (rule.when.every((item) => statusItemMatches(sample, alarms, item))) return rule.sentence;
   }
   return defaultSentence;
 }

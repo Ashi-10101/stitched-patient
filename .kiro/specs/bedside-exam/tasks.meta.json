@@ -128,6 +128,13 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795399643135
       }
+    ],
+    "8.3 Export `statusItemMatches` from `apps/web/src/lib/statusSelector.ts`": [
+      {
+        "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795399992657
+      }
     ]
   }
 }

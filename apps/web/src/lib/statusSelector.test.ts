@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { getAlarmState } from './alarms';
-import { selectStatus } from './statusSelector';
+import { selectStatus, statusItemMatches } from './statusSelector';
 import { VITAL_FIELD, VITAL_NAMES } from './vitals';
 import type {
   AlarmState,
@@ -338,6 +338,24 @@ describe('selectStatus: properties', () => {
         );
         expect(second).toBe(first);
       }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: bedside-exam, statusItemMatches agrees with the reference item matcher
+  // **Validates: Requirements 5.7**
+  it('statusItemMatches agrees with refItemMatches for generated samples, thresholds and items', () => {
+    fc.assert(
+      fc.property(
+        arbScenario.filter((s) => s.sample !== null),
+        ({ sample, alarms, play }) => {
+          for (const rule of play.status.rules) {
+            for (const item of rule.when) {
+              expect(statusItemMatches(sample!, alarms, item)).toBe(refItemMatches(sample!, alarms, item));
+            }
+          }
+        },
+      ),
       PBT_PARAMS,
     );
   });

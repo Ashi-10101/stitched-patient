@@ -186,7 +186,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the tsc result and the Vitest summary line in the task report
     - _Requirements: 8.9, 9.1, 14.12_
 
-  - [ ] 8.3 Export `statusItemMatches` from `apps/web/src/lib/statusSelector.ts`
+  - [x] 8.3 Export `statusItemMatches` from `apps/web/src/lib/statusSelector.ts`
     - Files: `apps/web/src/lib/statusSelector.ts`, `apps/web/src/lib/statusSelector.test.ts`. No other file changes
     - Rename the private `itemMatches` to `statusItemMatches` and export it, with no change to its body; `selectStatus` uses it as before
     - Existing tests: no change
