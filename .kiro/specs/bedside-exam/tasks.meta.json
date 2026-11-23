@@ -31,6 +31,10 @@
     "12.2 Add Properties 15 and 16 (reducer half) to `apps/web/src/lib/sessionState.test.ts`": {
       "status": "passed",
       "lastRunTimestamp": 1795402924143
+    },
+    "14.1 Show the Side_Reveal_Text in `apps/web/src/components/EndingScreen.tsx`": {
+      "status": "passed",
+      "lastRunTimestamp": 1795403946887
     }
   },
   "executionHistory": {
@@ -276,6 +280,20 @@
         "executionId": "49ea880c-131e-4a85-a6d3-f53e57d98bbc",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795403552056
+      }
+    ],
+    "13. Exam components": [
+      {
+        "executionId": "49ea880c-131e-4a85-a6d3-f53e57d98bbc",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795403743552
+      }
+    ],
+    "14.1 Show the Side_Reveal_Text in `apps/web/src/components/EndingScreen.tsx`": [
+      {
+        "executionId": "49ea880c-131e-4a85-a6d3-f53e57d98bbc",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795403765858
       }
     ]
   }

@@ -280,7 +280,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the tsc result and the Vitest summary line in the task report
     - _Requirements: 6.3, 6.4, 6.9, 7.4, 7.5, 7.6, 10.6_
 
-- [ ] 13. Exam components
+- [x] 13. Exam components
   - [x] 13.1 Create `apps/web/src/components/ExamPanel.tsx`
     - Files: `apps/web/src/components/ExamPanel.tsx` (new), `apps/web/src/components/ExamPanel.test.tsx` (new), `apps/web/src/components/InterventionPanel.tsx` (exports only). No other file changes
     - `InterventionPanel.tsx` exports `PlayLockIcon` and the play button classes, with no behaviour or markup change
@@ -300,7 +300,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 6.6, 6.7, 6.12, 7.7, 14.5_
 
 - [ ] 14. Ending_Screen and Play_View
-  - [ ] 14.1 Show the Side_Reveal_Text in `apps/web/src/components/EndingScreen.tsx`
+  - [x] 14.1 Show the Side_Reveal_Text in `apps/web/src/components/EndingScreen.tsx`
     - Files: `apps/web/src/components/EndingScreen.tsx`, `apps/web/src/components/EndingScreen.test.tsx`. No other file changes
     - Add the optional `sideRevealText` prop and `ENDING_OVERHEAD_WITH_SIDE = '14.75rem'`, as the design section "`EndingScreen.tsx`" states: a non-blank text renders `<p data-part="side-reveal" className="text-base">` after the heading and the rescued sentence and before the Avatar, with no `line-clamp` or `overflow-hidden`; without it, the markup and overhead are today's
     - Existing tests: no change; they pass `params` directly and omit the optional prop

@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { AvatarParameters } from '@/types';
+import { PBT_PARAMS } from '@/test/pbt';
 import { SPEECH_BAND_HEIGHT } from './StitchedPatient';
 import {
   ENDING_HEADING,
+  ENDING_OVERHEAD_WITH_SIDE,
   EndingScreen,
   endingControls,
   RESCUED_TEXT,
@@ -190,6 +193,114 @@ describe('EndingScreen', () => {
   it('names the Avatar with the statusSentence', () => {
     for (const ending of ENDINGS) {
       expect(render(ending)).toContain(`<svg role="img" aria-label="${STATUS}"`);
+    }
+  });
+});
+
+/** Renders with an explicit `sideRevealText` (placeholder strings only). */
+function renderWithSide(ending: EndingKind, sideRevealText: string | undefined): string {
+  return renderToStaticMarkup(
+    <EndingScreen
+      ending={ending}
+      params={BASE}
+      statusSentence={STATUS}
+      onRewind={noop}
+      onShowMonitor={noop}
+      sideRevealText={sideRevealText}
+    />,
+  );
+}
+
+/** The escaping renderToStaticMarkup applies to text content. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+function avatarWrapperStyle(html: string): string {
+  const wrapper = html.match(/<div data-part="ending-avatar"[^>]*>/);
+  expect(wrapper).not.toBeNull();
+  return wrapper![0].match(/style="([^"]*)"/)![1];
+}
+
+const WHITESPACE = [' ', '\t', '\n', '\r', '\u00a0', '\u2003'] as const;
+
+/** Non-blank strings of 1 to 120 characters, ASCII and grapheme mixes. */
+const arbNonBlank = fc
+  .oneof(
+    { weight: 3, arbitrary: fc.string({ minLength: 1, maxLength: 120 }) },
+    { weight: 2, arbitrary: fc.string({ unit: 'grapheme', minLength: 1, maxLength: 40 }) },
+    {
+      weight: 1,
+      arbitrary: fc
+        .tuple(
+          fc.array(fc.constantFrom(...WHITESPACE), { maxLength: 4 }),
+          fc.string({ minLength: 1, maxLength: 100 }),
+          fc.array(fc.constantFrom(...WHITESPACE), { maxLength: 4 }),
+        )
+        .map(([lead, body, trail]) => lead.join('') + body + trail.join('')),
+    },
+  )
+  .filter((s) => s.length >= 1 && s.length <= 120 && s.trim() !== '');
+
+/** Blank values: absent, empty or whitespace only. */
+const arbBlank = fc.oneof(
+  fc.constant(undefined),
+  fc.array(fc.constantFrom(...WHITESPACE), { maxLength: 10 }).map((cs) => cs.join('')),
+);
+
+describe('EndingScreen Side_Reveal_Text', () => {
+  // Feature: bedside-exam, Property 19: The Side_Reveal_Text appears only on the Ending_Screen, in full
+  it('shows any non-blank text once, in full, inside side-reveal between the heading block and the Avatar', () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...ENDINGS), arbNonBlank, (ending, text) => {
+        const html = renderWithSide(ending, text);
+        const tags = html.match(/<p data-part="side-reveal"[^>]*>/g) ?? [];
+        expect(tags).toEqual(['<p data-part="side-reveal" class="text-base">']);
+        const tag = tags[0]!;
+        expect(tag).not.toMatch(/line-clamp|overflow-hidden/);
+        const start = html.indexOf(tag) + tag.length;
+        const end = html.indexOf('</p>', start);
+        expect(html.slice(start, end)).toBe(escapeHtml(text));
+        const heading = html.indexOf('</h2>');
+        const previous = ending === 'rescued' ? html.indexOf(escapedRescued) : heading;
+        expect(heading).toBeGreaterThan(-1);
+        expect(previous).toBeGreaterThan(-1);
+        expect(html.indexOf(tag)).toBeGreaterThan(previous);
+        expect(html.indexOf(tag)).toBeLessThan(html.indexOf('<div data-part="ending-avatar"'));
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: bedside-exam, Property 19: The Side_Reveal_Text appears only on the Ending_Screen, in full
+  it('renders no side-reveal element and the markup of today for a blank or absent text', () => {
+    fc.assert(
+      fc.property(fc.constantFrom(...ENDINGS), arbBlank, (ending, text) => {
+        const html = renderWithSide(ending, text);
+        expect(html).not.toContain('side-reveal');
+        expect(html).toBe(render(ending));
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  it('uses the with-side overhead in the Avatar width only when the text is present', () => {
+    expect(ENDING_OVERHEAD_WITH_SIDE).toBe('14.75rem');
+    for (const ending of ENDINGS) {
+      const withSide = avatarWrapperStyle(renderWithSide(ending, 'Placeholder side text.'));
+      expect(withSide).toContain(`- ${ENDING_OVERHEAD_WITH_SIDE}) * 200 / 280)`);
+      expect(withSide).not.toContain('- 11rem)');
+      expect(withSide).toContain(`margin-top:calc(-1 * ${SPEECH_BAND_HEIGHT})`);
+      for (const blank of [undefined, '', '   ']) {
+        const without = avatarWrapperStyle(renderWithSide(ending, blank));
+        expect(without).toContain('- 11rem) * 200 / 280)');
+        expect(without).not.toContain(ENDING_OVERHEAD_WITH_SIDE);
+      }
     }
   });
 });

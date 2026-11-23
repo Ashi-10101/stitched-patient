@@ -9,6 +9,9 @@
  *
  * The only decoration is a static corner cobweb; the window, moon and bats come
  * from the Avatar's own scene. Markup is pure and deterministic.
+ *
+ * A non-blank `sideRevealText` (bedside-exam 12.2, 12.3) is shown in full
+ * between the heading block and the Avatar, and the Avatar shrinks to make room.
  */
 
 'use client';
@@ -52,6 +55,11 @@ export interface EndingScreenProps {
   onShowMonitor: () => void;
   /** Attached to the Rewind control, so the Rewind_Panel can return focus to it. */
   rewindButtonRef?: Ref<HTMLButtonElement>;
+  /**
+   * play.sideRevealText of the Resolved_Case; shown in full when it contains a
+   * non-whitespace character (bedside-exam 12.2, 12.3).
+   */
+  sideRevealText?: string;
 }
 
 /** Static corner cobweb: spokes from the top-right corner joined by sagging threads. */
@@ -88,14 +96,26 @@ function Cobweb() {
 const ENDING_OVERHEAD = '11rem';
 
 /**
+ * With a Side_Reveal_Text: ENDING_OVERHEAD plus a two-line text-base budget
+ * (3rem) and one more gap-3 (0.75rem). At 1280 × 720 the Avatar becomes
+ * 305.7 px wide instead of 348.6 px (bedside-exam design "Layout").
+ */
+export const ENDING_OVERHEAD_WITH_SIDE = '14.75rem';
+
+/**
  * The Ending_Screen never shows speech, so the Avatar's empty speech band is
  * pulled up behind the heading, and the width comes from the height left below
  * the notice (drawing aspect 200 × 280), capped at 22rem.
  */
-const AVATAR_WRAPPER_STYLE = {
-  marginTop: `calc(-1 * ${SPEECH_BAND_HEIGHT})`,
-  width: `min(22rem, calc((100vh - var(--notice-h) - ${ENDING_OVERHEAD}) * 200 / 280))`,
-} as const;
+function avatarWrapperStyle(overhead: string) {
+  return {
+    marginTop: `calc(-1 * ${SPEECH_BAND_HEIGHT})`,
+    width: `min(22rem, calc((100vh - var(--notice-h) - ${overhead}) * 200 / 280))`,
+  } as const;
+}
+
+const AVATAR_WRAPPER_STYLE = avatarWrapperStyle(ENDING_OVERHEAD);
+const AVATAR_WRAPPER_STYLE_WITH_SIDE = avatarWrapperStyle(ENDING_OVERHEAD_WITH_SIDE);
 
 const BUTTON_CLASS =
   'rounded-lg border-2 border-[var(--sp-accent)] px-4 py-2 text-base font-semibold text-[var(--sp-text)] hover:bg-[var(--sp-accent)] hover:text-[var(--sp-bg)]';
@@ -107,9 +127,11 @@ export function EndingScreen({
   onRewind,
   onShowMonitor,
   rewindButtonRef,
+  sideRevealText,
 }: EndingScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(containerRef, { active: true });
+  const showSide = sideRevealText !== undefined && sideRevealText.trim() !== '';
 
   return (
     <div
@@ -126,10 +148,15 @@ export function EndingScreen({
       <div className="relative mx-auto flex w-full max-w-lg flex-col items-center gap-3 p-4 text-center">
         <h2 className="text-2xl font-semibold">{ENDING_HEADING[ending]}</h2>
         {ending === 'rescued' && <p className="text-base">{RESCUED_TEXT}</p>}
+        {showSide && (
+          <p data-part="side-reveal" className="text-base">
+            {sideRevealText}
+          </p>
+        )}
         <div
           data-part="ending-avatar"
           className="max-w-full [&_[data-part=speech-band]]:pointer-events-none"
-          style={AVATAR_WRAPPER_STYLE}
+          style={showSide ? AVATAR_WRAPPER_STYLE_WITH_SIDE : AVATAR_WRAPPER_STYLE}
         >
           <StitchedPatient params={params} statusSentence={statusSentence} variant={ending} />
         </div>
