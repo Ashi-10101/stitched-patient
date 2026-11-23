@@ -3,6 +3,10 @@
     "1.2 Implement `services/physiology/case_resolver.py` with its tests": {
       "status": "passed",
       "lastRunTimestamp": 1795377818833
+    },
+    "8.1 Add `activeEntries` and `activeExamEntries` to `apps/web/src/lib/branchLineage.ts`": {
+      "status": "passed",
+      "lastRunTimestamp": 1795399540084
     }
   },
   "executionHistory": {
@@ -109,6 +113,13 @@
         "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795380852770
+      }
+    ],
+    "8.1 Add `activeEntries` and `activeExamEntries` to `apps/web/src/lib/branchLineage.ts`": [
+      {
+        "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795380884755
       }
     ]
   }

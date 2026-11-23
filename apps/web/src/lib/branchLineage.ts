@@ -6,7 +6,13 @@
  * lineage was forked (Requirements 4.15, 10.9).
  */
 
-import type { BranchMetadata, CheckpointMetadata, InterventionRecordEntry, LineageSegment } from '@/types';
+import type {
+  BranchMetadata,
+  CheckpointMetadata,
+  ExamRecordEntry,
+  InterventionRecordEntry,
+  LineageSegment,
+} from '@/types';
 
 /** Simulation_Time of the earliest Checkpoint in a list, or `undefined` when there is none. */
 function earliestTime(checkpoints: CheckpointMetadata[] | undefined): number | undefined {
@@ -78,14 +84,14 @@ export function buildLineage(
 }
 
 /**
- * Intervention_Record entries whose `branchId` is in the lineage and whose
+ * Record entries whose `branchId` is in the lineage and whose
  * `simulationTime` is less than or equal to that Branch's upper bound, in
- * their original order.
+ * their original order. Shared by the Intervention_Record and the Exam_Record.
  */
-export function activeInterventions(
-  record: InterventionRecordEntry[],
+export function activeEntries<T extends { branchId: string; simulationTime: number }>(
+  record: readonly T[],
   lineage: LineageSegment[],
-): InterventionRecordEntry[] {
+): T[] {
   const bounds = new Map<string, number>();
   for (const s of lineage) if (!bounds.has(s.branchId)) bounds.set(s.branchId, s.upperBound);
   // Known limitation: the service copies parent events by the checkpoint's
@@ -97,4 +103,17 @@ export function activeInterventions(
     const bound = bounds.get(e.branchId);
     return bound !== undefined && e.simulationTime <= bound;
   });
+}
+
+/** Active_Interventions: `activeEntries` over the Intervention_Record. */
+export function activeInterventions(
+  record: InterventionRecordEntry[],
+  lineage: LineageSegment[],
+): InterventionRecordEntry[] {
+  return activeEntries(record, lineage);
+}
+
+/** Active_Exam_Entries: `activeEntries` over the Exam_Record (7.3, play-mode 10.9). */
+export function activeExamEntries(record: readonly ExamRecordEntry[], lineage: LineageSegment[]): ExamRecordEntry[] {
+  return activeEntries(record, lineage);
 }

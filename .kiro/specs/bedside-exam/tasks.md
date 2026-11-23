@@ -165,7 +165,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 3.9, 4.1, 4.2, 4.3, 7.1, 12.1, 14.6_
 
 - [ ] 8. Lineage, side and status helpers
-  - [ ] 8.1 Add `activeEntries` and `activeExamEntries` to `apps/web/src/lib/branchLineage.ts`
+  - [x] 8.1 Add `activeEntries` and `activeExamEntries` to `apps/web/src/lib/branchLineage.ts`
     - Files: `apps/web/src/lib/branchLineage.ts`, `apps/web/src/lib/branchLineage.test.ts`. No other file changes
     - Move the body of `activeInterventions` unchanged into the generic `activeEntries<T extends { branchId: string; simulationTime: number }>`; `activeInterventions` and `activeExamEntries` call it (design "Active_Exam_Entries, Found_Sides and Shown_Swollen_Sides")
     - Existing tests: no change; `activeInterventions` behaves as before

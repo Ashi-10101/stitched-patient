@@ -1,8 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { activeInterventions, buildLineage } from './branchLineage';
-import type { BranchMetadata, CheckpointMetadata, InterventionRecordEntry, Side } from '@/types';
-import { arbLineage, type LineageCase } from '@/test/generators';
+import { activeEntries, activeExamEntries, activeInterventions, buildLineage } from './branchLineage';
+import type { BranchMetadata, CheckpointMetadata, ExamRecordEntry, InterventionRecordEntry, Side } from '@/types';
+import { arbExamRecordEntry, arbLineage, type LineageCase } from '@/test/generators';
 import { PBT_PARAMS } from '@/test/pbt';
 
 const CREATED_AT = '2026-10-31T00:00:00.000Z';
@@ -113,6 +113,21 @@ describe('activeInterventions: fixed inputs (Requirements 4.15, 10.9, 12.2)', ()
     const record = [onChild, onSibling, early, decompression('Right', 61, 'main')];
     expect(activeInterventions(record, lineage)).toEqual([onChild, early]);
   });
+
+  it('activeEntries gives the same result as activeInterventions for Intervention entries', () => {
+    const record = [
+      decompression('Right', 120, 'branch-1'),
+      decompression('Left', 40, 'sibling'),
+      decompression('Left', 20, 'main'),
+      decompression('Left', 60, 'main'),
+      decompression('Right', 61, 'main'),
+    ];
+    const viaGeneric = activeEntries(record, lineage);
+    const viaInterventions = activeInterventions(record, lineage);
+    expect(viaGeneric).toHaveLength(3);
+    expect(viaGeneric).toHaveLength(viaInterventions.length);
+    viaInterventions.forEach((e, i) => expect(viaGeneric[i]).toBe(e));
+  });
 });
 
 /**
@@ -157,6 +172,65 @@ describe('branchLineage properties', () => {
             expect(result).not.toContain(e);
           }
         }
+      }),
+      PBT_PARAMS,
+    );
+  });
+
+  // Feature: bedside-exam, Property 12: Active_Exam_Entries follow the Branch_Lineage like the Intervention_Record
+  // **Validates: Requirements 7.3, 14.2**
+  it('Property 12: Active_Exam_Entries follow the Branch_Lineage like the Intervention_Record', () => {
+    /**
+     * Each exam entry gets a branch id from the lineage case's Branches or one
+     * outside it, and a time at, below or above a fork time (or a Checkpoint
+     * time), or keeps the time `arbExamRecordEntry` gave it.
+     */
+    const arbExamSpec = fc.record({
+      entry: arbExamRecordEntry,
+      branchPick: fc.nat(),
+      anchorPick: fc.nat(),
+      delta: fc.constantFrom<number | null>(0, 0, -1, -0.5, 0.5, 1, 10, null),
+    });
+
+    fc.assert(
+      fc.property(arbLineage, fc.array(arbExamSpec, { maxLength: 12 }), (c, specs) => {
+        const branchPool = [...c.branches.map((b) => b.branch_id), 'outside-lineage'];
+        const anchors = [
+          ...Object.values(c.forkTimeByBranch),
+          ...Object.values(c.checkpointsByBranch).flatMap((list) => list.map((cpt) => cpt.simulation_time)),
+        ];
+        const record: ExamRecordEntry[] = specs.map(({ entry, branchPick, anchorPick, delta }) => ({
+          ...entry,
+          branchId: branchPool[branchPick % branchPool.length],
+          simulationTime:
+            delta === null || anchors.length === 0
+              ? entry.simulationTime
+              : Math.max(0, anchors[anchorPick % anchors.length] + delta),
+        }));
+
+        const bounds = expectedBounds(c);
+        const lineage = buildLineage(c.branches, c.currentBranchId, c.checkpointsByBranch);
+        const result = activeExamEntries(record, lineage);
+
+        // Reference filter, record order kept, same objects.
+        const expected = record.filter((e) => {
+          const bound = bounds.get(e.branchId);
+          return bound !== undefined && e.simulationTime <= bound;
+        });
+        expect(result).toHaveLength(expected.length);
+        expected.forEach((e, i) => expect(result[i]).toBe(e));
+
+        // Same indexes as activeInterventions on entries mapped to Intervention entries.
+        const mapped: InterventionRecordEntry[] = record.map((e) => ({
+          interventionId: e.actionId,
+          action: 'SENeedleDecompression',
+          ...(e.side === undefined ? {} : { side: e.side }),
+          simulationTime: e.simulationTime,
+          branchId: e.branchId,
+        }));
+        const examIndexes = result.map((e) => record.indexOf(e));
+        const interventionIndexes = activeInterventions(mapped, lineage).map((e) => mapped.indexOf(e));
+        expect(examIndexes).toEqual(interventionIndexes);
       }),
       PBT_PARAMS,
     );
