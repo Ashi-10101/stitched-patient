@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { activeExamEntries } from '@/lib/branchLineage';
 import { examButtons } from '@/lib/examFinding';
 import { buildExamEntry } from '@/lib/examRecord';
 import { buildInterventionEntry } from '@/lib/interventionRecord';
@@ -582,6 +583,58 @@ describe('PlayView exam layout (bedside-exam)', () => {
     expect(statusLine).toContain('aria-live="polite"');
     expect(statusLine).not.toContain('exam-live');
     expect(html.indexOf('data-part="exam-live"')).toBeGreaterThan(html.indexOf('data-part="findings-column"'));
+  });
+
+  it('lists only the Active_Exam_Entries of the lineage, not findings from an abandoned Branch (7.3)', () => {
+    // Lineage: child (unbounded) -> main (bounded by the fork at t = 60). The
+    // Branch "abandoned" was forked from main at t = 30 and is not on the lineage.
+    const session: SessionMetadata = {
+      session_id: 's1',
+      case_id: CASE.id,
+      created_at: '',
+      current_branch_id: 'child',
+      branches: [
+        { branch_id: 'main', created_at: '', event_count: 0 },
+        { branch_id: 'abandoned', parent_branch_id: 'main', forked_from_checkpoint: 'cp-main-30', created_at: '', event_count: 0 },
+        { branch_id: 'child', parent_branch_id: 'main', forked_from_checkpoint: 'cp-main-60', created_at: '', event_count: 0 },
+      ],
+    };
+    const entry = (branchId: string, simulationTime: number, sentence: string) =>
+      buildExamEntry({
+        actionId: EXAM.actions[0].id,
+        side: null,
+        simulationTime,
+        branchId,
+        finding: { sentence, abnormal: false },
+        wallClockTime: '2026-11-20T10:00:00Z',
+      });
+    const onLineage = entry('main', 20, 'finding: on lineage');
+    const abandoned = entry('abandoned', 45, 'finding: abandoned branch');
+    const state = build(
+      { type: 'caseLoaded', caseData: CASE, storedView: 'play' },
+      { type: 'sessionLoaded', session },
+      {
+        type: 'checkpointsLoaded',
+        byBranch: {
+          main: [
+            { checkpoint_id: 'cp-main-30', simulation_time: 30, created_at: '', is_automatic: true },
+            { checkpoint_id: 'cp-main-60', simulation_time: 60, created_at: '', is_automatic: true },
+          ],
+        },
+      },
+      { type: 'connectionChanged', connected: true },
+      { type: 'examRecordRestored', record: [onLineage, abandoned] },
+    );
+
+    // Not vacuous: a real two-Branch lineage, and the abandoned entry is recorded but not active.
+    expect(state.lineage.map((s) => s.branchId)).toEqual(['child', 'main']);
+    expect(state.examRecord).toContainEqual(abandoned);
+    expect(activeExamEntries(state.examRecord, state.lineage)).toHaveLength(1);
+
+    const html = render(state);
+    const findingsList = html.slice(html.indexOf('data-part="findings-list"'), html.indexOf('data-part="hint-panel"'));
+    expect(findingsList).toContain('finding: on lineage');
+    expect(findingsList).not.toContain('finding: abandoned branch');
   });
 
   it('disables the Exam_Buttons during an Ending and during a pending fork, not while disconnected', () => {
