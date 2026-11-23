@@ -7,6 +7,10 @@
     "8.1 Add `activeEntries` and `activeExamEntries` to `apps/web/src/lib/branchLineage.ts`": {
       "status": "passed",
       "lastRunTimestamp": 1795399540084
+    },
+    "9.1 Implement `apps/web/src/lib/examFinding.ts` with unit tests and Property 8": {
+      "status": "passed",
+      "lastRunTimestamp": 1795400466911
     }
   },
   "executionHistory": {
@@ -134,6 +138,20 @@
         "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795399992657
+      }
+    ],
+    "8. Lineage, side and status helpers": [
+      {
+        "executionId": "b6dbcbee-6ec4-45cd-b427-d08da3222909",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795400124925
+      }
+    ],
+    "9.1 Implement `apps/web/src/lib/examFinding.ts` with unit tests and Property 8": [
+      {
+        "executionId": "c05ea0b3-ff2b-447c-b578-9091c497edec",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795400176439
       }
     ]
   }

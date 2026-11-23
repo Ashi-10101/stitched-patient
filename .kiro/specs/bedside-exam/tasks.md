@@ -164,7 +164,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the tsc result and the Vitest summary line (passed/failed/skipped) in the task report
     - _Requirements: 3.9, 4.1, 4.2, 4.3, 7.1, 12.1, 14.6_
 
-- [ ] 8. Lineage, side and status helpers
+- [x] 8. Lineage, side and status helpers
   - [x] 8.1 Add `activeEntries` and `activeExamEntries` to `apps/web/src/lib/branchLineage.ts`
     - Files: `apps/web/src/lib/branchLineage.ts`, `apps/web/src/lib/branchLineage.test.ts`. No other file changes
     - Move the body of `activeInterventions` unchanged into the generic `activeEntries<T extends { branchId: string; simulationTime: number }>`; `activeInterventions` and `activeExamEntries` call it (design "Active_Exam_Entries, Found_Sides and Shown_Swollen_Sides")
@@ -196,7 +196,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 5.7_
 
 - [ ] 9. Exam_Finding_Selector
-  - [ ] 9.1 Implement `apps/web/src/lib/examFinding.ts` with unit tests and Property 8
+  - [x] 9.1 Implement `apps/web/src/lib/examFinding.ts` with unit tests and Property 8
     - Files: `apps/web/src/lib/examFinding.ts` (new), `apps/web/src/lib/examFinding.test.ts` (new). No other file changes
     - Implement `ExamContext`, `ExamFindingInput`, `examContext`, `examWhenMatches`, `selectExamFinding`, `examFinding`, `isSidedAction`, `ExamButtonSpec`, `examButtons` and `examButtonText` as the design section "`examFinding.ts`" states. The module reads no `Date`, `window`, `fetch`, storage, randomness or Variant_Id, and returns the case's sentence string unchanged
     - In `examFinding.test.ts`:
