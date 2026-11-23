@@ -341,7 +341,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 10.1, 10.2, 10.3, 11.1, 11.2, 11.3, 11.4, 12.4, 12.5, 14.6, 14.7_
     - _Properties: 3, 18_
 
-  - [ ] 15.2 Check the Exam_Section content in `apps/web/src/lib/caseContent.test.ts`
+  - [x] 15.2 Check the Exam_Section content in `apps/web/src/lib/caseContent.test.ts`
     - Files: `apps/web/src/lib/caseContent.test.ts`. No other file changes
     - Add to the Property 18 group (same tag as in 15.1), per Resolved_Case: Exam_Action ids `look-chest`, `listen`, `windpipe`, `neck-veins` in that order and unique (8.1, 8.10); the required rules of `listen`, `look-chest`, `neck-veins` and `windpipe` (8.2 to 8.4); no Side_Word in Exam_Rule sentences, exam `defaultSentence`s and side-neutral labels (8.6); `labels.Left` and `labels.Right` hold only their own Side_Word (8.7); no Diagnosis_Term in exam labels and sentences (8.8); `abnormal: true` only with `insult: started`, and on a Sided_Action also with `side: affected` (8.9); `when.vitals` names only vitals with thresholds in `alarms` (8.10). The `TODO(author)` markers of 8.5 are already checked by `checkTodoMarkers` (task 2.1)
     - Each checker gets one broken-copy test that breaks exactly its rule (for example a Side_Word in a `defaultSentence`, `abnormal: true` without `insult: started`), asserting the exact failure text

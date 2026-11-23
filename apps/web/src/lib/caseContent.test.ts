@@ -9,8 +9,8 @@
  * Every checker returns a list of failure messages. An empty list means the
  * check passed. A missing Play_Section is a failure for every checker.
  *
- * Bedside-exam checks (Requirements 2.1 to 2.8, 10.1 to 10.3, 11.1 to 11.4,
- * 12.4, 12.5, 14.6, 14.7) run once per Resolved_Case. The Resolved_Cases are
+ * Bedside-exam checks (Requirements 2.1 to 2.8, 8.1 to 8.10, 10.1 to 10.3,
+ * 11.1 to 11.4, 12.4, 12.5, 14.6, 14.7) run once per Resolved_Case. The Resolved_Cases are
  * built from `BASE_CASE` with the independent test resolver
  * `resolveCaseForTest`, and `perVariant` prefixes each failure with
  * `variant '<id>': `.
@@ -26,7 +26,7 @@ import {
   type Document,
   type Scalar,
 } from 'yaml';
-import type { CaseData, PlaySection, Side } from '@/types';
+import type { CaseData, ExamAction, ExamRule, PlaySection, Side, SidedExamAction } from '@/types';
 import { BASE_CASE, CASE_LEFT, CASE_RIGHT, CASE_TEXT, resolveCaseForTest } from '@/test/caseFixtures';
 import { conditionsDisjoint, interventionSide, playButtonText } from './playCase';
 
@@ -750,6 +750,251 @@ function checkEarlyHintsShared(cases: ResolvedEntry[]): string[] {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Exam_Section checkers (Requirement 8), run once per Resolved_Case
+// ---------------------------------------------------------------------------
+
+const NO_EXAM = 'no exam section to check';
+const EXAM_PATH = 'play.exam.actions';
+/** The Exam_Action ids of the shipped case, in order (8.1). */
+const EXPECTED_EXAM_IDS = ['look-chest', 'listen', 'windpipe', 'neck-veins'];
+/** The Sided_Actions among them; the others are Side_Neutral_Actions (8.1). */
+const SIDED_EXAM_IDS = new Set(['listen']);
+const EXAM_SIDES: Side[] = ['Left', 'Right'];
+
+interface RequiredExamRule {
+  /** Pairs the Exam_Rule's `when` must contain (it may contain more). */
+  when: Partial<Record<'side' | 'insult' | 'decompressed', string | boolean>>;
+  /** The Exam_Rule must set `abnormal: true`. When false the flag is the author's choice. */
+  abnormal: boolean;
+  /** The Exam_Rule's `when.vitals` must hold at least one item. */
+  vitals: boolean;
+}
+
+/** The Exam_Rules each Exam_Action must define (8.2 to 8.4). */
+const REQUIRED_EXAM_RULES: Record<string, RequiredExamRule[]> = {
+  'look-chest': [{ when: { insult: 'started', decompressed: false }, abnormal: true, vitals: false }],
+  listen: [
+    { when: { side: 'affected', insult: 'started', decompressed: false }, abnormal: true, vitals: false },
+    // Wording and abnormal flag are the author's decision (open question 1).
+    { when: { side: 'affected', decompressed: true }, abnormal: false, vitals: false },
+  ],
+  windpipe: [{ when: { insult: 'started', decompressed: false }, abnormal: true, vitals: true }],
+  'neck-veins': [{ when: { insult: 'started', decompressed: false }, abnormal: true, vitals: false }],
+};
+
+/** The Exam_Actions, or `undefined` when the Exam_Section is missing or has no actions (14.7). */
+function examActions(c: CaseData): ExamAction[] | undefined {
+  const actions = c.play?.exam?.actions;
+  return Array.isArray(actions) && actions.length > 0 ? actions : undefined;
+}
+
+function isSided(a: ExamAction): a is SidedExamAction {
+  return a?.labels != null;
+}
+
+interface ExamText {
+  path: string;
+  text: unknown;
+}
+
+/**
+ * Each Exam_Action's label(s), Exam_Rule sentences and `defaultSentence`, in
+ * file order. Sided_Action `labels` are included only when `withSidedLabels`.
+ */
+function examTexts(actions: ExamAction[], withSidedLabels: boolean): ExamText[] {
+  return actions.flatMap((a, i) => {
+    const p = `${EXAM_PATH}[${i}]`;
+    const labels: ExamText[] = isSided(a)
+      ? withSidedLabels
+        ? EXAM_SIDES.map((s) => ({ path: `${p}.labels.${s}`, text: a.labels[s] }))
+        : []
+      : [{ path: `${p}.label`, text: a?.label }];
+    return [
+      ...labels,
+      ...(a?.rules ?? []).map((r, j) => ({ path: `${p}.rules[${j}].sentence`, text: r?.sentence })),
+      { path: `${p}.defaultSentence`, text: a?.defaultSentence },
+    ];
+  });
+}
+
+/**
+ * The Exam_Action ids are exactly `look-chest`, `listen`, `windpipe`,
+ * `neck-veins` in that order, with only `listen` a Sided_Action (8.1), and
+ * the ids are unique (8.10).
+ */
+function checkExamActionIds(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const failures: string[] = [];
+  const ids = actions.map((a) => a?.id);
+  if (JSON.stringify(ids) !== JSON.stringify(EXPECTED_EXAM_IDS)) {
+    failures.push(`${EXAM_PATH} ids are ${JSON.stringify(ids)}, expected ${JSON.stringify(EXPECTED_EXAM_IDS)}`);
+  }
+  ids.forEach((id, i) => {
+    const first = ids.indexOf(id);
+    if (first !== i) failures.push(`${EXAM_PATH}[${i}].id "${String(id)}" repeats ${EXAM_PATH}[${first}].id`);
+  });
+  const kind = (sided: boolean) => (sided ? 'Sided_Action' : 'Side_Neutral_Action');
+  actions.forEach((a, i) => {
+    if (!EXPECTED_EXAM_IDS.includes(a?.id)) return;
+    const expectedSided = SIDED_EXAM_IDS.has(a.id);
+    if (isSided(a) !== expectedSided) {
+      failures.push(`${EXAM_PATH}[${i}] "${a.id}" is a ${kind(isSided(a))}, expected a ${kind(expectedSided)}`);
+    }
+  });
+  return failures;
+}
+
+function matchesRequiredRule(rule: ExamRule | undefined, req: RequiredExamRule): boolean {
+  const when: unknown = rule?.when;
+  if (!isPlainObject(when)) return false;
+  if (!Object.entries(req.when).every(([k, v]) => when[k] === v)) return false;
+  if (req.abnormal && rule?.abnormal !== true) return false;
+  return !req.vitals || (Array.isArray(when.vitals) && when.vitals.length > 0);
+}
+
+function describeRequiredRule(req: RequiredExamRule): string {
+  const pairs = Object.entries(req.when).map(([k, v]) => `${k}: ${String(v)}`).join(', ');
+  return `${req.abnormal ? 'with abnormal: true ' : ''}whose when contains ${pairs}${req.vitals ? ' and at least one vitals item' : ''}`;
+}
+
+/**
+ * `listen`, `look-chest`, `neck-veins` and `windpipe` each define their
+ * required Exam_Rules (8.2 to 8.4) and a non-empty `defaultSentence`.
+ */
+function checkExamRequiredRules(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const failures: string[] = [];
+  for (const [id, required] of Object.entries(REQUIRED_EXAM_RULES)) {
+    const i = actions.findIndex((a) => a?.id === id);
+    if (i < 0) {
+      failures.push(`${EXAM_PATH} has no "${id}" Exam_Action`);
+      continue;
+    }
+    const action = actions[i];
+    for (const req of required) {
+      if (!(action.rules ?? []).some((r) => matchesRequiredRule(r, req))) {
+        failures.push(`${EXAM_PATH}[${i}] "${id}" has no Exam_Rule ${describeRequiredRule(req)}`);
+      }
+    }
+    if (typeof action.defaultSentence !== 'string' || action.defaultSentence.trim() === '') {
+      failures.push(`${EXAM_PATH}[${i}].defaultSentence of "${id}" is missing or empty`);
+    }
+  }
+  return failures;
+}
+
+/** No Side_Word in any Exam_Rule sentence, `defaultSentence` or Side_Neutral_Action label (8.6). */
+function checkExamNoSideWords(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const failures: string[] = [];
+  for (const { path, text } of examTexts(actions, false)) {
+    if (typeof text !== 'string') {
+      failures.push(`${path} is not a string`);
+      continue;
+    }
+    for (const word of sideWordsIn(text)) failures.push(`${path} "${text}" contains Side_Word "${word}"`);
+  }
+  return failures;
+}
+
+/** `labels.Left` holds "left" and not "right"; `labels.Right` holds "right" and not "left" (8.7). */
+function checkExamSidedLabels(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const failures: string[] = [];
+  actions.forEach((a, i) => {
+    if (!isSided(a)) return;
+    for (const side of EXAM_SIDES) {
+      const path = `${EXAM_PATH}[${i}].labels.${side}`;
+      const text: unknown = a.labels[side];
+      if (typeof text !== 'string') {
+        failures.push(`${path} is not a string`);
+        continue;
+      }
+      const own = side.toLowerCase();
+      const other = side === 'Left' ? 'right' : 'left';
+      const words = sideWordsIn(text);
+      if (!words.includes(own)) failures.push(`${path} "${text}" does not contain the Side_Word "${own}"`);
+      if (words.includes(other)) failures.push(`${path} "${text}" contains the other Side_Word "${other}"`);
+    }
+  });
+  return failures;
+}
+
+/** No Diagnosis_Term, by case-insensitive substring, in any exam label, Exam_Rule sentence or `defaultSentence` (8.8). */
+function checkExamNoDiagnosisTerms(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const terms = (c.play?.diagnosisTerms ?? []).filter((t) => typeof t === 'string' && t.length > 0);
+  if (terms.length === 0) return ['play.diagnosisTerms is empty'];
+  const failures: string[] = [];
+  for (const { path, text } of examTexts(actions, true)) {
+    if (typeof text !== 'string') continue;
+    for (const term of terms) {
+      if (text.toLowerCase().includes(term.toLowerCase())) {
+        failures.push(`${path} "${text}" contains Diagnosis_Term "${term}"`);
+      }
+    }
+  }
+  return failures;
+}
+
+/** `abnormal: true` only with `insult: started`, and on a Sided_Action also with `side: affected` (8.9). */
+function checkExamAbnormalRules(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const failures: string[] = [];
+  actions.forEach((a, i) => {
+    (a?.rules ?? []).forEach((r, j) => {
+      if (r?.abnormal !== true) return;
+      const path = `${EXAM_PATH}[${i}].rules[${j}] of "${String(a.id)}"`;
+      if (r.when?.insult !== 'started') {
+        failures.push(`${path} has abnormal: true but its when has no insult: started`);
+      }
+      if (isSided(a) && r.when?.side !== 'affected') {
+        failures.push(`${path} is on a Sided_Action and has abnormal: true but its when has no side: affected`);
+      }
+    });
+  });
+  return failures;
+}
+
+/** Every `when.vitals` item names a vital with thresholds in `alarms` (8.10). */
+function checkExamVitals(c: CaseData): string[] {
+  const actions = examActions(c);
+  if (!actions) return [NO_EXAM];
+  const alarms = (c.alarms ?? {}) as unknown as Record<string, unknown>;
+  const failures: string[] = [];
+  actions.forEach((a, i) => {
+    (a?.rules ?? []).forEach((r, j) => {
+      (r?.when?.vitals ?? []).forEach((item, k) => {
+        const path = `${EXAM_PATH}[${i}].rules[${j}].when.vitals[${k}]`;
+        const vital: unknown = item?.vital;
+        if (typeof vital !== 'string') {
+          failures.push(`${path} names no vital`);
+        } else if (!isPlainObject(alarms[vital])) {
+          failures.push(`${path} names vital "${vital}", which has no thresholds in alarms`);
+        }
+      });
+    });
+  });
+  return failures;
+}
+
+const EXAM_CHECKERS = [
+  checkExamActionIds,
+  checkExamRequiredRules,
+  checkExamNoSideWords,
+  checkExamSidedLabels,
+  checkExamNoDiagnosisTerms,
+  checkExamAbnormalRules,
+  checkExamVitals,
+];
+
 const DATA_CHECKERS: Array<[string, (c: CaseData) => string[]]> = [
   ['checkNoDiagnosisTermsInSentences', checkNoDiagnosisTermsInSentences],
   ['checkRequiredDiagnosisTerms', checkRequiredDiagnosisTerms],
@@ -970,6 +1215,36 @@ describe('Property 18: the shipped case names no side early (Hints, Status, Goal
   it('per Resolved_Case, the sideRevealText holds only its own Side_Word and no Diagnosis_Term (12.4, 12.5)', () => {
     expect(perVariant(RESOLVED, checkSideRevealText)).toEqual([]);
   });
+
+  describe('Exam_Section (8.1 to 8.10)', () => {
+    it('per Resolved_Case, the Exam_Action ids are look-chest, listen, windpipe, neck-veins in that order and unique, and only listen is a Sided_Action (8.1, 8.10)', () => {
+      expect(perVariant(RESOLVED, checkExamActionIds)).toEqual([]);
+    });
+
+    it('per Resolved_Case, listen, look-chest, neck-veins and windpipe define their required Exam_Rules and a defaultSentence (8.2 to 8.4)', () => {
+      expect(perVariant(RESOLVED, checkExamRequiredRules)).toEqual([]);
+    });
+
+    it('per Resolved_Case, no Side_Word in an Exam_Rule sentence, a defaultSentence or a Side_Neutral_Action label (8.6)', () => {
+      expect(perVariant(RESOLVED, checkExamNoSideWords)).toEqual([]);
+    });
+
+    it('per Resolved_Case, labels.Left holds only "left" and labels.Right only "right" (8.7)', () => {
+      expect(perVariant(RESOLVED, checkExamSidedLabels)).toEqual([]);
+    });
+
+    it('per Resolved_Case, no Diagnosis_Term in an exam label, Exam_Rule sentence or defaultSentence (8.8)', () => {
+      expect(perVariant(RESOLVED, checkExamNoDiagnosisTerms)).toEqual([]);
+    });
+
+    it('per Resolved_Case, abnormal: true only with insult: started, and also with side: affected on a Sided_Action (8.9)', () => {
+      expect(perVariant(RESOLVED, checkExamAbnormalRules)).toEqual([]);
+    });
+
+    it('per Resolved_Case, when.vitals names only vitals with thresholds in alarms (8.10)', () => {
+      expect(perVariant(RESOLVED, checkExamVitals)).toEqual([]);
+    });
+  });
 });
 
 describe('per-Variant checkers on broken copies', () => {
@@ -1079,5 +1354,109 @@ describe('per-Variant checkers on broken copies', () => {
     expect(perVariant(resolveAll(diagnosis), checkSideRevealText)).toEqual([
       `variant 'left': play.sideRevealText "${tensionText}" contains Diagnosis_Term "tension"`,
     ]);
+  });
+});
+
+describe('Exam_Section checkers on broken copies', () => {
+  const exam = (b: BaseCase) => b.play!.exam!.actions;
+  /** The same failure once per Variant, as a change to the shared Exam_Section gives. */
+  const both = (...failures: string[]) =>
+    ['left', 'right'].flatMap((id) => failures.map((f) => `variant '${id}': ${f}`));
+
+  it('every exam check fails with "no exam section to check" when the Exam_Section is missing or has no actions, and with "no variants to check" on an empty list (14.7)', () => {
+    const noExam = structuredClone(BASE_CASE);
+    delete noExam.play!.exam;
+    const noActions = structuredClone(BASE_CASE);
+    noActions.play!.exam!.actions = [];
+    for (const check of EXAM_CHECKERS) {
+      expect(perVariant(resolveAll(noExam), check), check.name).toEqual(both(NO_EXAM));
+      expect(perVariant(resolveAll(noActions), check), check.name).toEqual(both(NO_EXAM));
+      expect(perVariant([], check), check.name).toEqual([NO_VARIANTS]);
+    }
+  });
+
+  it('names the wrong Exam_Action order, the repeated id and the wrong action kind (8.1, 8.10)', () => {
+    const swapped = structuredClone(BASE_CASE);
+    const actions = exam(swapped);
+    [actions[2], actions[3]] = [actions[3], actions[2]];
+    expect(perVariant(resolveAll(swapped), checkExamActionIds)).toEqual(
+      both('play.exam.actions ids are ["look-chest","listen","neck-veins","windpipe"], expected ["look-chest","listen","windpipe","neck-veins"]'),
+    );
+
+    const repeated = structuredClone(BASE_CASE);
+    exam(repeated)[3].id = 'windpipe';
+    expect(perVariant(resolveAll(repeated), checkExamActionIds)).toEqual(
+      both(
+        'play.exam.actions ids are ["look-chest","listen","windpipe","windpipe"], expected ["look-chest","listen","windpipe","neck-veins"]',
+        'play.exam.actions[3].id "windpipe" repeats play.exam.actions[2].id',
+      ),
+    );
+
+    const neutralListen = structuredClone(BASE_CASE);
+    const listen = exam(neutralListen)[1] as unknown as Record<string, unknown>;
+    delete listen.labels;
+    listen.label = 'Listen to his chest';
+    expect(perVariant(resolveAll(neutralListen), checkExamActionIds)).toEqual(
+      both('play.exam.actions[1] "listen" is a Side_Neutral_Action, expected a Sided_Action'),
+    );
+  });
+
+  it('names the Exam_Action that misses a required Exam_Rule (8.4)', () => {
+    const b = structuredClone(BASE_CASE);
+    delete exam(b)[2].rules[0].when.vitals;
+    expect(perVariant(resolveAll(b), checkExamRequiredRules)).toEqual(
+      both('play.exam.actions[2] "windpipe" has no Exam_Rule with abnormal: true whose when contains insult: started, decompressed: false and at least one vitals item'),
+    );
+  });
+
+  it('names the exam defaultSentence that contains a Side_Word (8.6)', () => {
+    const b = structuredClone(BASE_CASE);
+    const text = 'His left side rises and falls evenly.';
+    exam(b)[0].defaultSentence = text;
+    expect(perVariant(resolveAll(b), checkExamNoSideWords)).toEqual(
+      both(`play.exam.actions[0].defaultSentence "${text}" contains Side_Word "left"`),
+    );
+  });
+
+  it('names the labels.Right that holds the left Side_Word (8.7)', () => {
+    const b = structuredClone(BASE_CASE);
+    const text = 'Listen to his chest - left side';
+    exam(b)[1].labels!.Right = text;
+    expect(perVariant(resolveAll(b), checkExamSidedLabels)).toEqual(
+      both(
+        `play.exam.actions[1].labels.Right "${text}" does not contain the Side_Word "right"`,
+        `play.exam.actions[1].labels.Right "${text}" contains the other Side_Word "left"`,
+      ),
+    );
+  });
+
+  it('names the Exam_Rule sentence that contains a Diagnosis_Term (8.8)', () => {
+    const b = structuredClone(BASE_CASE);
+    const text = 'The veins in his neck bulge from the tension.';
+    exam(b)[3].rules[0].sentence = text;
+    expect(perVariant(resolveAll(b), checkExamNoDiagnosisTerms)).toEqual(
+      both(`play.exam.actions[3].rules[0].sentence "${text}" contains Diagnosis_Term "tension"`),
+    );
+  });
+
+  it('names abnormal: true without insult: started, and on a Sided_Action without side: affected (8.9)', () => {
+    const b = structuredClone(BASE_CASE);
+    exam(b)[0].rules[0].when = { decompressed: false };
+    delete exam(b)[1].rules[0].when.side;
+    expect(perVariant(resolveAll(b), checkExamAbnormalRules)).toEqual(
+      both(
+        'play.exam.actions[0].rules[0] of "look-chest" has abnormal: true but its when has no insult: started',
+        'play.exam.actions[1].rules[0] of "listen" is on a Sided_Action and has abnormal: true but its when has no side: affected',
+      ),
+    );
+  });
+
+  it('names the when.vitals item whose vital has no thresholds in alarms (8.10)', () => {
+    const b = structuredClone(BASE_CASE);
+    delete b.alarms.etCO2;
+    exam(b)[2].rules[0].when.vitals![0].vital = 'etCO2';
+    expect(perVariant(resolveAll(b), checkExamVitals)).toEqual(
+      both('play.exam.actions[2].rules[0].when.vitals[0] names vital "etCO2", which has no thresholds in alarms'),
+    );
   });
 });
