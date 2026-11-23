@@ -195,7 +195,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - Quote the tsc result and the Vitest summary line in the task report
     - _Requirements: 5.7_
 
-- [ ] 9. Exam_Finding_Selector
+- [x] 9. Exam_Finding_Selector
   - [x] 9.1 Implement `apps/web/src/lib/examFinding.ts` with unit tests and Property 8
     - Files: `apps/web/src/lib/examFinding.ts` (new), `apps/web/src/lib/examFinding.test.ts` (new). No other file changes
     - Implement `ExamContext`, `ExamFindingInput`, `examContext`, `examWhenMatches`, `selectExamFinding`, `examFinding`, `isSidedAction`, `ExamButtonSpec`, `examButtons` and `examButtonText` as the design section "`examFinding.ts`" states. The module reads no `Date`, `window`, `fetch`, storage, randomness or Variant_Id, and returns the case's sentence string unchanged
@@ -218,7 +218,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Properties: 9, 10_
 
 - [ ] 10. Exam_Record storage
-  - [ ] 10.1 Implement `apps/web/src/lib/examRecord.ts`
+  - [x] 10.1 Implement `apps/web/src/lib/examRecord.ts`
     - Files: `apps/web/src/lib/examRecord.ts` (new), `apps/web/src/lib/examRecord.test.ts` (new). No other file changes
     - Implement `examRecordKey`, `buildExamEntry` (leaves `side` out when `null`), `serializeExamRecord` (`{"v":1,"entries":[...]}` with only the seven fields), `parseExamRecord` (strict, never throws, one bad entry gives `[]`), `loadExamRecord` (`[]` when `getItem` throws), `saveExamRecord` (swallows `setItem` errors) and `findingsNewestFirst` (`simulationTime` descending, then record index descending), as the design section "`examRecord.ts`" states. The module mirrors `interventionRecord.ts`
     - In `examRecord.test.ts`:
