@@ -34,13 +34,14 @@ interface InterventionPanelProps {
 
 const clinicalLabel = (intervention: Intervention): string => intervention.label;
 
-const PLAY_BUTTON_CLASS =
+/** Play button classes, shared with ExamPanel (bedside-exam design "ExamPanel.tsx"). */
+export const PLAY_BUTTON_CLASS =
   'flex w-full items-start gap-2 whitespace-normal break-words rounded-lg border-2 border-[var(--sp-accent)] px-4 py-2 text-left text-base font-semibold text-[var(--sp-text)]';
-const PLAY_BUTTON_ENABLED_CLASS = 'hover:bg-[var(--sp-accent)] hover:text-[var(--sp-bg)]';
-const PLAY_BUTTON_DISABLED_CLASS = 'cursor-not-allowed border-dashed';
+export const PLAY_BUTTON_ENABLED_CLASS = 'hover:bg-[var(--sp-accent)] hover:text-[var(--sp-bg)]';
+export const PLAY_BUTTON_DISABLED_CLASS = 'cursor-not-allowed border-dashed';
 
 /** Same drawing as the exhausted Hint button's lock (HintPanel); decorative only. */
-function PlayLockIcon() {
+export function PlayLockIcon() {
   return (
     <svg
       data-part="intervention-lock"

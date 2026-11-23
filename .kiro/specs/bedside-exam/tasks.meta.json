@@ -256,6 +256,20 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795403028669
       }
+    ],
+    "12. Session state and the session hook": [
+      {
+        "executionId": "c6cf7bab-17bf-488e-bf6e-243b373c219d",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795403264840
+      }
+    ],
+    "13.1 Create `apps/web/src/components/ExamPanel.tsx`": [
+      {
+        "executionId": "49ea880c-131e-4a85-a6d3-f53e57d98bbc",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795403308287
+      }
     ]
   }
 }

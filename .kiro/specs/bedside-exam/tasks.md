@@ -248,7 +248,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 9.1, 9.3, 9.6, 9.7, 14.2_
     - _Properties: 16_
 
-- [ ] 12. Session state and the session hook
+- [x] 12. Session state and the session hook
   - [x] 12.1 Add the Exam_Record and the side gate to `apps/web/src/lib/sessionState.ts`
     - Files: `apps/web/src/lib/sessionState.ts`, `apps/web/src/lib/sessionState.test.ts`, `apps/web/src/lib/examFlow.test.ts` (new). No other file changes
     - Implement the design section "`sessionState.ts`": `examRecord` and `examRecordLoaded` in `SessionUiState` and `initialSessionState()`; the actions `examRecordRestored` (replaces, sets `examRecordLoaded`, then `withSides`) and `examPerformed` (the refusals and the four steps); `revealedSidesFor`; `withSides(state)` without the record argument, applying the gate and returning the same state when both side lists are unchanged; `sessionLoaded` and `checkpointsLoaded` also call `withSides`; `onSample` maps the Avatar with `revealedSidesFor(caseData, ending.ending, ...)` after stepping the Ending; `onFork` uses `revealedSidesFor(caseData, 'none', examRecord, newLineage)` and keeps `examRecord` whole. Replace the temporary `'all'` from task 11.1. The reducer stays pure
@@ -281,7 +281,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 6.3, 6.4, 6.9, 7.4, 7.5, 7.6, 10.6_
 
 - [ ] 13. Exam components
-  - [ ] 13.1 Create `apps/web/src/components/ExamPanel.tsx`
+  - [x] 13.1 Create `apps/web/src/components/ExamPanel.tsx`
     - Files: `apps/web/src/components/ExamPanel.tsx` (new), `apps/web/src/components/ExamPanel.test.tsx` (new), `apps/web/src/components/InterventionPanel.tsx` (exports only). No other file changes
     - `InterventionPanel.tsx` exports `PlayLockIcon` and the play button classes, with no behaviour or markup change
     - `ExamPanel` as the design section "`ExamPanel.tsx`" states: `EXAM_HEADING_TEXT = 'Check on him'`; `<section data-part="exam-panel">` with an `h2` styled like "What can you do?"; one `data-part="exam-row"` per `examButtons(exam)` group (Sided_Action rows `grid grid-cols-1 gap-2 sm:grid-cols-2`, Left before Right); `<button type="button" data-control="exam">` with the play button classes plus `min-w-0`; native `disabled`, `border-dashed` and the `aria-hidden` lock icon when disabled; no `tabindex`; no `data-*` attribute naming the Affected_Side or the Variant
