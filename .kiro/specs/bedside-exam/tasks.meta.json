@@ -249,6 +249,13 @@
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795402376169
       }
+    ],
+    "12.3 Restore, persist and perform exams in `apps/web/src/hooks/useSimulationSession.ts`": [
+      {
+        "executionId": "c6cf7bab-17bf-488e-bf6e-243b373c219d",
+        "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
+        "timestamp": 1795403028669
+      }
     ]
   }
 }

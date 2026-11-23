@@ -20,6 +20,7 @@ import {
   PLAYBACK_TIMEOUT_MS,
 } from '@/lib/api';
 import { activeInterventions as selectActiveInterventions } from '@/lib/branchLineage';
+import { loadExamRecord, saveExamRecord } from '@/lib/examRecord';
 import { buildInterventionEntry, loadRecord, saveRecord } from '@/lib/interventionRecord';
 import { initialSessionState, sessionReducer, type SessionUiState, type View } from '@/lib/sessionState';
 import { selectStatus } from '@/lib/statusSelector';
@@ -30,6 +31,7 @@ import type {
   InterventionRecordEntry,
   PlaybackSpeed,
   SessionMetadata,
+  Side,
   VitalSigns,
 } from '@/types';
 
@@ -187,6 +189,8 @@ export interface SimulationSessionActions {
   revealHint(): void;
   loadLineageCheckpoints(): Promise<Outcome>;
   fork(checkpointId: string, forkTime: number): Promise<Outcome>;
+  /** Records a bedside exam on the current Branch; no network, ignored while a fork is pending (6.4, 6.9). */
+  performExam(actionId: string, side: Side | null): void;
 }
 
 export interface SimulationSessionNotices {
@@ -218,6 +222,8 @@ export function useSimulationSession(sessionId: string): SimulationSession {
   const mountedRef = useRef(false);
   /** True while an Intervention or a fork request is in flight. */
   const pendingRef = useRef(false);
+  /** True while a fork request is in flight; exams are refused meanwhile (6.9). */
+  const forkPendingRef = useRef(false);
   /** Branch for which the pause-on-Ending request was already started. */
   const pausedBranchRef = useRef<string | null>(null);
 
@@ -260,6 +266,23 @@ export function useSimulationSession(sessionId: string): SimulationSession {
     const record = storage === null ? [] : loadRecord(storage, sessionId);
     dispatch({ type: 'interventionRecordRestored', record });
   }, [sessionId]);
+
+  // Restore the Exam_Record on mount, before any user input can use it (7.5).
+  useEffect(() => {
+    const storage = tabStorage();
+    const record = storage === null ? [] : loadExamRecord(storage, sessionId);
+    dispatch({ type: 'examRecordRestored', record });
+  }, [sessionId]);
+
+  // Persist the Exam_Record once restored, so the initial empty record never
+  // overwrites the stored one (7.4, 7.6).
+  const examRecord = state.examRecord;
+  const examRecordLoaded = state.examRecordLoaded;
+  useEffect(() => {
+    if (!examRecordLoaded) return;
+    const storage = tabStorage();
+    if (storage !== null) saveExamRecord(storage, sessionId, examRecord);
+  }, [examRecord, examRecordLoaded, sessionId]);
 
   // Load case.
   useEffect(() => {
@@ -483,6 +506,7 @@ export function useSimulationSession(sessionId: string): SimulationSession {
       if (stateRef.current.session === null) return 'error';
 
       pendingRef.current = true;
+      forkPendingRef.current = true;
       try {
         const created: unknown = await api.forkBranch(sid, checkpointId, 'User fork', {
           timeoutMs: FORK_TIMEOUT_MS,
@@ -516,10 +540,18 @@ export function useSimulationSession(sessionId: string): SimulationSession {
         return 'error';
       } finally {
         pendingRef.current = false;
+        forkPendingRef.current = false;
       }
     },
     [sessionId, isCurrent, fetchLineageCheckpoints],
   );
+
+  // No api call and no pendingRef: a pending Intervention does not block an exam (6.4).
+  const performExam = useCallback((actionId: string, side: Side | null) => {
+    if (forkPendingRef.current) return;
+    if (stateRef.current.currentBranchId === null) return;
+    dispatch({ type: 'examPerformed', actionId, side, wallClockTime: new Date().toISOString() });
+  }, []);
 
   const activeInterventions = useMemo(
     () => selectActiveInterventions(state.interventionRecord, state.lineage),
@@ -542,8 +574,9 @@ export function useSimulationSession(sessionId: string): SimulationSession {
       revealHint,
       loadLineageCheckpoints,
       fork,
+      performExam,
     }),
-    [selectView, setPlaying, setSpeed, applyIntervention, revealHint, loadLineageCheckpoints, fork],
+    [selectView, setPlaying, setSpeed, applyIntervention, revealHint, loadLineageCheckpoints, fork, performExam],
   );
 
   const notices = useMemo<SimulationSessionNotices>(

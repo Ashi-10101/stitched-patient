@@ -90,6 +90,7 @@ function stubActions(): SimulationSessionActions {
     revealHint: vi.fn(),
     loadLineageCheckpoints: vi.fn(async () => 'ok' as const),
     fork: vi.fn(async () => 'ok' as const),
+    performExam: vi.fn(),
   };
 }
 

@@ -271,7 +271,7 @@ Every task is small (about one module and its tests) and ends with a passing sui
     - _Requirements: 4.6, 8.9, 9.1, 9.2, 9.3, 9.4, 9.5, 9.7, 14.2_
     - _Properties: 15, 16_
 
-  - [ ] 12.3 Restore, persist and perform exams in `apps/web/src/hooks/useSimulationSession.ts`
+  - [x] 12.3 Restore, persist and perform exams in `apps/web/src/hooks/useSimulationSession.ts`
     - Files: `apps/web/src/hooks/useSimulationSession.ts`, `apps/web/src/components/PlayView.test.tsx`, `apps/web/src/components/ClinicianView.test.tsx`, `apps/web/src/components/SessionScreen.test.tsx` (the three test files: `stubActions()` only). No other file changes
     - Implement the design section "`useSimulationSession.ts`": the restore effect dispatching `examRecordRestored` (`[]` when storage is `null`); the persist effect on `[state.examRecord, state.examRecordLoaded, sessionId]` guarded by `examRecordLoaded`; `performExam(actionId, side)` as a new required member of `SimulationSessionActions` (returns early while `forkPendingRef.current` is true or there is no current Branch; dispatches `examPerformed` with `new Date().toISOString()`; calls no `api` function and does not touch `pendingRef`); `forkPendingRef`, set and cleared by `fork` with `pendingRef`. `variant_id` stays in `state.session` and nothing reads it
     - Existing tests whose setup changes: `stubActions()` in `PlayView.test.tsx`, `ClinicianView.test.tsx` and `SessionScreen.test.tsx` gains `performExam: vi.fn()`. Reason: `performExam` is a required member, so `tsc` fails without it. The `PlayView.test.tsx` slice helpers change in task 14.2, when the findings column appears. No assertion changes
