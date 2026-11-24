@@ -46,8 +46,8 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.4, 1.6, 1.7, 1.9, 7.2, 17.7_
 
-- [ ] 2. Calibration helpers in `calibration.ts` (supersedes play-mode task 12.1)
-  - [ ] 2.1 Implement `apps/web/src/lib/calibration.ts` with its example tests
+- [x] 2. Calibration helpers in `calibration.ts` (supersedes play-mode task 12.1)
+  - [x] 2.1 Implement `apps/web/src/lib/calibration.ts` with its example tests
     - Files: `apps/web/src/lib/calibration.ts` (new), `apps/web/src/lib/calibration.test.ts` (new). No other file changes
     - Implement every export of the design section "`calibration.ts`": `markSamples`, `createOutcomeFold` (D3: gate changes applied in record order before the first Mark_Sample with mark at or after the entry's Actual_Time; Mark_Samples evaluated with `simulation_time` set to their mark), `scenarioOutcome` (the same fold, post hoc), `checkAffectedRescued`, `checkLostNeverRescued`, `compareEarlyWithNone` (the D23 rule), `bandsOf`, `overallStatusOf`, `statusRuleReport`, `examRows`, `firstAbnormal`, `sideDifference`, and the constant `DEMO_RESCUE_BOUND_SECONDS`
     - Import the shipped functions listed for this module in the design table "Modules" (`endingEvaluator`, `statusSelector`, `vitalBands`, `examFinding`, `sides`, `vitals`). Copy none of their logic (1.2)
@@ -56,7 +56,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.2, 4.6, 4.8, 5.1, 5.2, 5.3, 5.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.13_
 
-  - [ ] 2.2 Write the property test for Mark_Samples
+  - [x] 2.2 Write the property test for Mark_Samples
     - Files: `apps/web/src/lib/calibration.test.ts`. No other file changes
     - **Property 4: Mark_Samples cover every Sample_Mark**. Generate strictly increasing kept times starting at 0, with gaps, and intervals from 1 to 60. `fc.assert(..., PBT_PARAMS)` from `src/test/pbt.ts`
     - Tag: `// Feature: engine-mcp, Property 4: Mark_Samples cover every Sample_Mark`
@@ -64,7 +64,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 4.8, 5.1_
     - _Properties: 4_
 
-  - [ ] 2.3 Write the property test for the outcome fold
+  - [x] 2.3 Write the property test for the outcome fold
     - Files: `apps/web/src/lib/calibration.test.ts`. No other file changes
     - **Property 5: The incremental outcome fold equals the post-hoc fold**. Use `arbSampleSequence` from `src/test/generators.ts` (unchanged), `CASE_LEFT` and `CASE_RIGHT`, and Runner_Intervention_Record entries with Actual_Times that do not decrease, for the fixture's Required_Interventions and other Interventions. Compare the incremental fold, `scenarioOutcome` and the reference evaluation of the property text. `fc.assert(..., PBT_PARAMS)`
     - Tag: `// Feature: engine-mcp, Property 5: The incremental outcome fold equals the post-hoc fold`

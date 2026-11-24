@@ -1,5 +1,10 @@
 {
-  "pbtResults": {},
+  "pbtResults": {
+    "2.3 Write the property test for the outcome fold": {
+      "status": "passed",
+      "lastRunTimestamp": 1795548106851
+    }
+  },
   "executionHistory": {
     "1.1 Add `@modelcontextprotocol/sdk`, `zod` and `vite-node` as dev dependencies": [
       {
@@ -52,6 +57,49 @@
         "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795545171022
+      }
+    ],
+    "2.1 Implement `apps/web/src/lib/calibration.ts` with its example tests": [
+      {
+        "executionId": "3ea17a3e-0d8e-4c53-a669-34553939571f",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795545667204
+      },
+      {
+        "executionId": "3ea17a3e-0d8e-4c53-a669-34553939571f",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795546584420
+      }
+    ],
+    "2.2 Write the property test for Mark_Samples": [
+      {
+        "executionId": "3ea17a3e-0d8e-4c53-a669-34553939571f",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795546584468
+      },
+      {
+        "executionId": "6e3fbfe3-2f0c-498f-a7b0-a164c58bdc20",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795547883801
+      }
+    ],
+    "2.3 Write the property test for the outcome fold": [
+      {
+        "executionId": "6e3fbfe3-2f0c-498f-a7b0-a164c58bdc20",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795547888501
+      },
+      {
+        "executionId": "6e3fbfe3-2f0c-498f-a7b0-a164c58bdc20",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795548222491
+      }
+    ],
+    "2. Calibration helpers in `calibration.ts` (supersedes play-mode task 12.1)": [
+      {
+        "executionId": "6e3fbfe3-2f0c-498f-a7b0-a164c58bdc20",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795548222528
       }
     ]
   }
