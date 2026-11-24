@@ -1,0 +1,58 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add `@modelcontextprotocol/sdk`, `zod` and `vite-node` as dev dependencies": [
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795543358558
+      },
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795543594012
+      }
+    ],
+    "1.2 Implement `engineClient.ts` and `engineSlots.ts` with `engineSlots.test.ts`": [
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795543623771
+      },
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795543974921
+      }
+    ],
+    "1.3 Add the Fake_Service and the fake clock, and test the client against them": [
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795543986824
+      },
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795545170973
+      },
+      {
+        "executionId": "0451f090-ae5e-472b-a2e5-716383797a3d",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795545231492
+      },
+      {
+        "executionId": "0451f090-ae5e-472b-a2e5-716383797a3d",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795545561020
+      }
+    ],
+    "1. Dev dependencies, HTTP client, Session slots and the Fake_Service": [
+      {
+        "executionId": "c7b39cac-98ef-4593-be1f-12958011cd2b",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795545171022
+      }
+    ]
+  }
+}

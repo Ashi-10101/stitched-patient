@@ -15,8 +15,8 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
 
 ## Tasks
 
-- [ ] 1. Dev dependencies, HTTP client, Session slots and the Fake_Service
-  - [ ] 1.1 Add `@modelcontextprotocol/sdk`, `zod` and `vite-node` as dev dependencies
+- [x] 1. Dev dependencies, HTTP client, Session slots and the Fake_Service
+  - [x] 1.1 Add `@modelcontextprotocol/sdk`, `zod` and `vite-node` as dev dependencies
     - Files: `apps/web/package.json`, `apps/web/package-lock.json`. No other file changes
     - Before any change, run the end commands once and record the tsc result as the baseline. If tsc or Vitest fails before any change, stop and report; do not fix unrelated errors
     - Open item O1, part 1: `npm view @modelcontextprotocol/sdk@1.32.2 peerDependencies dependencies` (read-only). If the SDK's `zod` range accepts `zod` 4, use `zod@4.6.7`; otherwise use the newest `3.25.x` (design D16). The code imports `zod/v4` either way
@@ -26,7 +26,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 18.2, 18.6_
 
-  - [ ] 1.2 Implement `engineClient.ts` and `engineSlots.ts` with `engineSlots.test.ts`
+  - [x] 1.2 Implement `engineClient.ts` and `engineSlots.ts` with `engineSlots.test.ts`
     - Files: `apps/web/src/lib/engineClient.ts` (new), `apps/web/src/lib/engineSlots.ts` (new), `apps/web/src/lib/engineSlots.test.ts` (new). No other file changes
     - `engineClient.ts` as in the design sections "`engineClient.ts`" and "HTTP client (`engineClient.ts`)" of Error Handling: `FetchLike`, `VitalsSocket`, `SocketFactory`, `EngineErrorKind`, `EngineError`, `parseServiceUrl`, `parseSessionCap`, `unreachableMessage`, `vitalsUrl`, `PhysiologyClient` and `createPhysiologyClient`, with the error mapping (unreachable, timeout, cancelled, http with the `{id}` path template) and `AbortSignal.any` with `AbortSignal.timeout`
     - Also define `EngineClock` here (design "`engineRunner.ts`" shows the interface), because the fake clock of task 1.3 needs it before task 3. Task 3 re-exports it from `engineRunner.ts`
@@ -37,7 +37,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.4, 1.6, 1.7, 1.9, 6.5, 7.1, 7.2, 7.3, 7.4, 17.7_
 
-  - [ ] 1.3 Add the Fake_Service and the fake clock, and test the client against them
+  - [x] 1.3 Add the Fake_Service and the fake clock, and test the client against them
     - Files: `apps/web/src/test/fakeClock.ts` (new), `apps/web/src/test/fakePhysiologyService.ts` (new), `apps/web/src/lib/engineClient.test.ts` (new). No other file changes
     - `fakeClock.ts` and `fakePhysiologyService.ts` as in the design sections "Fake_Service" and "Test doubles": virtual time with `advance` and `runUntilSettled`; ticks at `1000 / speed` ms while playing, a paused re-send at 1 Hz with an unchanged `simulation_time`, pause on the last socket close, a manual Checkpoint `After <label>` at the current time per Intervention, `variant_id` echo, 404 and 400 errors, close code 1008 for an unknown session, and every scripted failure of the design table "Fake_Service scripts used". Cases come from `CASE_LEFT` and `CASE_RIGHT` in `src/test/caseFixtures.ts`. Vitals come from a formula each test passes in; no case value is derived from them
     - The Fake_Service opens no socket and listens on no port (17.7)
