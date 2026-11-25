@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run fast physiology tests",
+      "description": "When a .py file under services/physiology/ is saved, run the fast physiology tests (not marked pulse) in a one-off physiology container that writes nothing to the source tree.",
+      "trigger": "PostFileSave",
+      "matcher": "(^|/)services/physiology/.+\\.py$",
+      "action": { "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/scripts/hooks/python-tests.mjs\"" },
+      "timeout": 300
+    }
+  ]
+}

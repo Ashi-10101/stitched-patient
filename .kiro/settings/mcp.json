@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "stitched-patient-engine": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "cd \"$(git rev-parse --show-toplevel)/apps/web\" && exec ./node_modules/.bin/vite-node --config vitest.config.ts scripts/engineMcp.ts"
+      ],
+      "disabled": false,
+      "autoApprove": ["list_cases"]
+    }
+  }
+}

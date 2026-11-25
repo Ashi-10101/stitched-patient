@@ -15,6 +15,10 @@
     "5.4 Write the property test for CLI-to-tool equivalence": {
       "status": "passed",
       "lastRunTimestamp": 1795571826530
+    },
+    "6.4 Write the property test for the Compose_Guard_Hook": {
+      "status": "passed",
+      "lastRunTimestamp": 1795577140612
     }
   },
   "executionHistory": {
@@ -273,6 +277,83 @@
         "executionId": "62336f86-b514-456a-be2d-dd903cede6fa",
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795575234352
+      }
+    ],
+    "6.1 Write the hook scripts and the guard's type declaration": [
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575460775
+      },
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575814661
+      }
+    ],
+    "6.2 Write the hook files, the MCP_Config and the steering files": [
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575814706
+      },
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795576619154
+      }
+    ],
+    "6.3 Write the Kiro-file example tests": [
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795576619529
+      },
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795576911737
+      }
+    ],
+    "6.4 Write the property test for the Compose_Guard_Hook": [
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795576912193
+      },
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795577248676
+      },
+      {
+        "executionId": "f158ae15-55fb-4c57-9f77-b3892b200663",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795577374396
+      },
+      {
+        "executionId": "f158ae15-55fb-4c57-9f77-b3892b200663",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795577486766
+      }
+    ],
+    "6.5 Checkpoint before the in-Kiro checks": [
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795577249240
+      },
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795577320018
+      }
+    ],
+    "6. Hook scripts, hook files, MCP_Config, steering files and the Kiro-file tests": [
+      {
+        "executionId": "b1b30a65-086a-494e-9b27-b04b258e98a1",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795577320056
       }
     ]
   }

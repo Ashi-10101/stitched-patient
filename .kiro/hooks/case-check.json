@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Check case files",
+      "description": "When a file under cases/ is saved, validate every case file in a one-off physiology container and run the case-content Vitest checks.",
+      "trigger": "PostFileSave",
+      "matcher": "(^|/)cases/",
+      "action": { "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/scripts/hooks/case-check.mjs\"" },
+      "timeout": 180
+    }
+  ]
+}

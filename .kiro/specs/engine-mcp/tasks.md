@@ -172,8 +172,8 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.2, 18.2, 18.3, 18.4_
 
-- [ ] 6. Hook scripts, hook files, MCP_Config, steering files and the Kiro-file tests
-  - [ ] 6.1 Write the hook scripts and the guard's type declaration
+- [x] 6. Hook scripts, hook files, MCP_Config, steering files and the Kiro-file tests
+  - [x] 6.1 Write the hook scripts and the guard's type declaration
     - Files: `scripts/hooks/hookLib.mjs`, `scripts/hooks/case-check.mjs`, `scripts/hooks/web-related-tests.mjs`, `scripts/hooks/python-tests.mjs`, `scripts/hooks/compose-guard.mjs`, `scripts/hooks/compose-guard.d.mts` (all new, under the repository root). No other file changes
     - Implement the design section "Hooks" and the Error Handling section "Hooks": `hookLib.mjs` (`REPO_ROOT`, `readStdinJson`, `savedRepoPath` for absolute, relative and outside paths, `run` with `spawn` and no shell, `requireImage`, `failWith`); each file hook filters the saved path itself and exits 0 without output when it does not match (D21); `case-check.mjs` with `-T` and `-e PYTHONDONTWRITEBYTECODE=1` (D22, C2); `web-related-tests.mjs` with `--passWithNoTests` (C2); `python-tests.mjs` with the verified command of F2; `compose-guard.mjs` exporting `findBlockedCompose` and running `main` only when executed directly
     - Docker rules: the scripts use only `docker image inspect` and `docker compose run -T --rm --no-deps`. They pass no `--build` or `--service-ports` and contain no `docker compose up`, `down`, `stop` or `restart` (15.8, 18.5). This task runs no docker command and does not run the file hooks on a matching path
@@ -181,7 +181,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 18.5_
 
-  - [ ] 6.2 Write the hook files, the MCP_Config and the steering files
+  - [x] 6.2 Write the hook files, the MCP_Config and the steering files
     - Files: `.kiro/hooks/case-check.json`, `.kiro/hooks/web-related-tests.json`, `.kiro/hooks/python-tests.json`, `.kiro/hooks/compose-guard.json`, `.kiro/settings/mcp.json`, `.kiro/steering/engine-calibration.md`, `.kiro/steering/calibrate-the-case.md` (all new). No other file changes
     - Hook files exactly as the design table and example in "Hooks": `"version": "v1"`, one hook each with `name`, `description`, `trigger`, `matcher`, `action` `{ "type": "command", "command": "node \"$(git rev-parse --show-toplevel)/scripts/hooks/<script>.mjs\"" }` and `timeout` (15.1). No manual hook file (requirements decision 11)
     - `.kiro/settings/mcp.json` exactly as the design section "`.kiro/settings/mcp.json`": the D19 `bash -c` command, `"disabled": false`, `"autoApprove": ["list_cases"]`, no `env`, no `cwd`, no timeout field (16.1 to 16.3, C3)
@@ -190,7 +190,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 15.1, 15.10, 15.11, 15.12, 16.1, 16.2, 16.3, 16.5, 16.6, 16.7_
 
-  - [ ] 6.3 Write the Kiro-file example tests
+  - [x] 6.3 Write the Kiro-file example tests
     - Files: `apps/web/src/lib/kiroFiles.test.ts` (new). No other file changes
     - The examples of the design row `kiroFiles.test.ts`: parse `.kiro/settings/mcp.json` (16.1 to 16.3) and every `.kiro/hooks/*.json` (15.1: fields, triggers, matchers compile as `RegExp` and match their example paths and tool names); the scripts contain no `--build`, `--service-ports` or Blocked_Compose_Command, found with `findBlockedCompose` (guard excluded) (15.8); steering front matter (16.5, 16.7)
     - Spawned guard (`node scripts/hooks/compose-guard.mjs` with stdin `{ tool_name: 'execute_bash', tool_input: { command } }`): exit 2 with the 15.5 message for `docker compose up`, `down`, `stop`, `restart`, `docker compose -f x.yml down` and `echo docker compose down`; exit 0 with empty stdout for `docker compose run`, `build`, `ps` and `ls -la` (17.6)
@@ -199,7 +199,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 15.1, 15.5, 15.6, 15.7, 15.8, 16.1, 16.2, 16.3, 16.5, 16.7, 17.6, 17.7_
 
-  - [ ] 6.4 Write the property test for the Compose_Guard_Hook
+  - [x] 6.4 Write the property test for the Compose_Guard_Hook
     - Files: `apps/web/src/lib/kiroFiles.test.ts`. No other file changes
     - **Property 6: The Compose_Guard_Hook blocks exactly the Blocked_Compose_Commands**. Generate a prefix (none, `echo`, `cd x &&`, `FOO=1`), `docker compose`, any sequence of the guard's global options (with values, in `--opt=value` form, and as flags), a subcommand, random arguments, optional quoting of the compose part and a suffix (`; ls`, `| cat`); also commands with no `docker compose` pair. `findBlockedCompose` returns a hit exactly for `up`, `down`, `stop` and `restart`. `fc.assert(..., PBT_PARAMS)`
     - Tag: `// Feature: engine-mcp, Property 6: The Compose_Guard_Hook blocks exactly the Blocked_Compose_Commands`
@@ -207,7 +207,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 15.5, 15.6_
     - _Properties: 6_
 
-  - [ ] 6.5 Checkpoint before the in-Kiro checks
+  - [x] 6.5 Checkpoint before the in-Kiro checks
     - Ensure all tests pass, ask the user if questions arise
     - No file changes in this sub-task
     - Run the end commands. Also `git status --short` and confirm that the changed and new files are exactly those named in tasks 1 to 6
