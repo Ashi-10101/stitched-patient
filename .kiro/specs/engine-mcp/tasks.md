@@ -114,7 +114,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Properties: 9, 10_
 
 - [ ] 5. Tool handlers, Node adapters, Engine_MCP_Server and Engine_CLI (with tasks 3 and 4, supersedes play-mode task 12.2)
-  - [ ] 5.1 Implement `apps/web/src/lib/engineTools.ts` with its example tests
+  - [x] 5.1 Implement `apps/web/src/lib/engineTools.ts` with its example tests
     - Files: `apps/web/src/lib/engineTools.ts` (new), `apps/web/src/lib/engineTools.test.ts` (new), `apps/web/src/lib/engineRunner.test.ts` (adds the `outputSchema` check only). No other file changes
     - Implement the design sections "`engineTools.ts`", "Progress notifications", "Per-call flow of the tools", "Tool inputs and outputs" and "CLI options": the `zod/v4` schemas `ListCasesInput`, `RunScenarioInput` (with the `at_seconds <= max_seconds` refinement) and `RunCalibrationInput`; `ScenarioResultSchema`; `TOOL_DEFINITIONS` with the published descriptions and the JSON Schemas from `z.toJSONSchema`; `createEngineTools` with the D27 order (validation, local preflight, Health_Check, Sessions); `toScenarioRequest`; `formatIssues`; `parseCliArgs` (drops one leading `--`, O6), `CLI_USAGE` and `cliExitCode`. Constant of this module: `PROGRESS_INTERVAL_MS`
     - `engineTools.ts` is the only non-test module under `src/` that imports `zod` (18.3)
@@ -124,7 +124,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.1, 1.5, 1.6, 1.7, 2.1, 2.2, 3.1, 3.2, 5.7, 8.1, 8.13, 10.1, 10.6, 11.1, 11.4, 11.6, 17.3_
 
-  - [ ] 5.2 Write the property test for input validation
+  - [x] 5.2 Write the property test for input validation
     - Files: `apps/web/src/lib/engineTools.test.ts`. No other file changes
     - **Property 1: Invalid input fails before any request**. Start from a valid `run_scenario` or `run_calibration` input and apply one to three mutations (wrong type, missing required field, non-kebab id, `null` `variant_id`, out-of-range or non-whole number, more than 20 Planned_Interventions, an unknown field, `at_seconds` above `max_seconds`). The result has `isError: true` and names every mutated field path, and the Fake_Service records zero calls. `fc.assert(..., PBT_PARAMS)`
     - Tag: `// Feature: engine-mcp, Property 1: Invalid input fails before any request`
@@ -132,7 +132,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 1.5, 3.1, 3.2, 8.1, 17.4_
     - _Properties: 1_
 
-  - [ ] 5.3 Write the CLI parser and exit-code example tests
+  - [x] 5.3 Write the CLI parser and exit-code example tests
     - Files: `apps/web/src/lib/engineCli.test.ts` (new). No other file changes
     - Examples: each subcommand and flag of 11.1; a bad `--intervention` (no `@`, or more than one); a leading `--` and none (O6); `cliExitCode` for every row of the design's Engine_CLI error table (11.4); usage on invalid input (11.5)
     - End commands as in the Overview

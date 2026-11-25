@@ -42,6 +42,7 @@ import {
   type ScenarioResult,
 } from './engineRunner';
 import { createSessionRegistry, createSessionSlots } from './engineSlots';
+import { ScenarioResultSchema } from './engineTools';
 import { conditionHolds } from './endingEvaluator';
 import { examButtons } from './examFinding';
 import { buildInterventionEntry } from './interventionRecord';
@@ -763,6 +764,22 @@ describe('Property 8: equal Fake_Service scripts give equal Scenario_Results', (
       const b = (await runScript(script)).result;
       expect(b).toEqual(a);
       expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+    });
+  }
+});
+
+// The published run_scenario outputSchema is z.toJSONSchema(ScenarioResultSchema) (engineTools.ts).
+describe('ScenarioResultSchema: the outputSchema of run_scenario', () => {
+  const scripts: Record<string, Script> = {
+    ...SCRIPTS,
+    noExam: { vitals: healthy, req: { caseId: 'no-exam' } },
+    noPlay: { vitals: failing, req: { caseId: 'no-play', maxSeconds: 40 } },
+    deleteFails: { vitals: healthy, failures: { deleteFails: true } },
+  };
+  for (const [name, script] of Object.entries(scripts)) {
+    it(`parses the Scenario_Result of script "${name}" without dropping or changing a field`, async () => {
+      const { result } = await runScript(script);
+      expect(ScenarioResultSchema.parse(result)).toEqual(result);
     });
   }
 });

@@ -7,6 +7,14 @@
     "3.2 Write the property test for the Session_Cap": {
       "status": "passed",
       "lastRunTimestamp": 1795566148349
+    },
+    "5.2 Write the property test for input validation": {
+      "status": "passed",
+      "lastRunTimestamp": 1795571420602
+    },
+    "5.4 Write the property test for CLI-to-tool equivalence": {
+      "status": "passed",
+      "lastRunTimestamp": 1795571826530
     }
   },
   "executionHistory": {
@@ -176,6 +184,49 @@
         "executionId": "8805538e-1e67-416f-9204-3a9c785ba187",
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795570123313
+      }
+    ],
+    "5.1 Implement `apps/web/src/lib/engineTools.ts` with its example tests": [
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795570182628
+      },
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795571107515
+      }
+    ],
+    "5.2 Write the property test for input validation": [
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795571107559
+      },
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795571464540
+      }
+    ],
+    "5.3 Write the CLI parser and exit-code example tests": [
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795571464979
+      },
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795571648690
+      }
+    ],
+    "5.4 Write the property test for CLI-to-tool equivalence": [
+      {
+        "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795571649338
       }
     ]
   }
