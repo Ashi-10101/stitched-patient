@@ -138,3 +138,18 @@ The `eSubstance_Administration` enum's `.value` is a tuple in this build, causin
 - Asthma
 - Airway obstruction
 - Sepsis
+
+## Engine MCP server and CLI (engine-mcp)
+
+- **Start command (MCP)**: `.kiro/settings/mcp.json` registers `stitched-patient-engine`. It runs `bash -c 'cd "$(git rev-parse --show-toplevel)/apps/web" && exec ./node_modules/.bin/vite-node --config vitest.config.ts scripts/engineMcp.ts'`. Its tools are `list_cases`, `run_scenario` and `run_calibration`.
+- **Start command (CLI)**: from `apps/web/`, run `./node_modules/.bin/vite-node --config vitest.config.ts scripts/engineCli.ts -- [--url URL] [--max-sessions N] <list-cases | run-scenario ... | calibrate ...>`. It calls the same handlers as the MCP tools.
+- **Service must already run**: the physiology-service must already be running. The tools and the CLI never start, stop or restart it.
+- **`PHYSIOLOGY_URL`**: the service URL, default `http://localhost:8000`. The CLI flag `--url` overrides it. The tools take no URL argument.
+- **`ENGINE_MCP_MAX_SESSIONS`**: the most sessions open at once, default 4, allowed 1 to 8. The CLI flag `--max-sessions` overrides it.
+- **Approval**: only `list_cases` is auto-approved. Kiro asks before each `run_scenario` and `run_calibration` call.
+- **CLI fallback**: if an MCP call times out or the server is not available, run the CLI through a shell command with a timeout of at least 1,800,000 ms (30 minutes). If the run needs longer, ask the user to run it in their own terminal.
+- **Hooks** (`.kiro/hooks/`):
+  - `case-check.json`: on a save under `cases/`, validates every case file in a one-off physiology container and runs `src/lib/caseContent.test.ts`.
+  - `web-related-tests.json`: on a save of a `.ts` or `.tsx` file under `apps/web/src/`, runs `npx vitest related --run` on that file.
+  - `python-tests.json`: on a save of a `.py` file under `services/physiology/`, runs `pytest -m "not pulse"` in a one-off physiology container.
+  - `compose-guard.json`: before a shell command, blocks `docker compose up`, `down`, `stop` and `restart`.

@@ -537,6 +537,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
 
 - [ ] 12. Calibrate the draft Play thresholds against the engine
   - [ ] 12.1 Implement calibration record helpers in `apps/web/src/lib/calibration.ts`
+    - Superseded by engine-mcp task 2 (`.kiro/specs/engine-mcp/tasks.md`); mark this task done only when that task is done
     - Pure helpers used by the calibration script, kept under `src/` so Vitest covers them without any network:
       - `samplesAtTenSecondMarks(samples, endTime)`: one sample per multiple of 10 s from 0 to the end; the next sample is used and flagged when a mark is missing
       - `scenarioOutcome(ctx, samples, gateEntries)`: takes the scenario's gate sequence (its Intervention_Record entries) and applies `setRescueGate` with `rescueGateTime(requiredInterventions(play), entries so far)` at the sample where each call succeeded, as the design's "Rescue gate in the script" says, then returns the Ending from the fold of `stepEnding`, the time it left `none`, the final Rescue_Gate_Time, and for `lost` the cause (lost group number, read from `lostStarts` in the state returned at the ending sample, or "Time_Limit"); whether rescue ever held before the end
@@ -549,6 +550,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.11, 13.12, 13.13, 13.14, 13.15, 13.16, 13.17_
 
   - [ ] 12.2 Write the calibration script `apps/web/scripts/calibratePlayMode.ts`
+    - Superseded by engine-mcp task 5 (`.kiro/specs/engine-mcp/tasks.md`); mark this task done only when that task is done
     - CLI from the design: `--url`, `--case`, `--decompress-at`, `--early-decompress-at`, optional `--max-seconds`. Uses Node's global `fetch` and `WebSocket`, the `yaml` parser, the shipped `endingEvaluator.ts` and the helpers from task 12.1. Imports use relative paths or the `@` alias through `--config vitest.config.ts`
     - Checks before any network call, stopping with a clear message: the arguments parse; the Play_Section exists and has a Time_Limit or `--max-seconds` is given; `--early-decompress-at` is less than the left `SETensionPneumothorax` `timeSeconds`; `git merge-base --is-ancestor 1e71454 HEAD` succeeds
     - Before the scenarios, create one Session and compare `GET /sessions/{id}/case` `play` and each `playLabel` with the YAML values (Requirement 2.13). The record states the result; a mismatch stops the run
@@ -563,6 +565,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 2.13, 13.1, 13.2, 13.3, 13.4, 12.11, 13.13, 13.14, 13.15, 13.16, 13.17_
 
   - [ ] 12.3 Run the calibration and record it (ONE-TIME RECORDING RUN)
+    - Superseded by engine-mcp task 8 (`.kiro/specs/engine-mcp/tasks.md`); mark this task done only when that task is done
     - The Physiology_Service must be reachable at `http://localhost:8000` (check `curl -sf http://localhost:8000/`). If it is not, stop and ask the user to start `docker compose up physiology` in their own terminal, or to give the x86 machine's URL for `--url`. Do not start the service from the agent
     - Run from `apps/web/`: `npx vite-node --config vitest.config.ts scripts/calibratePlayMode.ts -- --url http://localhost:8000 --case ../../cases/adult-tension-pneumothorax.yaml --decompress-at 150 --early-decompress-at 20 2>&1 | tee /tmp/sp-calibration.log`
     - Use execute_bash with timeout 1800000 ms. Until the core spec's clock task lands, the service ignores speed, so each scenario takes about as many wall-clock seconds as simulated seconds (up to the 600 s Time_Limit); the 4 scenarios run in parallel. If execute_bash reports a timeout, read the log and the record file before retrying
@@ -576,6 +579,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
 
 - [ ] 13. Write the manual acceptance checklist
   - [ ] 13.1 Create `docs/play-mode-acceptance.md`
+    - Since engine-mcp: references in this task to the calibration script or to task 12.3 mean the engine-mcp `run_calibration` tool and the Calibration_Record of engine-mcp Requirement 13
     - A checklist with one checkbox per item, each naming its requirement numbers:
       - artwork review and the recorded no-franchise confirmation (3.2 to 3.6)
       - speech-bubble placement at 320 px and 1280 px (3.11)

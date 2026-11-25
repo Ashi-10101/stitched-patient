@@ -214,15 +214,15 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - **Needs the user:** review tasks 1 to 6 and confirm that task 7 may start. Task 7 needs Kiro to reload the hooks and the MCP server
     - _Requirements: 17.7, 18.1, 18.4, 18.6_
 
-- [ ] 7. Documentation, Requirement 14 pointers and the in-Kiro verification
-  - [ ] 7.1 Update `.kiro/steering/tech.md` and `docs/development.md`
+- [x] 7. Documentation, Requirement 14 pointers and the in-Kiro verification
+  - [x] 7.1 Update `.kiro/steering/tech.md` and `docs/development.md`
     - Files: `.kiro/steering/tech.md`, `docs/development.md`. No other file changes
     - `tech.md`: append the section `## Engine MCP server and CLI (engine-mcp)` of the design section "`.kiro/steering/tech.md` addition" after the Pulse sections. Every existing line, including the verified Pulse facts, stays unchanged (16.8)
     - `docs/development.md`: add the section `## Engine tools (engine-mcp)` with the subsections of the design section "`docs/development.md` addition": the running Physiology_Service as a prerequisite (started by the user in their own terminal), the MCP server and how to add a local `env` without committing it (C3), the command line with its exit codes, the hooks, "Calibrate the case", and "Hook verification" with a one-line introduction and no entries yet (task 7.4 adds them) (16.9)
     - End commands as in the Overview
     - _Requirements: 16.8, 16.9_
 
-  - [ ] 7.2 Add the Requirement 14 pointer lines to play-mode and bedside-exam
+  - [x] 7.2 Add the Requirement 14 pointer lines to play-mode and bedside-exam
     - Files: `.kiro/specs/play-mode/requirements.md`, `.kiro/specs/play-mode/tasks.md`, `.kiro/specs/bedside-exam/requirements.md`. No other file changes; no file of `.kiro/specs/core-simulation-loop/` changes (14.4)
     - Insert exactly the lines of the design section "Requirement 14 pointer lines (exact text)", with their leading spaces:
       - 14.1: play-mode `requirements.md`, Requirement 13, between the blank line after the user story and `#### Acceptance Criteria`. The acceptance criteria text stays unchanged
@@ -233,7 +233,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 14.1, 14.2, 14.3, 14.4_
 
-  - [ ] 7.3 Verify the Engine_MCP_Server in the installed Kiro (open items O3 and O5)
+  - [x] 7.3 Verify the Engine_MCP_Server in the installed Kiro (open items O3 and O5)
     - Files: none, unless O5 finds a per-server tool-call timeout (then `.kiro/settings/mcp.json` and `apps/web/src/lib/kiroFiles.test.ts`). No other file changes
     - This sub-task does not need the Physiology_Service and does not start it
     - **Needs the user:** make Kiro load `.kiro/settings/mcp.json` (open the MCP Servers view; reconnect or reload the server `stitched-patient-engine` if it is missing or shows an old state)
@@ -245,7 +245,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.1, 1.3, 16.1, 16.2, 16.4_
 
-  - [ ] 7.4 Verify the four hooks in the installed Kiro and write the Hook_Verification_Log (open items O2 and O4)
+  - [x] 7.4 Verify the four hooks in the installed Kiro and write the Hook_Verification_Log (open items O2 and O4)
     - Files: `docs/development.md` (the "Hook verification" entries only). Byte-identical saves of `cases/adult-tension-pneumothorax.yaml`, `apps/web/src/lib/engineSlots.ts` and `services/physiology/case_resolver.py`. No other file changes
     - Docker rules: never run `docker compose up`, `down`, `stop` or `restart`, and do not touch the container on port 8000. The hooks run their own one-off `docker compose run -T --rm --no-deps` containers. The agent itself runs only the read-only `docker image inspect stitched-patient-physiology --format '{{.Id}}'`
     - **Needs the user:** if the image is missing, build it in their own terminal (`docker compose build physiology`); the agent does not build images in this plan. The Case_Check_Hook and the Python_Test_Hook need the image

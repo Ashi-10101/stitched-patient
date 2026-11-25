@@ -168,6 +168,7 @@ Terms from core-simulation-loop and play-mode keep their meaning in those specs:
 - **Side_Word**: The word "left" or "right" as a whole word, compared case-insensitively
 - **Casual_Player**: A player who uses only what the page shows (the visible page, the page title, the URL and the accessible names) and does not open the browser's developer tools
 - **Calibration_Run**: The engine calibration of play-mode Requirement 13, run by the play-mode calibration script (play-mode tasks 12.1 and 12.2)
+  - Since engine-mcp: "the play-mode calibration script" and play-mode task 12.3 here mean the engine-mcp `run_calibration` tool and the Calibration_Record of engine-mcp Requirement 13.
 
 ## Requirements
 

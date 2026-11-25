@@ -548,6 +548,7 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 
 **User Story:** As the case author, I want the ending thresholds checked against real engine runs, so that the acceptance demo is achievable and clinically reviewed.
 
+> Note (engine-mcp): this calibration is implemented for both Variants, as bedside-exam Requirement 13 requires, by the engine-mcp `run_calibration` tool and the Engine_CLI `calibrate` (`.kiro/specs/engine-mcp/`).
 #### Acceptance Criteria
 
 1. WHEN the author has drafted every Play_Section threshold, Hold_Duration and the Time_Limit in `cases/adult-tension-pneumothorax.yaml`, THE project SHALL record in `docs/` a calibration run through the existing Physiology_Service API, with no change to Physiology_Service code or behaviour, for 4 scenarios: no Intervention, left Decompression, right Decompression only, and left Decompression before the insult. The calibration SHALL run on code at or after commit 1e71454 (core-simulation-loop task 3.4), the first commit at which a Decompression reaches Pulse switched on. Each scenario SHALL start a new Session from the unchanged Case_Definition, including its Scheduled_Insults. Each scenario SHALL run until the Ending is not `none` or the Simulation_Time reaches the Time_Limit, whichever comes first, except the left-Decompression-before-the-insult scenario, which runs as criterion 16 states.
