@@ -113,7 +113,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13, 10.2, 10.3, 10.4, 10.5, 12.1, 12.2, 17.5_
     - _Properties: 9, 10_
 
-- [ ] 5. Tool handlers, Node adapters, Engine_MCP_Server and Engine_CLI (with tasks 3 and 4, supersedes play-mode task 12.2)
+- [x] 5. Tool handlers, Node adapters, Engine_MCP_Server and Engine_CLI (with tasks 3 and 4, supersedes play-mode task 12.2)
   - [x] 5.1 Implement `apps/web/src/lib/engineTools.ts` with its example tests
     - Files: `apps/web/src/lib/engineTools.ts` (new), `apps/web/src/lib/engineTools.test.ts` (new), `apps/web/src/lib/engineRunner.test.ts` (adds the `outputSchema` check only). No other file changes
     - Implement the design sections "`engineTools.ts`", "Progress notifications", "Per-call flow of the tools", "Tool inputs and outputs" and "CLI options": the `zod/v4` schemas `ListCasesInput`, `RunScenarioInput` (with the `at_seconds <= max_seconds` refinement) and `RunCalibrationInput`; `ScenarioResultSchema`; `TOOL_DEFINITIONS` with the published descriptions and the JSON Schemas from `z.toJSONSchema`; `createEngineTools` with the D27 order (validation, local preflight, Health_Check, Sessions); `toScenarioRequest`; `formatIssues`; `parseCliArgs` (drops one leading `--`, O6), `CLI_USAGE` and `cliExitCode`. Constant of this module: `PROGRESS_INTERVAL_MS`
@@ -138,7 +138,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 11.1, 11.4, 11.5_
 
-  - [ ] 5.4 Write the property test for CLI-to-tool equivalence
+  - [x] 5.4 Write the property test for CLI-to-tool equivalence
     - Files: `apps/web/src/lib/engineCli.test.ts`. No other file changes
     - **Property 3: CLI flags and tool arguments give equal Scenario requests**. Generate valid `run_scenario` and `run_calibration` argument objects with optional fields omitted at random, render them as flags in random order (keeping `--intervention` order), with or without a leading `--`, and compare the parsed inputs, `toScenarioRequest` of both, and the `CalibrationInput` of both. `fc.assert(..., PBT_PARAMS)`
     - Tag: `// Feature: engine-mcp, Property 3: CLI flags and tool arguments give equal Scenario requests`
@@ -146,7 +146,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 11.1, 11.6, 17.4_
     - _Properties: 3_
 
-  - [ ] 5.5 Implement the Node adapters and the two entry points, and test the SDK behaviour
+  - [x] 5.5 Implement the Node adapters and the two entry points, and test the SDK behaviour
     - Files: `apps/web/scripts/engineStdout.ts` (new), `apps/web/scripts/engineNode.ts` (new), `apps/web/scripts/engineMcp.ts` (new), `apps/web/scripts/engineCli.ts` (new), `apps/web/src/lib/engineMcpSdk.test.ts` (new). No other file changes
     - Implement the design sections "`scripts/engineNode.ts`", "`scripts/engineMcp.ts`", "`scripts/engineCli.ts`" and the Error Handling sections "Engine_MCP_Server" and "Engine_CLI": `loadConfig`, `REPO_ROOT` (D18), `createNodeDeps` (global `fetch`, `new WebSocket(url)`, `node:fs/promises`, `GitInfo` through `execFile('git', ...)` with the three read-only commands of D24, the real clock, stderr logging) and `installShutdown` (6.3); `engineStdout.ts` imported first (D25); the low-level SDK `Server` with `ListToolsRequestSchema` and `CallToolRequestSchema` (D15); the CLI behaviour steps 1 to 4 and exit codes
     - `engineMcp.ts` is the only module that imports `@modelcontextprotocol/sdk` outside test files. The entry points start no process other than the three read-only `git` commands (1.8, conflict C1 in the Notes) and send no request that stops or restarts the service
@@ -161,13 +161,14 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 1.1, 1.2, 1.3, 1.8, 1.9, 6.2, 6.3, 7.2, 8.13, 11.1, 11.2, 11.3, 11.4, 11.5_
 
-  - [ ] 5.6 Write the boundary tests and list the build check for the reviewer
+  - [x] 5.6 Write the boundary tests and list the build check for the reviewer
     - Files: `apps/web/src/lib/engineBoundaries.test.ts` (new). No other file changes
     - The four checks of the design row `engineBoundaries.test.ts`: (a) no non-test module under `src/` imports `@modelcontextprotocol/sdk` or `vite-node`; (b) the only non-test module under `src/` that imports `zod` is `src/lib/engineTools.ts`; (c) no non-test module under `src/` outside the engine modules (`engineClient`, `engineSlots`, `calibration`, `engineRunner`, `engineCalibration`, `calibrationRecord`, `engineTools`) imports any engine module; (d) the engine modules import no `node:` module. Also: `apps/web/package.json` lists the SDK, `zod` and `vite-node` only under `devDependencies` (18.2)
     - This task never runs `npx next build`: the build rewrites `apps/web/.next/`, which the dev server uses. The task report lists the 18.3 build check for the reviewer, who runs it in a separate copy of `apps/web` that does not share `apps/web/.next/`:
       - `npx next build > /tmp/sp-next.log 2>&1; echo "exit $?"`
-      - `grep -rl "modelcontextprotocol" .next/; echo "grep exit $? (1 means no match)"`
+      - `grep -rl --exclude-dir=cache --exclude=package.json "modelcontextprotocol" .next/; echo "grep exit $? (1 means no match)"`
       - The check passes when the build exits 0 and the grep finds no match
+      - The grep skips the build cache (`.next/cache/`, which holds the type-check build info covering `scripts/` and the test files and webpack snapshots of `package.json`) and copies of `package.json` (such as `.next/standalone/package.json`, which lists the SDK under devDependencies), because these name the SDK without being compiled output, so the check looks only at compiled output
     - End commands as in the Overview
     - _Requirements: 1.2, 18.2, 18.3, 18.4_
 

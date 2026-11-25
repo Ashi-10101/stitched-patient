@@ -227,6 +227,52 @@
         "executionId": "c1c1c718-848f-43f7-bb39-0b7a6b16e2a3",
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795571649338
+      },
+      {
+        "executionId": "aaa583ad-b480-4796-9c2a-4f348e9e545e",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795573550425
+      }
+    ],
+    "5.5 Implement the Node adapters and the two entry points, and test the SDK behaviour": [
+      {
+        "executionId": "62336f86-b514-456a-be2d-dd903cede6fa",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795573879885
+      },
+      {
+        "executionId": "62336f86-b514-456a-be2d-dd903cede6fa",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795574710962
+      }
+    ],
+    "5.6 Write the boundary tests and list the build check for the reviewer": [
+      {
+        "executionId": "62336f86-b514-456a-be2d-dd903cede6fa",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795574711562
+      },
+      {
+        "executionId": "62336f86-b514-456a-be2d-dd903cede6fa",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575234308
+      },
+      {
+        "executionId": "64bf0a93-2949-4feb-9036-36d1e1b36b0a",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575295473
+      },
+      {
+        "executionId": "64bf0a93-2949-4feb-9036-36d1e1b36b0a",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575359380
+      }
+    ],
+    "5. Tool handlers, Node adapters, Engine_MCP_Server and Engine_CLI (with tasks 3 and 4, supersedes play-mode task 12.2)": [
+      {
+        "executionId": "62336f86-b514-456a-be2d-dd903cede6fa",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795575234352
       }
     ]
   }

@@ -1638,10 +1638,10 @@ No task and no test runs `npx next build` inside the repository, because the bui
 
 ```sh
 npx next build > /tmp/sp-next.log 2>&1; echo "exit $?"
-grep -rl "modelcontextprotocol" .next/; echo "grep exit $? (1 means no match)"
+grep -rl --exclude-dir=cache --exclude=package.json "modelcontextprotocol" .next/; echo "grep exit $? (1 means no match)"
 ```
 
-The check passes when the build exits 0 and the grep finds no match.
+The check passes when the build exits 0 and the grep finds no match. The grep skips the build cache (`.next/cache/`, which holds the type-check build info covering `scripts/` and the test files and webpack snapshots of `package.json`) and copies of `package.json` (such as `.next/standalone/package.json`, which lists the SDK under devDependencies), because these name the SDK without being compiled output, so the check looks only at compiled output.
 
 Each task report also shows `git status --short services/physiology cases` printing nothing (18.1, 18.4).
 
