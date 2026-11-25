@@ -658,7 +658,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 1.7, 4.1, 4.2, 5.2, 5.3, 5.4, 13.17, 13.19, 15.7, 15.8, 15.13, 15.14, 15.15, 15.16, 15.17, 15.18, 15.19_
     - _Properties: 2, 3, 10, 26_
 
-  - [ ] 15.3 Test the Play_View Intervention buttons after a Decompression and during a fork
+  - [x] 15.3 Test the Play_View Intervention buttons after a Decompression and during a fork
     - Test-only. Files: `apps/web/src/components/PlayView.test.tsx` and, for the Clinician_View check, `apps/web/src/components/ClinicianView.test.tsx`. If a test shows a defect in `PlayView.tsx` or `ClinicianView.tsx`, stop and report; do not change component code in this task
     - 8.15: build a state with `sessionReducer` (case loaded, connected, a sample, Ending `none`), then an `interventionSucceeded` for `needle-decompression-left`. `interventionsDisabled({ connected: true, interventionPending: false, forkPending: false, ending: 'none' })` is `false`, and the rendered Play_View markup shows the left button enabled (no "Not available right now"). Check that `InterventionsDisabledInput` has exactly the keys `connected`, `interventionPending`, `forkPending` and `ending`, so no Intervention_Record entry can disable a button
     - 8.16: with the Vitals_Stream connected, no Intervention pending and the Ending `none`, `interventionsDisabled` is `true` while `forkPending` is `true`, and `false` again once `forkPending` is `false`, both after a `forkSucceeded` state (Ending `none`) and after a failed fork (state unchanged, no action dispatched). The `finally` in the Play_View's `fork` wrapper clears `forkPending` on both paths; read it and state this in the report

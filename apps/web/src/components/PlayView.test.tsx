@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import fc from 'fast-check';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { activeExamEntries } from '@/lib/branchLineage';
@@ -26,6 +26,7 @@ import {
   interventionsDisabled,
   initialRewindOpener,
   rewindPanelOpenerReducer,
+  type InterventionsDisabledInput,
 } from './PlayView';
 
 const SESSION: SessionMetadata = {
@@ -680,5 +681,112 @@ describe('PlayView exam layout (bedside-exam)', () => {
       }),
       PBT_PARAMS,
     );
+  });
+});
+
+describe('PlayView Intervention buttons after a Decompression and during a fork (8.15, 8.16)', () => {
+  const LEFT = CASE.interventions.find((i) => i.id === 'needle-decompression-left')!;
+
+  /** Connected, a sample, then the left Decompression accepted at 40 s (after the 30 s insult), Ending none. */
+  const DECOMPRESSED: SessionAction[] = [
+    ...LOADED,
+    { type: 'sampleReceived', sample: sample(10) },
+    { type: 'sampleReceived', sample: sample(40) },
+    { type: 'interventionSucceeded', entry: buildInterventionEntry(LEFT, 40, 'b1') },
+    { type: 'sampleReceived', sample: sample(50) },
+  ];
+
+  /** A Branch b2 forked from Checkpoint c1 (42 s) of b1. */
+  const FORKED_SESSION: SessionMetadata = {
+    ...SESSION,
+    current_branch_id: 'b2',
+    branches: [
+      ...SESSION.branches!,
+      { branch_id: 'b2', parent_branch_id: 'b1', forked_from_checkpoint: 'c1', created_at: '', event_count: 0 },
+    ],
+  };
+
+  function expectAllEnabled(html: string): void {
+    const buttons = interventionButtons(html);
+    expect(buttons).toHaveLength(CASE.interventions.length);
+    for (const b of buttons) {
+      expect(b).not.toMatch(/^<button[^>]*\sdisabled=""/);
+      expect(b).not.toContain(NOT_AVAILABLE_TEXT);
+    }
+  }
+
+  const inputOf = (state: SessionUiState, forkPending: boolean): InterventionsDisabledInput => ({
+    connected: state.connected,
+    interventionPending: false,
+    forkPending,
+    ending: state.ending.ending,
+  });
+
+  it('InterventionsDisabledInput has exactly connected, interventionPending, forkPending and ending', () => {
+    expectTypeOf<keyof InterventionsDisabledInput>().toEqualTypeOf<
+      'connected' | 'interventionPending' | 'forkPending' | 'ending'
+    >();
+    // One destructured object parameter.
+    expect(interventionsDisabled.length).toBe(1);
+  });
+
+  it('keeps the left button enabled after an accepted left Decompression (8.15)', () => {
+    const state = build(...DECOMPRESSED);
+    // Not vacuous: connected, the Decompression is recorded, and there is no Ending.
+    expect(state.connected).toBe(true);
+    expect(state.latestSample?.simulation_time).toBe(50);
+    expect(state.interventionRecord.map((e) => e.interventionId)).toEqual(['needle-decompression-left']);
+    expect(state.ending.ending).toBe('none');
+
+    expect(interventionsDisabled({ connected: true, interventionPending: false, forkPending: false, ending: 'none' })).toBe(
+      false,
+    );
+    expect(interventionsDisabled(inputOf(state, false))).toBe(false);
+    // Intervention_Record fields passed in anyway are ignored: no earlier entry can disable a button.
+    const withRecord = {
+      ...inputOf(state, false),
+      interventionRecord: state.interventionRecord,
+      lineage: state.lineage,
+    } as InterventionsDisabledInput;
+    expect(interventionsDisabled(withRecord)).toBe(false);
+
+    const html = render(state);
+    expectAllEnabled(html);
+    const left = interventionButtons(html).find((b) => textOf(b) === playButtonText(LEFT));
+    expect(left).toBeDefined();
+    expect(left).not.toMatch(/^<button[^>]*\sdisabled=""/);
+    expect(left).not.toContain(NOT_AVAILABLE_TEXT);
+  });
+
+  it('disables the buttons while a fork is pending and enables them after a successful fork (8.16)', () => {
+    const before = build(...DECOMPRESSED);
+    expect(interventionsDisabled(inputOf(before, true))).toBe(true);
+
+    const after = sessionReducer(before, {
+      type: 'forkSucceeded',
+      session: FORKED_SESSION,
+      newBranchId: 'b2',
+      forkTime: 42,
+    });
+    expect(after.currentBranchId).toBe('b2');
+    expect(after.connected).toBe(true);
+    expect(after.ending.ending).toBe('none');
+
+    expect(interventionsDisabled(inputOf(after, true))).toBe(true);
+    expect(interventionsDisabled(inputOf(after, false))).toBe(false);
+    expectAllEnabled(render(after));
+  });
+
+  it('disables the buttons while a fork is pending and enables them after a failed fork (8.16)', () => {
+    const before = build(...DECOMPRESSED);
+    // A failed fork dispatches no action, so the state after it is `before` itself.
+    const afterFailedFork = before;
+    expect(afterFailedFork.currentBranchId).toBe('b1');
+    expect(afterFailedFork.connected).toBe(true);
+    expect(afterFailedFork.ending.ending).toBe('none');
+
+    expect(interventionsDisabled(inputOf(afterFailedFork, true))).toBe(true);
+    expect(interventionsDisabled(inputOf(afterFailedFork, false))).toBe(false);
+    expectAllEnabled(render(afterFailedFork));
   });
 });

@@ -239,6 +239,14 @@ describe('ClinicianView', () => {
     expect(interventionsDisabled(false, false)).toBe(true);
     expect(interventionsDisabled(true, true)).toBe(true);
   });
+
+  it('interventionsDisabled takes no fork input: two parameters, same results (8.16)', () => {
+    expect(interventionsDisabled.length).toBe(2);
+    expect(interventionsDisabled(true, false)).toBe(false);
+    expect(interventionsDisabled(false, false)).toBe(true);
+    expect(interventionsDisabled(true, true)).toBe(true);
+    expect(interventionsDisabled(false, true)).toBe(true);
+  });
 });
 
 describe('ClinicianView without the bedside exam (bedside-exam decision 9, 12.6)', () => {

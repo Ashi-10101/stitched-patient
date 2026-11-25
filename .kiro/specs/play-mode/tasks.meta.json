@@ -659,6 +659,18 @@
         "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
         "timestamp": 1795613423551
       }
+    ],
+    "15.3 Test the Play_View Intervention buttons after a Decompression and during a fork": [
+      {
+        "executionId": "ce757537-f186-4f57-858e-0cd32b2446b4",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795613521732
+      },
+      {
+        "executionId": "ce757537-f186-4f57-858e-0cd32b2446b4",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795613743063
+      }
     ]
   }
 }
