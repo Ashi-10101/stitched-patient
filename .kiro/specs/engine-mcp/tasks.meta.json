@@ -3,6 +3,10 @@
     "2.3 Write the property test for the outcome fold": {
       "status": "passed",
       "lastRunTimestamp": 1795548106851
+    },
+    "3.2 Write the property test for the Session_Cap": {
+      "status": "passed",
+      "lastRunTimestamp": 1795566148349
     }
   },
   "executionHistory": {
@@ -100,6 +104,47 @@
         "executionId": "6e3fbfe3-2f0c-498f-a7b0-a164c58bdc20",
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795548222528
+      }
+    ],
+    "3.1 Implement `apps/web/src/lib/engineRunner.ts` with its example tests": [
+      {
+        "executionId": "1e81af6f-76fb-4810-a0f4-3632f960116e",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795564903650
+      },
+      {
+        "executionId": "1e81af6f-76fb-4810-a0f4-3632f960116e",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795565804218
+      },
+      {
+        "executionId": "243fd434-4f7e-483d-bce1-2337c06fbdb8",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795566274231
+      },
+      {
+        "executionId": "243fd434-4f7e-483d-bce1-2337c06fbdb8",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795566547425
+      }
+    ],
+    "3.2 Write the property test for the Session_Cap": [
+      {
+        "executionId": "1e81af6f-76fb-4810-a0f4-3632f960116e",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795565805107
+      },
+      {
+        "executionId": "1e81af6f-76fb-4810-a0f4-3632f960116e",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795566226011
+      }
+    ],
+    "3. Scenario_Runner in `engineRunner.ts`": [
+      {
+        "executionId": "1e81af6f-76fb-4810-a0f4-3632f960116e",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795566226045
       }
     ]
   }

@@ -1392,7 +1392,7 @@ Test: property, `apps/web/src/lib/engineTools.test.ts`. The generator starts fro
 
 *For any* number of Scenarios from 1 to 12, started at once across one to three tool calls, any Session_Cap from 1 to 8, and any mix of scripted outcomes per Scenario (success, Intervention_API error, socket close, DELETE failure, cancellation of its call), the following hold:
 
-- the Fake_Service never holds more than the cap of live Sessions created by the runner;
+- Sessions the runner created and has not yet tried to delete never exceed the cap; the service's own count may exceed it only by the failed DELETEs;
 - Scenarios start in queue order;
 - every Session the runner created gets a DELETE request;
 - after all calls settle, every Session is deleted, except those with a scripted DELETE failure, and those appear in `undeleted_sessions` or on the log;

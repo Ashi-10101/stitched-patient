@@ -72,8 +72,8 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 4.6, 4.7, 5.4, 5.5_
     - _Properties: 5_
 
-- [ ] 3. Scenario_Runner in `engineRunner.ts`
-  - [ ] 3.1 Implement `apps/web/src/lib/engineRunner.ts` with its example tests
+- [x] 3. Scenario_Runner in `engineRunner.ts`
+  - [x] 3.1 Implement `apps/web/src/lib/engineRunner.ts` with its example tests
     - Files: `apps/web/src/lib/engineRunner.ts` (new), `apps/web/src/lib/engineRunner.test.ts` (new). No other file changes
     - Implement the design sections "`engineRunner.ts`", "One Scenario", "Message loop", "Cleanup and cancellation" (per Scenario and per call), "Mark rows" and "Scenario_Result", and the Error Handling sections "Vitals_Stream" and "Scenario_Runner": `runScenario`, `validatePlan`, `buildScenarioResult`, the Actual_Time procedure of D2 (Checkpoint list before and after each Intervention_API call), the approach speed of D26, the stall timer and the first-sample wait, and the `finally` cleanup (pause, close, DELETE with the 4 s timeout, `undeleted_sessions`, original error rethrown)
     - Re-export `EngineClock` from `engineClient.ts`. Constants of this module: `STALL_TIMEOUT_MS`, `FIRST_SAMPLE_TIMEOUT_MS`, `RUN_SPEED`, `APPROACH_SPEED`, `APPROACH_WINDOW_S`
@@ -85,7 +85,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 3.3, 3.4, 3.5, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 6.1, 6.2, 6.4, 6.5, 7.4, 12.3, 17.1, 17.2, 17.7_
     - _Properties: 7, 8_
 
-  - [ ] 3.2 Write the property test for the Session_Cap
+  - [x] 3.2 Write the property test for the Session_Cap
     - Files: `apps/web/src/lib/engineRunner.cap.test.ts` (new). No other file changes
     - **Property 2: The Session_Cap holds and every created Session is deleted**. `fc.asyncProperty` with 1 to 12 Scenarios across one to three calls, caps from 1 to 8, and a mix of scripted outcomes per Scenario (success, Intervention_API error, socket close, DELETE failure, cancellation of its call). Max_Time 1 to 5 s per Scenario. Check the five bullets of the property text with the Fake_Service's `maxConcurrentSessions`, `calls` and `deleted`. `fc.assert(..., PBT_PARAMS)`
     - Tag: `// Feature: engine-mcp, Property 2: The Session_Cap holds and every created Session is deleted`
