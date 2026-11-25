@@ -11,6 +11,7 @@
 import {
   buildEndingContext,
   conditionHolds,
+  earliestInsultTime,
   initialEndingState,
   requiredInterventions,
   rescueGateTime,
@@ -106,10 +107,12 @@ function lostCauseOf(ctx: EndingContext, s: EndingState): LostCause {
 }
 
 /** Uses buildEndingContext, initialEndingState, stepEnding, setRescueGate, rescueGateTime,
- *  requiredInterventions from endingEvaluator.ts. Mark_Samples are evaluated with `simulation_time`
+ *  requiredInterventions and earliestInsultTime from endingEvaluator.ts. Mark_Samples are evaluated with `simulation_time`
  *  set to their mark, so a substituted sample stands for its Sample_Mark. */
 export function createOutcomeFold(rc: CaseData): OutcomeFold {
   const required = requiredInterventions(rc.play);
+  // Earliest_Insult_Time: only Gate_Entries open the gate (play-mode 6.25, 6.26, 13.18).
+  const earliestInsult = earliestInsultTime(rc);
   let ctx = buildEndingContext(rc);
   let state = initialEndingState(ctx);
   /** Entries added but not yet applied, in record order. */
@@ -129,7 +132,7 @@ export function createOutcomeFold(rc: CaseData): OutcomeFold {
       while (i < pending.length) {
         if (pending[i].simulationTime <= m.mark) {
           applied.push(pending.splice(i, 1)[0]);
-          ({ ctx, state } = setRescueGate(ctx, state, rescueGateTime(required, applied)));
+          ({ ctx, state } = setRescueGate(ctx, state, rescueGateTime(required, applied, earliestInsult)));
         } else {
           i += 1;
         }

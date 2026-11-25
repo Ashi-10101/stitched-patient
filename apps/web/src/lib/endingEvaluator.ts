@@ -50,15 +50,24 @@ function lostGroups(play: PlaySection | undefined): ConditionGroup[] {
   return play?.endings.lost.groups ?? [];
 }
 
-export function buildEndingContext(caseData: CaseData): EndingContext {
-  // A missing timeline or insult list counts as no insults; non-finite times are skipped.
+/**
+ * Earliest_Insult_Time: the smallest finite Scheduled_Insult `timeSeconds` of the
+ * case, or `undefined` when there is none. A missing timeline or insult list
+ * counts as no insults; non-finite times are skipped.
+ */
+export function earliestInsultTime(caseData: Pick<CaseData, 'timeline'>): number | undefined {
   const times = (caseData.timeline?.scheduledInsults ?? [])
     .map((insult) => insult.timeSeconds)
     .filter((t) => typeof t === 'number' && Number.isFinite(t));
+  return times.length > 0 ? Math.min(...times) : undefined;
+}
+
+export function buildEndingContext(caseData: CaseData): EndingContext {
+  const earliestInsult = earliestInsultTime(caseData);
   return {
     play: caseData.play,
-    rescueFromTime: times.length > 0 ? Math.min(...times) : 0,
-    rescueGateTime: rescueGateTime(requiredInterventions(caseData.play), []),
+    rescueFromTime: earliestInsult ?? 0,
+    rescueGateTime: rescueGateTime(requiredInterventions(caseData.play), [], earliestInsult),
   };
 }
 
@@ -68,15 +77,19 @@ export function requiredInterventions(play: PlaySection | undefined): readonly s
 }
 
 /**
- * Rescue_Gate_Time (6.18-6.20). `-Infinity` for no Required_Interventions.
+ * Rescue_Gate_Time (6.18-6.20, 6.25, 6.26). `-Infinity` for no Required_Interventions.
  * Otherwise the latest, over the required ids, of the earliest finite
- * `simulationTime` of an active entry with that id; `null` if one id has none.
- * Entries with other ids are ignored (6.19). `active` is the output of
- * `activeInterventions(record, lineage)`.
+ * `simulationTime` of a Gate_Entry with that id; `null` if one id has none.
+ * A Gate_Entry is an entry with `simulationTime >= earliestInsult`, or any entry
+ * when `earliestInsult` is `undefined` (6.25, 6.26). Entries with other ids are
+ * ignored (6.19). `active` is the output of `activeInterventions(record, lineage)`;
+ * an entry skipped here stays in it (6.27). `earliestInsult` is the
+ * Earliest_Insult_Time, `earliestInsultTime(caseData)`.
  */
 export function rescueGateTime(
   requiredIds: readonly string[],
   active: readonly InterventionRecordEntry[],
+  earliestInsult: number | undefined,
 ): number | null {
   if (requiredIds.length === 0) return -Infinity;
   let gate = -Infinity;
@@ -85,6 +98,7 @@ export function rescueGateTime(
     for (const entry of active) {
       const t = entry.simulationTime;
       if (entry.interventionId !== id || typeof t !== 'number' || !Number.isFinite(t)) continue;
+      if (earliestInsult !== undefined && t < earliestInsult) continue;
       if (earliest === null || t < earliest) earliest = t;
     }
     if (earliest === null) return null;

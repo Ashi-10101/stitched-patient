@@ -604,7 +604,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - _Requirements: 2.12, 12.10, 12.11, 12.12_
 
 - [ ] 15. Calibration fixes of 2026-11-25: early Decompression and displayed-value bands
-  - [ ] 15.1 Fix 1: count only Gate_Entries toward the Rescue_Gate_Time
+  - [x] 15.1 Fix 1: count only Gate_Entries toward the Rescue_Gate_Time
     - Author's decision of 2026-11-25 (requirements "Dependencies and confirmed decisions" item 7, design D9). Follow the design sections "endingEvaluator.ts" (Rescue gate), "sessionState.ts — the reducer" and "Shipped calibration path (13.18)"
     - Files: `apps/web/src/lib/endingEvaluator.ts` and `endingEvaluator.test.ts`; `apps/web/src/lib/sessionState.ts` and `sessionState.test.ts`; `apps/web/src/lib/calibration.ts` and `calibration.test.ts`; `apps/web/src/test/generators.ts` if a generator needs insult times. Do not change `engineRunner.ts` or `engineCalibration.ts`: they take the gate from `createOutcomeFold` / `scenarioOutcome` (13.18)
     - `endingEvaluator.ts`:

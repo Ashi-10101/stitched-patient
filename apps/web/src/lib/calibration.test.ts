@@ -22,6 +22,7 @@ import {
 import {
   buildEndingContext,
   conditionHolds,
+  earliestInsultTime,
   initialEndingState,
   requiredInterventions,
   rescueGateTime,
@@ -216,12 +217,13 @@ const arbFoldInput: fc.Arbitrary<FoldInput> = fc
  *  the entries with Actual_Time <= m, then stepEnding at the mark. Uses endingEvaluator only. */
 function referenceOutcome(rc: CaseData, marks: readonly MarkSample[], entries: readonly InterventionRecordEntry[]) {
   const required = requiredInterventions(rc.play);
+  const earliestInsult = earliestInsultTime(rc);
   let ctx = buildEndingContext(rc);
   let state = initialEndingState(ctx);
   const endingAfter: Ending[] = [];
   for (const m of marks) {
     const upToMark = entries.filter((e) => e.simulationTime <= m.mark);
-    ({ ctx, state } = setRescueGate(ctx, state, rescueGateTime(required, upToMark)));
+    ({ ctx, state } = setRescueGate(ctx, state, rescueGateTime(required, upToMark, earliestInsult)));
     state = stepEnding(ctx, state, { ...m.sample, simulation_time: m.mark });
     endingAfter.push(state.ending);
   }
@@ -404,6 +406,48 @@ describe('createOutcomeFold and scenarioOutcome', () => {
 
     const upToActual = marks.filter((m) => m.mark <= actual);
     expect(scenarioOutcome(CASE_LEFT, upToActual, [entry]).finalGate).toBe(actual);
+  });
+
+  it('keeps the gate closed in the affected-side-early fixture, through createOutcomeFold and scenarioOutcome (play-mode 6.25, 13.18)', () => {
+    // Modelled on the `affected-side-early` Scenario of
+    // docs/calibration/adult-tension-pneumothorax-2026-11-25-161c754.md: the affected-side
+    // Decompression at 20 s, the insult at 30 s, and every rescue condition held from 0 s on.
+    for (const rc of FIXTURES) {
+      const play = rc.play!;
+      const insult = affectedInsult(rc.timeline.scheduledInsults)!;
+      expect(earliestInsultTime(rc)).toBe(30);
+      expect(insult.timeSeconds).toBe(30);
+      const id = requiredInterventions(play)[0];
+      const intervention = rc.interventions.find((i) => i.id === id)!;
+      expect(intervention.parameters?.side).toBe(insult.side);
+      const entry = buildInterventionEntry(intervention, 20, BRANCH);
+
+      const rescueAt = (t: number): Sample => satisfying(normalSample(t), play.endings.rescued.conditions);
+      expect(holdsAll(play.endings.rescued.conditions, rescueAt(0))).toBe(true);
+      const limit = play.endings.lost.timeLimitSeconds!;
+      const marks = markSamples(keptUpTo(limit + INTERVAL, rescueAt), INTERVAL);
+
+      const fold = createOutcomeFold(rc);
+      for (const m of marks) {
+        if (m.mark === 20) fold.addEntry(entry);
+        fold.push(m);
+        expect(fold.gate).toBeNull();
+        expect(fold.ending).not.toBe('rescued');
+      }
+      expect(fold.endingAfter).not.toContain('rescued');
+
+      const post = scenarioOutcome(rc, marks, [entry]);
+      expect(post.finalGate).toBeNull();
+      expect(post.ending).not.toBe('rescued');
+      expect(post.endingAfter).not.toContain('rescued');
+      // The gate excluded every mark at which the rescue conditions held.
+      expect(post.rescueHeldWithoutGate).toEqual(marks.map((m) => m.mark));
+      expect({ ending: post.ending, endedAt: post.endedAt, lostCause: post.lostCause }).toEqual({
+        ending: 'lost',
+        endedAt: ceilToInterval(limit),
+        lostCause: 'Time_Limit',
+      });
+    }
   });
 
   it('evaluates a substituted Mark_Sample at its mark', () => {

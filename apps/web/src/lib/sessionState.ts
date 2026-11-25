@@ -10,6 +10,7 @@ import { BREATH_DEPTH_DEFAULT, DEFAULT_BEAT_PERIOD_S, DEFAULT_BREATH_PERIOD_S, m
 import { activeExamEntries, activeInterventions, buildLineage } from './branchLineage';
 import {
   buildEndingContext,
+  earliestInsultTime,
   initialEndingState,
   requiredInterventions,
   rescueGateTime,
@@ -112,7 +113,7 @@ export function initialSessionState(): SessionUiState {
   const endingCtx: EndingContext = {
     play: undefined,
     rescueFromTime: 0,
-    rescueGateTime: rescueGateTime(requiredInterventions(undefined), []),
+    rescueGateTime: rescueGateTime(requiredInterventions(undefined), [], undefined),
   };
   return {
     caseStatus: 'loading',
@@ -218,12 +219,15 @@ function withSides(state: SessionUiState): SessionUiState {
 /**
  * Recomputes the Rescue_Gate_Time from the case's Required_Interventions and
  * the lineage's Active_Interventions, and applies it with `setRescueGate`
- * (6.23, 6.24). Returns the same state when the gate is unchanged.
+ * (6.23, 6.24). Only Gate_Entries, at or after the case's Earliest_Insult_Time,
+ * count (6.25, 6.26); the other entries stay in the record (6.27). Returns the
+ * same state when the gate is unchanged.
  */
 function withRescueGate(state: SessionUiState): SessionUiState {
   const gate = rescueGateTime(
     requiredInterventions(state.caseData?.play),
     activeInterventions(state.interventionRecord, state.lineage),
+    state.caseData ? earliestInsultTime(state.caseData) : undefined,
   );
   const next = setRescueGate(state.endingCtx, state.ending, gate);
   if (next.ctx === state.endingCtx && next.state === state.ending) return state;

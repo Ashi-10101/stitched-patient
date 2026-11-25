@@ -47,6 +47,10 @@
     "11.3 Gate the rescue on the Required_Interventions": {
       "status": "passed",
       "lastRunTimestamp": 1795367698758
+    },
+    "15.1 Fix 1: count only Gate_Entries toward the Rescue_Gate_Time": {
+      "status": "passed",
+      "lastRunTimestamp": 1795612556244
     }
   },
   "executionHistory": {
@@ -626,6 +630,18 @@
         "executionId": "1674f355-f40a-431a-9936-7bdbb7511e63",
         "chatSessionId": "sess_95b42dae-9b9d-4216-9d49-18951d3dfec0",
         "timestamp": 1795366030448
+      }
+    ],
+    "15.1 Fix 1: count only Gate_Entries toward the Rescue_Gate_Time": [
+      {
+        "executionId": "b9cd8a98-cd0b-4019-ab94-3df632527a8d",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795612199991
+      },
+      {
+        "executionId": "b9cd8a98-cd0b-4019-ab94-3df632527a8d",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795612611142
       }
     ]
   }

@@ -5,6 +5,8 @@ import { activeExamEntries, activeInterventions, buildLineage } from './branchLi
 import { examFinding, isSidedAction } from './examFinding';
 import {
   buildEndingContext,
+  conditionHolds,
+  earliestInsultTime,
   evaluateEnding,
   initialEndingState,
   requiredInterventions,
@@ -1019,6 +1021,7 @@ function expectedGate(state: SessionUiState): number | null {
   return rescueGateTime(
     requiredInterventions(state.caseData?.play),
     activeInterventions(state.interventionRecord, state.lineage),
+    state.caseData ? earliestInsultTime(state.caseData) : undefined,
   );
 }
 
@@ -1076,14 +1079,27 @@ describe('Rescue_Gate_Time in the reducer', () => {
     expect(gateOf(main)).toBeNull();
     main = reduce(main, { type: 'interventionSucceeded', entry: decompression('Left', 45, 'main') });
     expect(gateOf(main)).toBe(45);
+    // The restored entry at 20 s comes before the insult at 30 s, so it is not a Gate_Entry (6.25).
     main = reduce(main, { type: 'interventionRecordRestored', record: [decompression('Left', 20, 'main')] });
-    expect(gateOf(main)).toBe(20);
+    expect(gateOf(main)).toBeNull();
 
-    // forkSucceeded: a fork after the entry keeps it active.
+    // forkSucceeded: a fork after the entry keeps it active, but it still opens no gate (6.25, 6.27).
     const afterFork = fork(reduce(main, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS }), 30);
-    expect(gateOf(afterFork)).toBe(20);
+    expect(activeInterventions(afterFork.interventionRecord, afterFork.lineage)).toEqual([
+      decompression('Left', 20, 'main'),
+    ]);
+    expect(gateOf(afterFork)).toBeNull();
 
-    for (const s of [state, child, reloaded, main, afterFork]) expect(gateOf(s)).toBe(expectedGate(s));
+    // forkSucceeded: a fork after a Gate_Entry keeps it active and keeps the gate at its time.
+    let gated = reduce(onMain(), { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    gated = reduce(gated, { type: 'interventionRecordRestored', record: [decompression('Left', 45, 'main')] });
+    expect(gateOf(gated)).toBe(45);
+    const afterGatedFork = fork(gated, 60);
+    expect(gateOf(afterGatedFork)).toBe(45);
+
+    for (const s of [state, child, reloaded, main, afterFork, gated, afterGatedFork]) {
+      expect(gateOf(s)).toBe(expectedGate(s));
+    }
   });
 
   it('ends an open rescue stretch when the gate closes, and samples, hints and views leave the gate as is (6.24)', () => {
@@ -1113,6 +1129,48 @@ describe('Rescue_Gate_Time in the reducer', () => {
     expect(closed.ending.lastTime).toBe(state.ending.lastTime);
     expect(closed.ending.lostStarts).toBe(lostStarts);
   });
+
+  it('a left Decompression at 20 s, before the insult at 30 s, keeps the gate null but stays recorded and decompressed (6.25, 6.27)', () => {
+    expect(earliestInsultTime(CASE_WITH_PLAY)).toBe(30);
+    const before = feed(onMain(), [20]);
+    const entry = decompression('Left', 20, 'main');
+    const next = reduce(before, { type: 'interventionSucceeded', entry });
+    expect(gateOf(next)).toBeNull();
+    expect(next.interventionRecord).toEqual([entry]);
+    expect(activeInterventions(next.interventionRecord, next.lineage)).toEqual([entry]);
+    expect(next.avatar.decompressedSides).toContain('Left');
+  });
+
+  it('the affected-side-early fixture is never rescued through the reducer; a second left Decompression at or after 30 s opens the gate at its time (6.25)', () => {
+    // Modelled on the `affected-side-early` Scenario of
+    // docs/calibration/adult-tension-pneumothorax-2026-11-25-161c754.md: left Decompression at
+    // 20 s, insult at 30 s, and samples that satisfy the Rescue_Condition from 0 s on.
+    const rescue = CASE_WITH_PLAY.play!.endings.rescued;
+    expect(rescue.conditions.every((c) => conditionHolds(c, sample(0)))).toBe(true);
+
+    let early = feed(onMain(), range(0, 20));
+    early = reduce(early, { type: 'interventionSucceeded', entry: decompression('Left', 20, 'main') });
+    expect(gateOf(early)).toBeNull();
+    let state = early;
+    for (const t of range(21, 400)) {
+      state = reduce(state, { type: 'sampleReceived', sample: sample(t) });
+      expect(state.ending.ending).not.toBe('rescued');
+      expect(state.ending.rescueStart).toBeNull();
+    }
+
+    // A second left Decompression at or after the insult time opens the gate at that entry's time.
+    for (const second of [30, 150]) {
+      let redo = feed(early, range(21, second));
+      redo = reduce(redo, { type: 'interventionSucceeded', entry: decompression('Left', second, 'main') });
+      expect(gateOf(redo)).toBe(second);
+      expect(redo.interventionRecord.map((e) => e.simulationTime)).toEqual([20, second]);
+      // The first sample after the entry starts the rescue stretch.
+      redo = feed(redo, range(second + 1, second + 1 + rescue.holdSeconds));
+      expect(redo.ending.ending).toBe('rescued');
+      expect(redo.ending.rescueStart).toBe(second + 1);
+      expect(redo.ending.endedAt).toBe(second + 1 + rescue.holdSeconds);
+    }
+  });
 });
 
 /** One step of a generated action sequence for Property 25; turned into an action by `toGateAction`. */
@@ -1132,14 +1190,19 @@ type GateOpSpec =
  */
 const GATE_CASES: CaseData[] = [
   CASE_WITH_PLAY,
-  ...[['needle-decompression-left'], ['needle-decompression-left', 'needle-decompression-right']].map(
-    (ids): CaseData => {
-      const c = structuredClone(CASE);
-      c.timeline.scheduledInsults = c.timeline.scheduledInsults.map((insult) => ({ ...insult, timeSeconds: 5 }));
-      c.play!.endings.rescued = { ...c.play!.endings.rescued, holdSeconds: 2, requiredInterventions: ids };
-      return c;
-    },
-  ),
+  ...(
+    [
+      [['needle-decompression-left'], 5],
+      [['needle-decompression-left', 'needle-decompression-right'], 5],
+      // Insult at 12 s: generated Interventions and restored entries fall before and after it (6.25).
+      [['needle-decompression-left'], 12],
+    ] as const
+  ).map(([ids, insultAt]): CaseData => {
+    const c = structuredClone(CASE);
+    c.timeline.scheduledInsults = c.timeline.scheduledInsults.map((insult) => ({ ...insult, timeSeconds: insultAt }));
+    c.play!.endings.rescued = { ...c.play!.endings.rescued, holdSeconds: 2, requiredInterventions: [...ids] };
+    return c;
+  }),
 ];
 
 /** Mostly samples, Interventions and forks; caseLoaded and sessionLoaded are rare because each resets the Ending or switches the Branch. */
@@ -1233,7 +1296,7 @@ function toGateAction(state: SessionUiState, lc: LineageCase, op: GateOpSpec, fo
 describe('sessionReducer: Rescue_Gate_Time property', () => {
   // Feature: play-mode, Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage
   it('Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage', () => {
-    /** Validates: Requirements 6.21, 6.23, 6.24 */
+    /** Validates: Requirements 6.21, 6.23, 6.24, 6.25, 6.27 */
     fc.assert(
       fc.property(
         arbLineage,
@@ -1258,8 +1321,18 @@ describe('sessionReducer: Rescue_Gate_Time property', () => {
             if (action === null) continue;
             const next = reduce(state, action);
 
+            // expectedGate uses earliestInsultTime(caseData): only Gate_Entries count (6.25, 6.26).
             const gate = gateOf(next);
             expect(gate).toBe(expectedGate(next));
+            const insultAt = next.caseData ? earliestInsultTime(next.caseData) : undefined;
+            if (insultAt !== undefined && gate !== null && Number.isFinite(gate)) {
+              expect(gate).toBeGreaterThanOrEqual(insultAt);
+            }
+            // Every accepted entry is recorded, whether or not it is a Gate_Entry (6.27).
+            if (action.type === 'interventionSucceeded') {
+              expect(next.interventionRecord[next.interventionRecord.length - 1]).toEqual(action.entry);
+              expect(next.interventionRecord).toHaveLength(state.interventionRecord.length + 1);
+            }
             // Checked while the Ending is `none` (6.24): once an Ending is set, a gate
             // change leaves the Ending state, including rescueStart, as it is.
             const start = next.ending.rescueStart;

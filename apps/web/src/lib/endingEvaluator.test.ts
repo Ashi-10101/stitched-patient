@@ -20,6 +20,7 @@ import type {
 import {
   buildEndingContext,
   conditionHolds,
+  earliestInsultTime,
   evaluateEnding,
   initialEndingState,
   requiredInterventions,
@@ -393,17 +394,62 @@ describe('Rescue_Gate_Time in the Ending_Evaluator', () => {
   it('rescueGateTime is the largest earliest entry time, null for a missing id, and ignores the other side (6.18, 6.19)', () => {
     const left = 'needle-decompression-left';
     const right = 'needle-decompression-right';
+    // No Earliest_Insult_Time here, so every entry is a Gate_Entry (6.26).
     // Earliest per id: left 5, right 20; the gate is the largest of those.
-    expect(rescueGateTime([left, right], [entry(left, 10), entry(right, 30), entry(left, 5), entry(right, 20)])).toBe(20);
-    expect(rescueGateTime([left, right], [entry(right, 20), entry(left, 40)])).toBe(40);
-    expect(rescueGateTime([left], [entry(left, 42.5)])).toBe(42.5);
+    expect(
+      rescueGateTime([left, right], [entry(left, 10), entry(right, 30), entry(left, 5), entry(right, 20)], undefined),
+    ).toBe(20);
+    expect(rescueGateTime([left, right], [entry(right, 20), entry(left, 40)], undefined)).toBe(40);
+    expect(rescueGateTime([left], [entry(left, 42.5)], undefined)).toBe(42.5);
     // One required id has no entry.
-    expect(rescueGateTime([left, right], [entry(left, 10)])).toBeNull();
-    expect(rescueGateTime([left], [])).toBeNull();
+    expect(rescueGateTime([left, right], [entry(left, 10)], undefined)).toBeNull();
+    expect(rescueGateTime([left], [], undefined)).toBeNull();
     // Only the right side is active while the left one is required.
-    expect(rescueGateTime([left], [entry(right, 10), entry(right, 50)])).toBeNull();
+    expect(rescueGateTime([left], [entry(right, 10), entry(right, 50)], undefined)).toBeNull();
     // No Required_Interventions.
-    expect(rescueGateTime([], [entry(left, 10)])).toBe(Number.NEGATIVE_INFINITY);
+    expect(rescueGateTime([], [entry(left, 10)], undefined)).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it('only Gate_Entries at or after the Earliest_Insult_Time open the gate (6.25, 12.18)', () => {
+    const left = 'needle-decompression-left';
+    const right = 'needle-decompression-right';
+    // Insult at 30 s, as in the shipped case.
+    expect(rescueGateTime([left], [entry(left, 20)], 30)).toBeNull();
+    expect(rescueGateTime([left], [entry(left, 30)], 30)).toBe(30);
+    expect(rescueGateTime([left], [entry(left, 20), entry(left, 150)], 30)).toBe(150);
+    expect(rescueGateTime([left], [entry(left, 150), entry(left, 20)], 30)).toBe(150);
+    // A right entry after the insult still does not open a left gate (6.19).
+    expect(rescueGateTime([left], [entry(left, 20), entry(right, 60)], 30)).toBeNull();
+    // Without Required_Interventions the gate stays open whatever the entries.
+    expect(rescueGateTime([], [entry(left, 20)], 30)).toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it('with no finite insult time every entry counts, as before 6.25 (6.26)', () => {
+    const left = 'needle-decompression-left';
+    expect(rescueGateTime([left], [entry(left, 20)], undefined)).toBe(20);
+    expect(rescueGateTime([left], [entry(left, 20), entry(left, 150)], undefined)).toBe(20);
+    expect(rescueGateTime([left], [entry(left, 0)], undefined)).toBe(0);
+    // buildEndingContext of a case without insults passes `undefined`.
+    const ctx = buildEndingContext(caseWith(PLAY_OVERLAP_REQUIRED));
+    expect(earliestInsultTime(caseWith(PLAY_OVERLAP_REQUIRED))).toBeUndefined();
+    expect(ctx.rescueFromTime).toBe(0);
+    expect(ctx.rescueGateTime).toBeNull();
+  });
+
+  it('earliestInsultTime is the smallest finite insult time, or undefined without one', () => {
+    expect(earliestInsultTime(CASE)).toBe(30);
+    expect(buildEndingContext(CASE).rescueFromTime).toBe(30);
+    expect(earliestInsultTime(caseWith(PLAY))).toBeUndefined();
+    expect(earliestInsultTime(caseWith(PLAY, insultsAt([45, 30, 60])))).toBe(30);
+    const noTimeline = { ...caseWith(PLAY), timeline: undefined } as unknown as CaseData;
+    expect(earliestInsultTime(noTimeline)).toBeUndefined();
+    const noList = { ...caseWith(PLAY), timeline: {} } as unknown as CaseData;
+    expect(earliestInsultTime(noList)).toBeUndefined();
+    // Non-finite times are skipped.
+    const nonFinite = insultsAt([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]);
+    expect(earliestInsultTime(caseWith(PLAY, nonFinite))).toBeUndefined();
+    expect(buildEndingContext(caseWith(PLAY, nonFinite)).rescueFromTime).toBe(0);
+    expect(earliestInsultTime(caseWith(PLAY, [...nonFinite, ...insultsAt([42])]))).toBe(42);
   });
 
   it('without Required_Interventions the gate is -Infinity and the Endings equal those without a gate (6.20)', () => {
@@ -776,26 +822,45 @@ describe('Ending_Evaluator: properties', () => {
 
   // Feature: play-mode, Property 24: Rescue never comes before the Rescue_Gate_Time
   it('Property 24: Rescue never comes before the Rescue_Gate_Time', () => {
-    /** Validates: Requirements 6.3, 6.18, 6.19, 6.20, 6.22, 6.24 */
+    /** Validates: Requirements 6.3, 6.18, 6.19, 6.20, 6.22, 6.24, 6.25, 6.26, 12.18 */
     fc.assert(
       fc.property(
         arbGateIds,
         arbGateEntries,
         arbGateEntries,
+        arbEarliestInsult,
         arbScenario,
         fc.nat(),
         arbGate,
         fc.constantFrom<'absolute' | 'afterLast'>('absolute', 'afterLast'),
         fc.constantFrom(0, 0.5, 1, 3),
         fc.boolean(),
-        (ids, entries, others, sc, rawCut, absoluteGate, gateKind, shift, prefixUngated) => {
+        (ids, entries, others, earliest, sc, rawCut, absoluteGate, gateKind, shift, prefixUngated) => {
           // rescueGateTime against an independent model; entries of other ids change nothing.
-          const gate = rescueGateTime(ids, entries);
-          expect(gate).toBe(refGate(ids, entries));
+          const gate = rescueGateTime(ids, entries, earliest);
+          expect(gate).toBe(refGate(ids, entries, earliest));
           const required = entries.filter((e) => ids.includes(e.interventionId));
           const notRequired = others.filter((e) => !ids.includes(e.interventionId));
-          expect(rescueGateTime(ids, required)).toBe(gate);
-          expect(rescueGateTime(ids, [...notRequired, ...entries, ...notRequired])).toBe(gate);
+          expect(rescueGateTime(ids, required, earliest)).toBe(gate);
+          expect(rescueGateTime(ids, [...notRequired, ...entries, ...notRequired], earliest)).toBe(gate);
+
+          // Gate_Entry rule (6.25, 6.26).
+          if (earliest === undefined) {
+            // Every entry counts: the result equals the pre-6.25 rule with no entry left out.
+            expect(gate).toBe(refGate(ids, entries, Number.NEGATIVE_INFINITY));
+          } else {
+            // A finite gate is never below the Earliest_Insult_Time.
+            if (gate !== null && Number.isFinite(gate)) expect(gate).toBeGreaterThanOrEqual(earliest);
+            // Adding entries before the insult time, of any id, leaves the result unchanged.
+            const preInsult = others.map((e) => ({
+              ...e,
+              simulationTime: Number.isNaN(e.simulationTime) ? e.simulationTime : Math.min(e.simulationTime, earliest - 0.5),
+            }));
+            expect(rescueGateTime(ids, [...preInsult, ...entries, ...preInsult], earliest)).toBe(gate);
+            // Removing the entries before the insult time leaves it unchanged too.
+            const gateEntries = entries.filter((e) => !(e.simulationTime < earliest));
+            expect(rescueGateTime(ids, gateEntries, earliest)).toBe(gate);
+          }
 
           const ctx = contextOf(sc);
           const withGate = (g: number | null): EndingState =>
@@ -876,13 +941,30 @@ const arbGateEntries: fc.Arbitrary<InterventionRecordEntry[]> = fc.array(
   { maxLength: 8 },
 );
 
-/** Independent model of the Rescue_Gate_Time (6.18-6.20). */
-function refGate(ids: readonly string[], entries: readonly InterventionRecordEntry[]): number | null {
+/**
+ * Earliest_Insult_Time: `undefined` (no finite insult time) or a time on a 5 s grid
+ * inside the entry-time range, so entries before, at and after it are common.
+ */
+const arbEarliestInsult: fc.Arbitrary<number | undefined> = fc.option(
+  fc.integer({ min: 0, max: 12 }).map((n) => n * 5),
+  { nil: undefined, freq: 4 },
+);
+
+/**
+ * Independent model of the Rescue_Gate_Time (6.18-6.20, 6.25, 6.26): only entries
+ * at or after `earliestInsult` count, or every entry when it is `undefined`.
+ */
+function refGate(
+  ids: readonly string[],
+  entries: readonly InterventionRecordEntry[],
+  earliestInsult: number | undefined,
+): number | null {
   if (ids.length === 0) return Number.NEGATIVE_INFINITY;
   const earliest: number[] = [];
   for (const id of ids) {
     const times = entries
       .filter((e) => e.interventionId === id && Number.isFinite(e.simulationTime))
+      .filter((e) => earliestInsult === undefined || e.simulationTime >= earliestInsult)
       .map((e) => e.simulationTime);
     if (times.length === 0) return null;
     earliest.push(Math.min(...times));
