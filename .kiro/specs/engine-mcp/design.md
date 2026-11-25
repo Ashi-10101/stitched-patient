@@ -43,9 +43,9 @@ Decisions D1 to D14 implement the decisions of the same number in the requiremen
 
 **D2. Applying a Planned_Intervention (requirements decision 2).** For Requested_Time T > 0 the runner pauses on the first kept sample with `simulation_time ≥ T`, applies every pending Planned_Intervention whose Requested_Time is at most that time, in plan order, and resumes. For each call it lists the Checkpoints of `current_branch_id` before and after the Intervention_API call. The Actual_Time is the `simulation_time` of the one manual Checkpoint (`is_automatic: false`) that is new and whose `description` is `After <label>`, with `<label>` the Intervention's `label` in the Resolved_Case. No such Checkpoint is an error. The before-list costs one extra request per Intervention. In exchange the match never picks up an older Checkpoint with the same description. For T = 0 the same procedure runs before the first play request.
 
-**D3. Rescue gate (requirements decision 3).** The runner keeps a Runner_Intervention_Record with one `InterventionRecordEntry` per successful Intervention_API call, built with the shipped `buildInterventionEntry(intervention, actualTime, branchId)`. One fold object, `createOutcomeFold` in `calibration.ts`, owns the Ending: before it evaluates a Mark_Sample at time m, it applies, in record order, every gate change from entries with Actual_Time ≤ m, using `setRescueGate(ctx, state, rescueGateTime(requiredInterventions(play), entriesSoFar))`. The runner pushes Mark_Samples into the fold only after any Intervention application in progress has finished (see "Message loop"). The post-hoc `scenarioOutcome` uses the same fold, so the incremental result that drives `stop_at_ending` and the final result are equal by construction.
+**D3. Rescue gate (requirements decision 3).** The runner keeps a Runner_Intervention_Record with one `InterventionRecordEntry` per successful Intervention_API call, built with the shipped `buildInterventionEntry(intervention, actualTime, branchId)`. One fold object, `createOutcomeFold` in `calibration.ts`, owns the Ending: before it evaluates a Mark_Sample at time m, it applies, in record order, every gate change from entries with Actual_Time ≤ m, using `setRescueGate(ctx, state, rescueGateTime(requiredInterventions(play), entriesSoFar))`. The runner pushes Mark_Samples into the fold only after any Intervention application in progress has finished (see "Message loop"). The post-hoc `scenarioOutcome` uses the same fold, so the incremental result that drives `stop_at_ending` and the final result are equal by construction. (Since the author's decision of 2026-11-25, this gate computation uses play-mode's `rescueGateTime`, which counts only Gate_Entries as play-mode defines them, play-mode 6.25, 6.26 and 13.18; the fold gets this behaviour through that function and has no separate gate logic.)
 
-**D4. Status_Sentences and Exam_Findings (requirements decision 4).** Each Mark_Sample is evaluated with the shipped `selectStatus`, `statusItemMatches`, `getVitalBand`, `thresholdsFor`, `overallStatus`, `examButtons` and `examFinding`, on the Resolved_Case from the Case_API. The Active_Interventions at time t are the Runner_Intervention_Record entries with Actual_Time ≤ t. A Scenario has one Branch, so `activeInterventions` with a one-segment lineage would give the same list. The runner filters by time directly and does not build a lineage. The record reports which Status_Rules matched using `statusItemMatches` on each rule's `when` items, so no matching logic is copied.
+**D4. Status_Sentences and Exam_Findings (requirements decision 4).** Each Mark_Sample is evaluated with the shipped `selectStatus`, `statusItemMatches`, `getVitalBand`, `thresholdsFor`, `overallStatus`, `examButtons` and `examFinding`, on the Resolved_Case from the Case_API. The Active_Interventions at time t are the Runner_Intervention_Record entries with Actual_Time ≤ t. A Scenario has one Branch, so `activeInterventions` with a one-segment lineage would give the same list. The runner filters by time directly and does not build a lineage. The record reports which Status_Rules matched using `statusItemMatches` on each rule's `when` items, so no matching logic is copied. (Since the author's decision of 2026-11-25, the Vital_Bands, the Overall_Status and the Status_Rule matches are computed from the Displayed_Values as play-mode defines them, play-mode 13.19 and 15.16, while the Mark_Sample values stay raw.)
 
 **D5. Mark_Samples (requirements decision 5).** The Ending_Evaluator runs on Mark_Samples. Calibration uses a Sample_Interval of 10. `run_scenario` accepts 1 to 60.
 
@@ -83,7 +83,7 @@ Decisions D1 to D14 implement the decisions of the same number in the requiremen
 
 **D22. Python_Test_Hook command.** The hook uses the verified command of F2 unchanged, after an image presence check (F3). The Case_Check_Hook uses the command of Requirement 15.2 with `-T` (no TTY in a hook) and `-e PYTHONDONTWRITEBYTECODE=1`, and the same image check.
 
-**D23. "The tension pneumothorax still develops" (9.6, 9.7).** The requirements need a yes-or-no statement but give no rule. This design uses a mechanical rule that works only on the case's own thresholds: in the `affected-side-early` Scenario, the tension pneumothorax counts as developing when at one or more Mark_Samples after the insult's `timeSeconds`, at least one vital sign with Case thresholds has an Alarm_State more severe (`normal < warning < critical`) than its Alarm_State at the last Mark_Sample at or before `timeSeconds`. The record prints the rule next to the answer and the side-by-side values, and does not interpret it clinically. **The author must confirm this rule** (item A1 below). If the author rejects it, the record can state "not decided by the tool" instead, but then Requirement 9.7 cannot be checked automatically.
+**D23. "The tension pneumothorax still develops" (9.6, 9.7).** The requirements need a yes-or-no statement but give no rule. This design uses a mechanical rule that works only on the case's own thresholds: in the `affected-side-early` Scenario, the tension pneumothorax counts as developing when at one or more Mark_Samples after the insult's `timeSeconds`, at least one vital sign with Case thresholds has an Alarm_State more severe (`normal < warning < critical`) than its Alarm_State at the last Mark_Sample at or before `timeSeconds`. (Since the author's decision of 2026-11-25, these Alarm_States are computed from the Displayed_Values as play-mode defines them, play-mode 13.19 and 15.16.) The record prints the rule next to the answer and the side-by-side values, and does not interpret it clinically. **The author must confirm this rule** (item A1 below). If the author rejects it, the record can state "not decided by the tool" instead, but then Requirement 9.7 cannot be checked automatically.
 
 **D24. Git facts through read-only `git` commands.** The Record_Header needs the short commit id, whether `cases/` or `apps/web/src/lib/` differ from it, and whether `1e71454` is an ancestor (9.1). The Node adapter runs `git rev-parse --short HEAD`, `git status --porcelain -- cases apps/web/src/lib` and `git merge-base --is-ancestor 1e71454 HEAD` with `execFile` (no shell) in the repository root. Exit code 1 of `merge-base` means "no", and any other failure is reported as "unknown". This conflicts with the literal text of Requirement 1.8 ("SHALL start no process"); see "Conflicts with the requirements".
 
@@ -432,7 +432,9 @@ export interface OutcomeFold {
 }
 /** Uses buildEndingContext, initialEndingState, stepEnding, setRescueGate, rescueGateTime,
  *  requiredInterventions from endingEvaluator.ts. Mark_Samples are evaluated with `simulation_time`
- *  set to their mark, so a substituted sample stands for its Sample_Mark. */
+ *  set to their mark, so a substituted sample stands for its Sample_Mark.
+ *  (Since the author's decision of 2026-11-25, the gate uses play-mode's rescueGateTime, which counts only
+ *  Gate_Entries as play-mode defines them, play-mode 6.25, 6.26 and 13.18.) */
 export function createOutcomeFold(rc: CaseData): OutcomeFold;
 
 export interface ScenarioOutcome {
@@ -460,7 +462,8 @@ export function checkLostNeverRescued(check: 'other-side-only-lost' | 'no-interv
 export interface EarlyComparison {
   /** Marks after the insult's timeSeconds present in both Scenarios. */
   rows: { time: number; early: Sample; none: Sample }[];
-  /** D23 rule. */
+  /** D23 rule. (Since the author's decision of 2026-11-25, its Alarm_States are computed from the
+   *  Displayed_Values as play-mode defines them, play-mode 13.19 and 15.16.) */
   develops: boolean;
   firstWorseAt: number | null;
   worseVital: VitalName | null;
@@ -470,14 +473,18 @@ export interface EarlyComparison {
 export function compareEarlyWithNone(early: readonly MarkSample[], none: readonly MarkSample[],
   insultTime: number, alarms: AlarmThresholds): EarlyComparison;
 
-/** 9.8 / 5.1, using getVitalBand, thresholdsFor and overallStatus. */
+/** 9.8 / 5.1, using getVitalBand, thresholdsFor and overallStatus.
+ *  (Since the author's decision of 2026-11-25, these Vital_Bands and the Overall_Status are computed from the
+ *  Displayed_Values as play-mode defines them, play-mode 13.19 and 15.16; the Mark_Sample values stay raw.) */
 export function bandsOf(sample: Sample, alarms: AlarmThresholds): Partial<Record<VitalName, VitalBand>>;
 export function overallStatusOf(sample: Sample, alarms: AlarmThresholds): AlarmState;
 export interface StatusRuleReport {
   rules: { index: number; sentence: string; matchedAt: number[]; returnedAt: number[] }[]; // only rules that matched
   onlyDefault: boolean;
 }
-/** matchedAt: every `when` item passes statusItemMatches; returnedAt: selectStatus returned that sentence (9.8). */
+/** matchedAt: every `when` item passes statusItemMatches; returnedAt: selectStatus returned that sentence (9.8).
+ *  (Since the author's decision of 2026-11-25, the Status_Rule matches are computed from the Displayed_Values
+ *  as play-mode defines them, play-mode 13.19 and 15.16.) */
 export function statusRuleReport(marks: readonly MarkSample[], alarms: AlarmThresholds, play: PlaySection): StatusRuleReport;
 
 export interface ExamRow { actionId: string; side: Side | null; sentence: string; abnormal: boolean }
@@ -1088,6 +1095,8 @@ export interface MarkRow {
   vitals: Partial<Omit<VitalSigns, 'simulation_time'>>;  // every field the Vitals_Stream sent
   bands: Partial<Record<VitalName, VitalBand>>;          // only vitals with Case thresholds, VITAL_NAMES order
   overall_status: AlarmState;
+  // (Since the author's decision of 2026-11-25, `bands` and `overall_status` are computed from the Displayed_Values
+  //  as play-mode defines them, play-mode 13.19 and 15.16, while `vitals` stays raw.)
   status_sentence: string | null;  // selectStatus on this sample; null without a Play_Section
   ending: Ending;                  // the Ending after this Mark_Sample (OutcomeFold.endingAfter)
   exam: ExamRowJson[];             // examButtons order; [] without an Exam_Section (5.3)
@@ -1133,6 +1142,8 @@ export interface ScenarioResult {
   play_values: PlayValuesJson | null;    // null without a Play_Section
   interventions: AppliedInterventionJson[];   // Intervention_Plan order
   rescue_gate_time: GateJson;            // final value
+  // (Since the author's decision of 2026-11-25, this is `null` for `affected-side-early`, because its early
+  //  Decompression is not a Gate_Entry as play-mode defines them, play-mode 13.16 and 13.18.)
   ending: EndingTimelineJson;
   rescue_held_without_gate: number[];    // marks where every rescue condition held, gate ignored (13.15 basis)
   status_rules: StatusRuleReportJson;
@@ -1235,7 +1246,9 @@ Ending: <rescued at <t> s | lost at <t> s (cause: Lost_Condition group <n> | Tim
 | Time (s) | Substituted | <each vital referenced by a rescue or lost condition, VITAL_NAMES order> | Overall_Status | Ending |
 
 #### Vital_Bands at Simulation_Time 0
-| Vital | Alarm_State | Direction |
+| Vital | Alarm_State | Direction |   (Since the author's decision of 2026-11-25, these Vital_Bands and the Overall_Status
+                                       column above are computed from the Displayed_Values as play-mode defines them,
+                                       play-mode 13.19 and 15.16; the vital sign values stay raw.)
 
 #### Status_Rules
 | Rule | Sentence | Matched at (s) | Returned at (s) |   or "Only the defaultSentence was returned: "<sentence>""
@@ -1246,7 +1259,8 @@ Ending: <rescued at <t> s | lost at <t> s (cause: Lost_Condition group <n> | Tim
 
 ### Early Decompression compared with no intervention
 | Time (s) | <vital> early | <vital> none | ... |   marks after the insult's timeSeconds present in both
-Rule: <the D23 rule text>
+Rule: <the D23 rule text>   (Since the author's decision of 2026-11-25, the rule's Alarm_States are computed
+                               from the Displayed_Values as play-mode defines them, play-mode 13.19 and 15.16.)
 The tension pneumothorax still develops after the early Decompression: <yes, first at <t> s (<vital>) | no>
 The early Scenario's Ending is not evidence for play-mode open question 1, item d.
 
@@ -1420,7 +1434,7 @@ Test: property, `apps/web/src/lib/calibration.test.ts`, with gaps generated in t
 
 ### Property 5: The incremental outcome fold equals the post-hoc fold
 
-*For any* Resolved_Case fixture (`CASE_LEFT`, `CASE_RIGHT`), any sequence of Mark_Samples, and any Runner_Intervention_Record whose entries have Actual_Times that do not decrease, `createOutcomeFold` gives the same Ending, Ending time, lost cause, final Rescue_Gate_Time and per-mark Endings as `scenarioOutcome`. In the fold, each entry is added at any point before the first Mark_Sample with a mark at or after its Actual_Time. The result also equals a reference evaluation that, before each Mark_Sample at mark m, calls `setRescueGate` with `rescueGateTime` over the entries with Actual_Time ≤ m.
+*For any* Resolved_Case fixture (`CASE_LEFT`, `CASE_RIGHT`), any sequence of Mark_Samples, and any Runner_Intervention_Record whose entries have Actual_Times that do not decrease, `createOutcomeFold` gives the same Ending, Ending time, lost cause, final Rescue_Gate_Time and per-mark Endings as `scenarioOutcome`. In the fold, each entry is added at any point before the first Mark_Sample with a mark at or after its Actual_Time. The result also equals a reference evaluation that, before each Mark_Sample at mark m, calls `setRescueGate` with `rescueGateTime` over the entries with Actual_Time ≤ m. (Since the author's decision of 2026-11-25, `rescueGateTime` is play-mode's function, which counts only Gate_Entries as play-mode defines them, play-mode 6.25, 6.26 and 13.18.)
 
 **Validates: Requirements 4.6, 4.7, 5.4, 5.5**
 

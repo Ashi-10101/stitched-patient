@@ -603,11 +603,90 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Confirm from the task reports that no play-mode task changed `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-simulation-loop/`, and that `apps/web/package-lock.json` is present
     - _Requirements: 2.12, 12.10, 12.11, 12.12_
 
+- [ ] 15. Calibration fixes of 2026-11-25: early Decompression and displayed-value bands
+  - [ ] 15.1 Fix 1: count only Gate_Entries toward the Rescue_Gate_Time
+    - Author's decision of 2026-11-25 (requirements "Dependencies and confirmed decisions" item 7, design D9). Follow the design sections "endingEvaluator.ts" (Rescue gate), "sessionState.ts — the reducer" and "Shipped calibration path (13.18)"
+    - Files: `apps/web/src/lib/endingEvaluator.ts` and `endingEvaluator.test.ts`; `apps/web/src/lib/sessionState.ts` and `sessionState.test.ts`; `apps/web/src/lib/calibration.ts` and `calibration.test.ts`; `apps/web/src/test/generators.ts` if a generator needs insult times. Do not change `engineRunner.ts` or `engineCalibration.ts`: they take the gate from `createOutcomeFold` / `scenarioOutcome` (13.18)
+    - `endingEvaluator.ts`:
+      - export `earliestInsultTime(caseData)`: the smallest finite `timeSeconds` of `timeline.scheduledInsults` (a missing list counts as empty), `undefined` without one. Move the minimum that `buildEndingContext` computes today into this function; `rescueFromTime` stays `earliestInsultTime(caseData) ?? 0`
+      - `rescueGateTime(requiredIds, active, earliestInsult)` gains the required third argument `earliestInsult: number | undefined`. Per required id, only Gate_Entries count: entries with `simulationTime >= earliestInsult`, or every entry when `earliestInsult` is `undefined` (6.25, 6.26). Empty `requiredIds` still give `-Infinity`; a required id with no Gate_Entry still gives `null`; entries of other ids are still ignored (6.19)
+      - `setRescueGate` and `stepEnding` stay unchanged
+    - Update every non-test call site of `rescueGateTime`, each passing the third argument:
+      - `buildEndingContext` in `endingEvaluator.ts`: `earliestInsultTime(caseData)`
+      - `initialSessionState` in `sessionState.ts`: `rescueGateTime(requiredInterventions(undefined), [], undefined)` (no case loaded yet; the result stays `-Infinity`)
+      - `withRescueGate` in `sessionState.ts`: `state.caseData ? earliestInsultTime(state.caseData) : undefined`
+      - `createOutcomeFold` in `calibration.ts`: `earliestInsultTime(rc)`
+    - Update every test call site (`endingEvaluator.test.ts`, `sessionState.test.ts` including `expectedGate`, `calibration.test.ts`) to pass the third argument. An existing test whose expectation relies on a pre-insult entry opening the gate encodes the old rule: change that expectation to follow 6.25 and report each such change
+    - An entry left out of the gate stays in `interventionRecord` and in `activeInterventions`, and `computeSides`, `labelRewindMoment` and the Exam_Finding_Selector still see it (6.27). No change to `sides.ts`, `rewindMoments.ts`, `branchLineage.ts` or `examFinding.ts`
+    - Add to `apps/web/src/lib/endingEvaluator.test.ts`, with the insult at 30 s as in the shipped case (12.18):
+      - a left entry at 20 s gives `null`; at exactly 30 s gives 30; at 20 s and 150 s gives 150
+      - with no finite insult time (`undefined`), every entry counts, with the results of the pre-Fix-1 rule
+      - `earliestInsultTime` for the shipped case (30), for a case without insults (`undefined`) and for insults with non-finite `timeSeconds`
+      - extend the existing **Property 24: Rescue never comes before the Rescue_Gate_Time** with a generated `earliestInsult` (finite or `undefined`) and entries before and after it: a finite result is never below `earliestInsult` when it is defined; adding or removing entries with `simulationTime < earliestInsult` leaves the result unchanged; with `undefined` the result equals the result with every entry counted. Keep the tag `// Feature: play-mode, Property 24: Rescue never comes before the Rescue_Gate_Time`
+    - Add to `apps/web/src/lib/sessionState.test.ts`:
+      - an `interventionSucceeded` for `needle-decompression-left` at 20 s keeps the gate `null`, the entry stays in `interventionRecord`, and `Left` is in `avatar.decompressedSides` (6.25, 6.27)
+      - a fixture modelled on the `affected-side-early` Scenario of `docs/calibration/adult-tension-pneumothorax-2026-11-25-161c754.md`: left Decompression at 20 s, insult at 30 s, samples that satisfy the Rescue_Condition from 0 s on: the Ending is never `rescued` through `sessionReducer`; a second left Decompression at or after 30 s opens the gate at that entry's time
+      - extend the existing **Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage** so that `expectedGate` uses `earliestInsultTime(caseData)` and the generated entries include times before and after the Earliest_Insult_Time; it checks that every `interventionSucceeded` entry is in `interventionRecord` whether or not it is a Gate_Entry. Keep the tag `// Feature: play-mode, Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage`
+    - Add to `apps/web/src/lib/calibration.test.ts`: the same `affected-side-early` fixture through `createOutcomeFold` and through `scenarioOutcome` gives a `finalGate` of `null` and never `rescued` (13.18)
+    - Use fast-check with `PBT_PARAMS` from `src/test/pbt.ts`, as the existing property tests do
+    - Search `apps/web/src` and `apps/web/scripts` for `rescueGateTime(`: outside tests it is called only in `endingEvaluator.ts`, `sessionState.ts` and `calibration.ts`. Quote the search result
+    - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
+    - Quote the Vitest summary line (passed/failed/skipped) in the task report
+    - From `apps/web/`, `npx tsc --noEmit` (no new errors compared with the 1.1 baseline) and `npx vitest --run` pass, and `git status` shows no change under `services/physiology/` or `cases/`
+    - _Requirements: 6.18, 6.19, 6.21, 6.22, 6.23, 6.24, 6.25, 6.26, 6.27, 12.18, 13.13, 13.16, 13.18_
+    - _Properties: 24, 25_
+
+  - [ ] 15.2 Fix 2: compute every Vital_Band from the Displayed_Value
+    - Author's decision of 2026-11-25 (requirements "Dependencies and confirmed decisions" item 7, design D10). Follow the design sections "vitals.ts", "vitalBands.ts", "avatarMapper.ts", "statusSelector.ts", "Session page refactor" (Displayed values) and "Calibration run" (Record)
+    - `apps/web/src/lib/vitals.ts`: add the single `DISPLAY_PRECISION` table (heart rate, respiratory rate, MAP, EtCO2 and tidal volume: scale 1, 0 decimals; SpO2: scale 100, 1 decimal; 15.13), `displayedValue(vital, raw)` (`Number((raw * scale).toFixed(decimals)) / scale`, `-0` written as `0`, `undefined` for a non-finite raw value or result; 15.15), `formatVital(vital, raw)` (text written from the Displayed_Value, `""` without one; 15.14, including the negative-zero exception: "0" for a whole-number vital with raw above -0.5 and below 0, "0.0" for SpO2 with raw above -0.0005 and below 0) and `readDisplayedVital(sample, vital)`. These are UI display constants, not clinical values
+    - `apps/web/src/components/VitalSign.tsx`: take `vital: VitalName` and the raw value in place of `value` and `decimals`, and write the text with `formatVital`. `apps/web/src/components/ClinicianView.tsx`: pass the raw values (no `* 100` for SpO2), and replace the local `alarmFor` with an exported pure `clinicianAlarmState(alarms, vital, raw)`: `undefined` while `alarms` is `null`, `normal` for a vital without thresholds, otherwise `getAlarmState(displayedValue(vital, raw), threshold)`; a raw value with no Displayed_Value gets the neutral style (15.15). Neither file keeps a `toFixed` or a `* 100`
+    - Pass the Displayed_Value to every Vital_Band caller (15.16): the band loop in `avatarMapper.ts` uses `readDisplayedVital`, while the breathing and heartbeat periods and the breathing depth keep the raw `readVital` value; `statusItemMatches` in `statusSelector.ts` uses `readDisplayedVital`; `bandsOf` in `calibration.ts` uses `readDisplayedVital`, so `overallStatusOf`, the early-versus-none comparison and `statusRuleReport` follow
+    - Must not change: `getAlarmState` and `getVitalBand`; `conditionHolds`, the Time_Limit check and every other part of the Ending_Evaluator, which keep raw values (15.18); the raw Mark_Sample values in the calibration record's sample tables (13.19); the raw tidal volume in `sessionState.ts`
+    - Shared functions carry the change to other specs: the bedside-exam Exam_Rule `vitals` conditions (`examFinding.ts`, through `statusItemMatches`) and the engine-mcp record bands, Overall_Status and D23 early comparison (through `bandsOf`). Their existing tests must still pass. Change a test only where its fixture or reference model computed a band from a raw value: point the reference model at `displayedValue`, or move the fixture raw value at least one display step (1, or 0.001 for SpO2) away from a bound, as the design's test-offset note says. Do not change what such a test asserts otherwise. Report each changed test. Tests that call `getAlarmState` or `getVitalBand` directly with `boundary ± offset` stay as they are
+    - Extend `apps/web/src/lib/vitals.test.ts`:
+      - the `DISPLAY_PRECISION` values of 15.13
+      - raw RR 11.9999 → Displayed_Value 12, text "12", and band (`normal`, `none`) through `mapAvatar` and `clinicianAlarmState` (15.17); raw SpO2 0.974 → text "97.4"; raw SpO2 0.9496 → Displayed_Value 0.95, text "95.0", SpO2 band `normal`, while `conditionHolds({ vital: 'spO2', op: '>=', value: 0.95 }, sample)` is false (15.18)
+      - `NaN`, `±Infinity` and a missing field give no Displayed_Value and `""` as text; the two negative-zero cases of 15.14
+      - single definition (15.19): a text search of `VitalSign.tsx` and `ClinicianView.tsx` finds no `toFixed` and no `* 100`, and `displayedValue` and `formatVital` read `DISPLAY_PRECISION`
+      - **Property 26: Readouts and Vital_Bands come from one Displayed_Value** (generated vital names and finite raw values with magnitude at most 1e9: `formatVital(v, raw)` equals `formatVital(v, displayedValue(v, raw))`, `displayedValue` applied twice equals applied once; for generated samples and thresholds, the bands from `mapAvatar(...).bands`, `statusItemMatches`, `bandsOf` and `clinicianAlarmState` equal `getVitalBand(displayedValue(vital, raw), threshold)`, state only for `clinicianAlarmState`). Tag: `// Feature: play-mode, Property 26: Readouts and Vital_Bands come from one Displayed_Value`
+    - Update the reference models of the existing **Property 3** (`avatarMapper.test.ts`) and **Property 10** (`statusSelector.test.ts`, including the bedside-exam `statusItemMatches` property that shares `refItemMatches`) to compute states from the Displayed_Value and rates from raw values. Keep their tags
+    - Extend `apps/web/src/components/ClinicianView.test.tsx` and `sharedControls.test.tsx`: the existing readout texts are unchanged (for example "72", "97.4", "95" for the baseline sample), raw RR 11.9999 shows "12" with no warning colour, and `VitalSign` without an alarm state keeps the neutral style
+    - Use fast-check with `PBT_PARAMS` from `src/test/pbt.ts`, as the existing property tests do
+    - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
+    - Quote the Vitest summary line (passed/failed/skipped) in the task report
+    - From `apps/web/`, `npx tsc --noEmit` (no new errors compared with the 1.1 baseline) and `npx vitest --run` pass, and `git status` shows no change under `services/physiology/` or `cases/`
+    - _Requirements: 1.7, 4.1, 4.2, 5.2, 5.3, 5.4, 13.17, 13.19, 15.7, 15.8, 15.13, 15.14, 15.15, 15.16, 15.17, 15.18, 15.19_
+    - _Properties: 2, 3, 10, 26_
+
+  - [ ] 15.3 Test the Play_View Intervention buttons after a Decompression and during a fork
+    - Test-only. Files: `apps/web/src/components/PlayView.test.tsx` and, for the Clinician_View check, `apps/web/src/components/ClinicianView.test.tsx`. If a test shows a defect in `PlayView.tsx` or `ClinicianView.tsx`, stop and report; do not change component code in this task
+    - 8.15: build a state with `sessionReducer` (case loaded, connected, a sample, Ending `none`), then an `interventionSucceeded` for `needle-decompression-left`. `interventionsDisabled({ connected: true, interventionPending: false, forkPending: false, ending: 'none' })` is `false`, and the rendered Play_View markup shows the left button enabled (no "Not available right now"). Check that `InterventionsDisabledInput` has exactly the keys `connected`, `interventionPending`, `forkPending` and `ending`, so no Intervention_Record entry can disable a button
+    - 8.16: with the Vitals_Stream connected, no Intervention pending and the Ending `none`, `interventionsDisabled` is `true` while `forkPending` is `true`, and `false` again once `forkPending` is `false`, both after a `forkSucceeded` state (Ending `none`) and after a failed fork (state unchanged, no action dispatched). The `finally` in the Play_View's `fork` wrapper clears `forkPending` on both paths; read it and state this in the report
+    - Clinician_View unchanged: its `interventionsDisabled(connected, pending)` takes no fork input (two parameters) and keeps the results the existing test checks
+    - Run from `apps/web/`: `npx vitest --run 2>&1 | tee /tmp/sp-vitest.log`
+    - Quote the Vitest summary line (passed/failed/skipped) in the task report
+    - From `apps/web/`, `npx tsc --noEmit` (no new errors compared with the 1.1 baseline) and `npx vitest --run` pass, and `git status` shows no change under `services/physiology/` or `cases/`
+    - _Requirements: 7.7, 8.9, 8.10, 8.15, 8.16, 12.18_
+
+  - [ ] 15.4 Record a new calibration run and measure open question 1(e) (ONE-TIME RECORDING RUN)
+    - Runs after 15.1 and 15.2 are done (13.20). Needs the running Physiology_Service. Never start, stop or restart it; if it is not reachable, ask the user to start it in their own terminal or to give its URL through `PHYSIOLOGY_URL`
+    - Use the `stitched-patient-engine` MCP tools (`tool::stitched-patient-engine::list_cases`, `run_scenario`, `run_calibration`). Kiro asks for approval before each `run_scenario` and `run_calibration` call. Read the Variant ids and the affected-side Intervention of each Variant from `list_cases` (expected Variants `left` and `right`, with `needle-decompression-left` and `needle-decompression-right`)
+    - (a) `run_calibration` with `case_id: "adult-tension-pneumothorax"`, default Decompression times and `write: false`. Report per Variant: the three Calibration_Checks with pass or fail; the `affected-side-early` Rescue_Gate_Time (expected `null`, "closed") and its Ending with time; the Vital_Band (Alarm_State and direction) of every vital at t = 0 (expected respiratoryRate `normal`, `none`)
+    - If the `affected-side-early` Rescue_Gate_Time is not `null` or the t = 0 respiratoryRate band is not `normal` in any Variant, stop before (c) and report it as a defect in 15.1 or 15.2. A failing Calibration_Check alone does not stop the task: report it, and the record marks the values NOT calibrated (13.8)
+    - (b) Open question 1(e): `run_scenario` once per Variant with the affected-side Decompression at 20 s and again at 150 s (`interventions` with `at_seconds` 20 and 150), `max_seconds: 600`, `sample_interval_seconds: 10`. Report per Variant: the Rescue_Gate_Time (expected 150 under 6.25), the Ending and its time, and HR, SpO2, MAP and RR at 150, 200, 250 and 300 s next to the `affected-side` Scenario of the same Variant from (a)
+    - Write the measured answer under open question 1, item (e) in `.kiro/specs/play-mode/requirements.md`, with the date and the commit (`git rev-parse --short HEAD`): whether the second Decompression takes effect in Pulse, per Variant, with the numbers of (b). Keep the text of item (e) and every `TODO(author)` marker. This is the only spec edit in this task
+    - (c) `run_calibration` with `write: true`, exactly once, with the same arguments as (a). Report the path of the new record under `docs/calibration/` and its index line (13.20)
+    - CLI fallback: if an MCP call times out or the server is not available, run the Engine_CLI from `apps/web/` with execute_bash and a timeout of at least 1800000 ms: `./node_modules/.bin/vite-node --config vitest.config.ts scripts/engineCli.ts -- calibrate --case adult-tension-pneumothorax [--write]` and `./node_modules/.bin/vite-node --config vitest.config.ts scripts/engineCli.ts -- run-scenario --case adult-tension-pneumothorax --variant <id> --max-seconds 600 --interval 10 --intervention <affected-side id>@20 --intervention <affected-side id>@150`. If the run needs longer, ask the user to run it in their own terminal. If execute_bash reports a timeout, read the output and the record files before retrying
+    - If a check fails, report it. Do not change any case value, threshold or check to make it pass (engine-mcp 13.3). Remove no `TODO(author)` marker (13.10)
+    - From `apps/web/`, `npx tsc --noEmit` (no new errors compared with the 1.1 baseline) and `npx vitest --run` pass, and `git status` shows no change under `services/physiology/` or `cases/` (only the new files under `docs/calibration/` and the 1(e) edit in `requirements.md` are expected)
+    - _Requirements: 13.1, 13.2, 13.4, 13.8, 13.9, 13.10, 13.13, 13.15, 13.16, 13.17, 13.18, 13.19, 13.20, 14.3, 14.7, 15.17_
+
 ## Notes
 
 - Tasks are ordered by dependency: tooling and types → Alarm_Function → pure logic → API timeouts → case schema and case file → session state and hook → shared shell and Clinician view → Play components → wiring → calibration → acceptance checklist → final check
 - Run order differs from document order for group 10: 10.7 and 10.8 run before 10.6, because the Ending_Screen shows the redrawn Avatar. The order is 10.5, 10.7, 10.8, then 10.6.
 - Task 11.3 (the rescue gate) was added after group 11 was done; it runs after 11.2 and before 12.1, because the calibration script uses its helpers. The order is 11.1, 11.2, 11.3, then 12.1.
+- Group 15 (calibration fixes of 2026-11-25) was added after task 11.3 was done. It does not depend on groups 12 to 14, so it can run as soon as 11.3 is done, in the order 15.1, 15.2, 15.3, 15.4. Task 15.4 is the new calibration run that Requirement 13.20 requires after 15.1 and 15.2. Run the final check 14.1 after group 15.
 - Every task is required. There are no optional tasks and no `*` markers
 - Tests live in the task that implements the code they test. There are no separate "write tests" tasks. Each property test sits in the task that implements its function and carries the tag `// Feature: play-mode, Property N: <title>`
 - Each task references its requirement numbers and, where it has any, the design's property numbers
@@ -682,7 +761,11 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     { "id": 34, "tasks": ["12.2"] },
     { "id": 35, "tasks": ["12.3"] },
     { "id": 36, "tasks": ["13.1"] },
-    { "id": 37, "tasks": ["14.1"] }
+    { "id": 37, "tasks": ["14.1"] },
+    { "id": 38, "tasks": ["15.1"] },
+    { "id": 39, "tasks": ["15.2"] },
+    { "id": 40, "tasks": ["15.3"] },
+    { "id": 41, "tasks": ["15.4"] }
   ]
 }
 ```

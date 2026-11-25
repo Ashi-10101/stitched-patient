@@ -173,6 +173,10 @@ sequenceDiagram
 
 **D8. The Rescue_Gate_Time is an input to the Ending_Evaluator, stored in `EndingContext`.** Alternatives were an extra `stepEnding` argument, or letting the evaluator read the Intervention_Record and lineage. Reading them would make the evaluator depend on I/O-shaped state and break Requirement 6.22. An extra argument would change every call site and make Properties 12–14 quantify over a gate sequence. In the context, the gate is fixed for any run of samples between two record or lineage changes, so Properties 12–14 keep their form for a fixed context, and `setRescueGate` is the one place that handles a gate change (6.24). The gate is a single number, not the list of required ids, because the evaluator needs only the time from which samples count. `-Infinity` for "no Required_Interventions" keeps the old behaviour without a special case in `stepEnding` (6.20).
 
+**D9. Only a Gate_Entry opens the Rescue_Gate_Time (Fix 1, author's decision 2026-11-25).** The calibration record `docs/calibration/adult-tension-pneumothorax-2026-11-25-161c754.md` showed the `affected-side-early` Scenario `rescued` at 60 s: the left needle at 20 s, before the insult at 30 s, opened the gate, and the baseline already met the Rescue_Condition. `rescueGateTime` gains a third input, the Earliest_Insult_Time, and ignores entries before it (6.25); without a finite insult time every entry counts (6.26). Alternatives were filtering the entries in each caller, or letting `activeInterventions` drop them. Filtering in each caller repeats the rule in three places (reducer, `buildEndingContext`, calibration fold). Dropping them from `activeInterventions` would also remove them from the sides, Rewind_Moment labels and Exam_Findings, which 6.27 forbids. The input is required, not optional, so no caller can forget it. The same bound is already used by `computeSides` and the exam's `decompressed` predicate (`d.time >= insult.timeSeconds`).
+
+**D10. Vital_Bands come from the Displayed_Value; Endings stay raw (Fix 2, author's decision 2026-11-25).** The same record showed a baseline respiratory rate of 11.9999/min, shown as 12 on the monitor but banded `warning` (low) from 0 s. One Display_Precision table in `vitals.ts` now writes both the Clinician_View readout text and the Displayed_Value (15.13 to 15.15). Every caller that computes a Vital_Band or an Alarm_State passes the Displayed_Value (15.16); `getAlarmState` and `getVitalBand` themselves are unchanged and stay functions of the value they receive. The Ending_Evaluator keeps reading raw values through `readVital` (15.18), so open question 2 stays open. The alternative, rounding inside `getVitalBand`, would hide the rule from the Clinician_View, which calls `getAlarmState` directly, and would change Properties 1 and 2. Breathing and heartbeat periods and breathing depth also stay raw: 15.16 covers only bands.
+
 ## Components and Interfaces
 
 ### File layout
@@ -192,7 +196,7 @@ apps/web/
     ├── lib/
     │   ├── alarms.ts                     # changed: Requirement 15 semantics
     │   ├── api.ts                        # changed: optional per-request timeout
-    │   ├── vitals.ts                     # new: vital name <-> VitalSigns field map
+    │   ├── vitals.ts                     # new: vital name <-> VitalSigns field map; Display_Precision and Displayed_Value (Fix 2)
     │   ├── vitalBands.ts                 # new: Vital_Band, Overall_Status
     │   ├── avatarMapper.ts               # new
     │   ├── sides.ts                      # new: Swollen/Decompressed sides, side geometry
@@ -222,7 +226,7 @@ apps/web/
     │   ├── Toast.tsx                     # new: timed plain-language messages
     │   ├── PlaybackControls.tsx          # reused; small prop additions
     │   ├── InterventionPanel.tsx         # reused; label function and disabled text
-    │   ├── VitalSign.tsx                 # reused; accepts no alarm state (neutral)
+    │   ├── VitalSign.tsx                 # reused; accepts no alarm state (neutral); text from formatVital (Fix 2)
     │   ├── VitalsTrendChart.tsx          # unchanged
     │   └── Timeline.tsx                  # unchanged
     └── types/index.ts                    # + Play types, timeline in CaseData
@@ -249,7 +253,26 @@ export const VITAL_FIELD: Record<VitalName, keyof VitalSigns> = {
 
 /** Finite number or undefined. Missing, null, NaN and ±Infinity all give undefined. */
 export function readVital(sample: Partial<VitalSigns> | null, vital: VitalName): number | undefined;
+
+// Display_Precision (15.13): the only definition. UI display constants, not clinical values.
+export const DISPLAY_PRECISION: Record<VitalName, { scale: number; decimals: number }> = {
+  heartRate: { scale: 1, decimals: 0 }, respiratoryRate: { scale: 1, decimals: 0 },
+  spO2: { scale: 100, decimals: 1 },    meanArterialPressure: { scale: 1, decimals: 0 },
+  etCO2: { scale: 1, decimals: 0 },     tidalVolume: { scale: 1, decimals: 0 },
+};
+
+/** Displayed_Value (15.15): Number((raw * scale).toFixed(decimals)) / scale, with -0 written as 0.
+ *  undefined for a non-finite raw value or a non-finite result. */
+export function displayedValue(vital: VitalName, raw: number): number | undefined;
+
+/** Readout text (15.14): (displayedValue * scale).toFixed(decimals); "" when there is no Displayed_Value. */
+export function formatVital(vital: VitalName, raw: number): string;
+
+/** displayedValue(vital, readVital(sample, vital)): the value every Vital_Band caller passes (15.16). */
+export function readDisplayedVital(sample: Partial<VitalSigns> | null, vital: VitalName): number | undefined;
 ```
+
+`formatVital` writes the text from the Displayed_Value, so the readout text and the Displayed_Value cannot disagree (15.15). The text equals today's `value.toFixed(decimals)` for every raw value except a negative raw value that rounds to zero, the accepted exception of 15.14: "-0" becomes "0" for a whole-number vital (raw value above -0.5 and below 0), and "-0.0" becomes "0.0" for SpO2 (raw fraction above -0.0005 and below 0). The exception lets the text and the Displayed_Value round-trip (15.15, 15.19); the Pulse_Engine does not report negative vitals, so it changes no readout in a normal run. Examples: raw RR 11.9999 → Displayed_Value 12, text "12" (15.17); raw SpO2 0.974 → 0.974, text "97.4"; raw SpO2 0.9496 → 0.95, text "95.0".
 
 #### `alarms.ts` — Alarm_Function change (Requirement 15)
 
@@ -271,6 +294,8 @@ export function getAlarmState(value: number, t: AlarmThreshold): AlarmState {
 ```
 
 `getAlarmColor` and `getAlarmBgColor` are unchanged. `AlarmThreshold.normal` becomes optional in the type so the function can handle a missing `normal` object (15.5). The schema still requires it. Callers never pass a non-finite value: the view code and `vitalBands.ts` treat missing values before calling.
+
+Fix 2 does not change `getAlarmState`. Every caller outside the Ending_Evaluator passes the Displayed_Value from `vitals.ts`, not the raw value (15.7, 15.16).
 
 Effect on the current case thresholds (values chosen only to show the band change; not clinical claims):
 
@@ -294,6 +319,8 @@ export function getVitalBand(value: number, t: AlarmThreshold): VitalBand;
 export function thresholdsFor(alarms: AlarmThresholds, vital: VitalName): AlarmThreshold | undefined;
 export function overallStatus(bands: Partial<Record<VitalName, VitalBand>>): AlarmState;
 ```
+
+Every caller passes `readDisplayedVital(sample, vital)` as `value` (Fix 2, 4.2, 15.16): the Avatar_Mapper, `statusItemMatches` and the calibration `bandsOf`. `getVitalBand` itself is unchanged.
 
 `getVitalBand` sets `state = getAlarmState(value, t)`. If `state` is `normal`, direction is `none`. Otherwise direction is `low` when the value is below any present `critical.low`, `warning.low` or `normal.low`, and `high` otherwise; the value must then be above a present high bound, because a non-`normal` state requires crossing some bound. If a malformed threshold object makes a value both below a low bound and above a high bound, `low` wins (documented tie rule). `overallStatus` returns the maximum by `normal < warning < critical`, and `normal` for an empty map.
 
@@ -327,7 +354,7 @@ Rules, in order:
 
 | Field | Rule | Requirement |
 |---|---|---|
-| `bands[v]` for each vital with thresholds | `getVitalBand(value)` if `readVital` gives a number; else `previous.bands[v]`; else `{normal, none}` | 4.1, 4.2, 4.25 |
+| `bands[v]` for each vital with thresholds | `getVitalBand(value)` with `value = readDisplayedVital(sample, v)` if that gives a number; else `previous.bands[v]`; else `{normal, none}` | 4.1, 4.2, 4.25, 15.16 |
 | `skinTone` | from `bands.spO2.state`: normal → `healthy`, warning → `pale`, critical → `cyanotic` | 4.3–4.5 |
 | `breathing` | RR > 0 → `{stopped:false, periodS: 60/RR}`; RR ≤ 0 → `{stopped:true, periodS: previous or default}`; RR missing → previous or `{false, DEFAULT_BREATH_PERIOD_S}` | 4.6, 4.7, 4.25 |
 | `breathing.depth` | `clamp(TV / ref, MIN, MAX)` where `ref = play.avatar.referenceTidalVolumeMl` if defined, else `firstPositiveTidalVolumeMl`; `BREATH_DEPTH_DEFAULT` while no reference exists; previous depth when TV is missing | 4.8, 4.9, 4.25 |
@@ -336,7 +363,7 @@ Rules, in order:
 | `swollenSides`, `decompressedSides` | `computeSides(sample.simulation_time, scheduledInsults, activeInterventions)` | 4.13–4.18 |
 | `overallStatus` | `overallStatus(bands)` | 4.19 |
 
-The mapper takes no Playback_Speed input, so periods are in wall-clock seconds and identical at 1x, 2x and 4x (Requirements 4.6, 4.10). When the first positive tidal volume is not yet known, the reducer passes `null`; it then records the first sample with TV > 0 before calling the mapper for that sample, so that sample's depth is 1.0 clamped.
+The mapper takes no Playback_Speed input, so periods are in wall-clock seconds and identical at 1x, 2x and 4x (Requirements 4.6, 4.10). Only `bands`, and the fields derived from them (`skinTone`, `sweating`, `overallStatus`), use the Displayed_Value; the breathing and heartbeat periods and the breathing depth keep the raw `readVital` value (D10). When the first positive tidal volume is not yet known, the reducer passes `null`; it then records the first sample with TV > 0 before calling the mapper for that sample, so that sample's depth is 1.0 clamped.
 
 #### `sides.ts`
 
@@ -376,7 +403,7 @@ export function selectStatus(
 ```
 
 - `sample === null` → `play.status.defaultSentence` (5.6).
-- For each rule in Case_Definition order, the rule matches when every `when` item matches. An item matches when the named vital has thresholds and a finite value, `getVitalBand(...).state === item.band`, and `item.direction` is absent or equals the band's direction (5.2–5.4).
+- For each rule in Case_Definition order, the rule matches when every `when` item matches. An item matches when the named vital has thresholds and a Displayed_Value (`readDisplayedVital`), `getVitalBand(displayedValue, …).state === item.band`, and `item.direction` is absent or equals the band's direction (5.2–5.4, 15.16). The match lives in `statusItemMatches`, which the bedside-exam Exam_Rule `vitals` conditions also call, so they follow Fix 2 too.
 - The first matching rule's `sentence` is returned unchanged; otherwise `defaultSentence` (5.5, 5.7).
 
 Unlike the Avatar_Mapper, the selector does not carry previous values: a missing vital makes the condition not match (5.4).
@@ -400,7 +427,7 @@ export interface EndingState {
   lostStarts: (number | null)[]; // one per Lost_Condition group
 }
 
-export function buildEndingContext(caseData: CaseData): EndingContext; // gate = rescueGateTime(requiredInterventions(play), [])
+export function buildEndingContext(caseData: CaseData): EndingContext; // rescueFromTime = earliestInsultTime(caseData) ?? 0; gate = rescueGateTime(requiredInterventions(play), [], earliestInsultTime(caseData))
 export function initialEndingState(ctx: EndingContext): EndingState;
 export function stepEnding(ctx: EndingContext, s: EndingState, sample: Partial<VitalSigns> & { simulation_time: number }): EndingState;
 export function evaluateEnding(ctx: EndingContext, samples: Sample[]): EndingState; // = fold of stepEnding
@@ -408,9 +435,12 @@ export function conditionHolds(c: VitalCondition, sample: Partial<VitalSigns>): 
 
 // Rescue gate (6.18–6.24)
 export function requiredInterventions(play: PlaySection | undefined): readonly string[]; // endings.rescued.requiredInterventions ?? []
+/** Earliest_Insult_Time: smallest finite Scheduled_Insult timeSeconds; undefined without one (Fix 1). */
+export function earliestInsultTime(caseData: Pick<CaseData, 'timeline'>): number | undefined;
 export function rescueGateTime(
   requiredIds: readonly string[],
   active: readonly InterventionRecordEntry[],  // activeInterventions(record, lineage)
+  earliestInsult: number | undefined,          // earliestInsultTime(caseData); required argument (6.25, 6.26)
 ): number | null;
 export function setRescueGate(
   ctx: EndingContext, s: EndingState, gate: number | null,
@@ -427,17 +457,19 @@ export function setRescueGate(
 6. `timeHit = timeLimitSeconds !== undefined && t >= timeLimitSeconds` (6.5).
 7. `ending = rescued ? 'rescued' : (lostHit || timeHit) ? 'lost' : 'none'`, so rescue wins on the same sample (6.9). If the ending changes, `endedAt = t`.
 
-`conditionHolds` compares `readVital(sample, c.vital)` with `c.value` using `c.op`; a missing or non-finite value gives `false` (6.15, 6.16). A one-sample stretch measures 0 s, and `holdSeconds > 0` is enforced by the schema, so a single sample never completes a hold.
+`conditionHolds` compares the raw `readVital(sample, c.vital)` with `c.value` using `c.op`; a missing or non-finite value gives `false` (6.15, 6.16). It does not use the Displayed_Value, and the Time_Limit compares the raw Simulation_Time (15.18, D10). Example: raw SpO2 0.9496 shows "95.0" and bands `normal`, but `spO2 >= 0.95` does not hold (open question 2 (a), not resolved here). A one-sample stretch measures 0 s, and `holdSeconds > 0` is enforced by the schema, so a single sample never completes a hold.
 
 **Rescue gate (author's decision, 2026-11-20).** The Ending_Evaluator stays pure and never reads the Intervention_Record or the lineage (6.22). The caller computes the Rescue_Gate_Time and passes it in `EndingContext.rescueGateTime`:
 
 - `requiredInterventions(play)` returns `play.endings.rescued.requiredInterventions`, or `[]` when the field or the Play_Section is absent.
-- `rescueGateTime(requiredIds, active)` returns `-Infinity` when `requiredIds` is empty (6.20). Otherwise, for each required id it takes the smallest finite `simulationTime` of an `active` entry with that `interventionId`; it returns `null` if any id has no such entry, else the largest of those times (6.18). Entries with any other id are ignored, so `needle-decompression-right` never opens a gate that requires `needle-decompression-left` (6.19).
+- `rescueGateTime(requiredIds, active, earliestInsult)` returns `-Infinity` when `requiredIds` is empty (6.20). Otherwise, for each required id it takes the smallest finite `simulationTime` of an `active` entry with that `interventionId` that is a Gate_Entry, that is, `simulationTime >= earliestInsult`, or any entry when `earliestInsult` is `undefined` (6.25, 6.26). It returns `null` if any id has no such entry, else the largest of those times (6.18). Entries with any other id are ignored, so `needle-decompression-right` never opens a gate that requires `needle-decompression-left` (6.19). An entry before the Earliest_Insult_Time is only skipped here: it stays in the Intervention_Record and in `active`, and `computeSides`, `labelRewindMoment` and the Exam_Finding_Selector still see it (6.27). A finite result is therefore never below the Earliest_Insult_Time when that time is defined. Example (shipped case, insult at 30 s): left entries at 20 s → `null`; at 20 s and 150 s → 150; at exactly 30 s → 30.
+- `earliestInsultTime(caseData)` is the minimum computed today inside `buildEndingContext` (finite `timeSeconds` of `timeline.scheduledInsults`, missing lists counted as empty), moved into an exported function so the reducer and the calibration fold use the same value.
+- Call sites of `rescueGateTime` outside tests, each passing the third argument: `buildEndingContext` in `endingEvaluator.ts` (`earliestInsultTime(caseData)`, with `[]` entries); `initialSessionState` in `sessionState.ts` (`rescueGateTime(requiredInterventions(undefined), [], undefined)`: no case is loaded yet, so there is no insult time, and the result stays `-Infinity` because the required list is empty); the reducer's `withRescueGate` in `sessionState.ts` (`caseData ? earliestInsultTime(caseData) : undefined`); and `createOutcomeFold` in `calibration.ts` (`earliestInsultTime(rc)`, 13.18). The test files that call it (`endingEvaluator.test.ts`, `sessionState.test.ts`, `calibration.test.ts`) pass the argument too.
 - `setRescueGate(ctx, s, gate)` returns the same `ctx` and `s` when `gate` equals `ctx.rescueGateTime`. Otherwise it returns `ctx` with the new gate, and, if `s.ending === 'none'`, `s.rescueStart !== null` and (`gate === null` or `s.rescueStart < gate`), a state with `rescueStart = null`. `ending`, `endedAt`, `lastTime` and `lostStarts` are never changed, and no sample is evaluated again (6.24).
 
 The helpers live in `endingEvaluator.ts`, not in `branchLineage.ts`. They encode a rule of the Rescue_Condition, the calibration script already imports this module (D6), and `branchLineage.ts` stays about lineage. They take the output of `activeInterventions` as an argument, so `endingEvaluator.ts` does not import `branchLineage.ts`.
 
-How the gate moves. Within one Branch the gate can only open or stay where it is: new Intervention_Record entries are added only on the current Branch, at the latest sample time, so the earliest entry per required id never moves later. An open rescue stretch therefore always starts at or after the gate, because samples before the gate never start one. The gate moves later or closes only when the lineage changes: after a fork, which resets the Ending state anyway (6.11, 6.21), or, defensively, when a Session metadata or Checkpoint list load shortens the lineage. In that case `setRescueGate` ends the open stretch while the Ending is `none`, so the invariant `rescueStart === null || rescueStart >= rescueGateTime` holds after every action that leaves the Ending `none` (Requirement 6.24). Once the Ending is `rescued` or `lost`, `setRescueGate` leaves `rescueStart` as it is, and the invariant does not apply. A gate that opens or moves earlier, for example when the parent Branch's Checkpoint list loads after a page reload and a parent Decompression becomes active, leaves the stretch alone. The samples already evaluated with the closed gate are not re-evaluated, so a late-opening gate can delay a rescue but never makes one early.
+How the gate moves. Within one Branch the gate can only open or stay where it is: new Intervention_Record entries are added only on the current Branch, at the latest sample time, so the earliest Gate_Entry per required id never moves later. Under Fix 1, a learner who decompressed before the insult opens the gate by decompressing again at or after the Earliest_Insult_Time; the buttons allow this (8.15, see "Play view"). An open rescue stretch therefore always starts at or after the gate, because samples before the gate never start one. The gate moves later or closes only when the lineage changes: after a fork, which resets the Ending state anyway (6.11, 6.21), or, defensively, when a Session metadata or Checkpoint list load shortens the lineage. In that case `setRescueGate` ends the open stretch while the Ending is `none`, so the invariant `rescueStart === null || rescueStart >= rescueGateTime` holds after every action that leaves the Ending `none` (Requirement 6.24). Once the Ending is `rescued` or `lost`, `setRescueGate` leaves `rescueStart` as it is, and the invariant does not apply. A gate that opens or moves earlier, for example when the parent Branch's Checkpoint list loads after a page reload and a parent Decompression becomes active, leaves the stretch alone. The samples already evaluated with the closed gate are not re-evaluated, so a late-opening gate can delay a rescue but never makes one early.
 
 #### `branchLineage.ts`
 
@@ -580,7 +612,7 @@ export function initialSessionState(): SessionUiState;
 
 Key transitions:
 
-- **Rescue_Gate_Time (6.18–6.24).** The gate is stored in `endingCtx.rescueGateTime`, next to `rescueFromTime`, so `stepEnding` keeps its signature and Properties 12–14 hold for any fixed context. A private helper `withRescueGate(state)` computes `gate = rescueGateTime(requiredInterventions(caseData?.play), activeInterventions(interventionRecord, lineage))` and applies `setRescueGate(state.endingCtx, state.ending, gate)`; it returns the same state when the gate is unchanged. The reducer calls it as the last step of `caseLoaded` (the Required_Interventions become known), `sessionLoaded` and `checkpointsLoaded` (the lineage and its bounds change), `interventionRecordRestored` and `interventionSucceeded` (the record changes), and `forkSucceeded` (the lineage changes), so the next `sampleReceived` always sees the gate for the current record and lineage (6.23). `sampleReceived`, `hintRevealed`, `viewSelected`, `playbackChanged` and `connectionChanged` leave the gate unchanged.
+- **Rescue_Gate_Time (6.18–6.24).** The gate is stored in `endingCtx.rescueGateTime`, next to `rescueFromTime`, so `stepEnding` keeps its signature and Properties 12–14 hold for any fixed context. A private helper `withRescueGate(state)` computes `gate = rescueGateTime(requiredInterventions(caseData?.play), activeInterventions(interventionRecord, lineage), caseData ? earliestInsultTime(caseData) : undefined)` and applies `setRescueGate(state.endingCtx, state.ending, gate)`; it returns the same state when the gate is unchanged. The reducer calls it as the last step of `caseLoaded` (the Required_Interventions become known), `sessionLoaded` and `checkpointsLoaded` (the lineage and its bounds change), `interventionRecordRestored` and `interventionSucceeded` (the record changes), and `forkSucceeded` (the lineage changes), so the next `sampleReceived` always sees the gate for the current record and lineage (6.23). `sampleReceived`, `hintRevealed`, `viewSelected`, `playbackChanged` and `connectionChanged` leave the gate unchanged. Before any case loads, `initialSessionState` sets the gate with `rescueGateTime(requiredInterventions(undefined), [], undefined)`, which is `-Infinity`, the same gate `buildEndingContext` gives without a Play_Section.
 - **`caseLoaded`**: stores the case, builds `endingCtx`, and sets `view` to `storedView` if one exists and the case has a Play_Section, to `clinician` if the case has no Play_Section, and to `play` otherwise (1.1, 1.2, 1.9).
 - **`caseFailed`**: `view = 'clinician'`, `caseStatus = 'failed'`; session, branch and connection fields are untouched (1.11).
 - **`sampleReceived`**:
@@ -589,9 +621,9 @@ Key transitions:
   3. Record `firstPositiveTidalVolumeMl` if still `null` and TV > 0.
   4. `avatar = mapAvatar({ previous: state.avatar, ... })`.
   5. `ending = stepEnding(...)`. If it changed from `none`, set `endingSnapshot` to the `avatar` computed in step 4 for this sample.
-- **`interventionSucceeded`**: appends the entry, then recomputes only the side fields of `avatar` with `computeSides(latestSample time, ...)`, so a Decompression shows without waiting for the next sample (4.14, 4.20). It then recomputes the Rescue_Gate_Time. The entry's `simulationTime` is the latest sample's time, which was evaluated while the gate was still closed, so the first sample that can count toward rescue is the next one.
+- **`interventionSucceeded`**: appends the entry, then recomputes only the side fields of `avatar` with `computeSides(latestSample time, ...)`, so a Decompression shows without waiting for the next sample (4.14, 4.20). It then recomputes the Rescue_Gate_Time. The entry's `simulationTime` is the latest sample's time, which was evaluated while the gate was still closed, so the first sample that can count toward rescue is the next one. An entry before the Earliest_Insult_Time is appended and changes the sides like any other, but leaves the gate as it was (6.25, 6.27).
 - **`interventionRecordRestored`**: replaces the record, recomputes the side fields as `interventionSucceeded` does, and recomputes the Rescue_Gate_Time.
-- **`forkSucceeded`**: sets `session`, `currentBranchId`, and recomputes `lineage` with the known `forkTime`. It clears `latestSample` and `history`, resets `ending` to `initialEndingState`, clears `endingSnapshot`, and arms `staleGuard = { maxTime: forkTime + STALE_TOLERANCE_S }`. It sets `avatar = mapAvatar({ sample: { simulation_time: forkTime }, previous: null, ... })`, which gives default vital-derived fields and correct sides for the fork point (4.15, 4.20). Hint state, Intervention_Record, playback state and view are kept (6.11, 9.4, 10.8). The Ending state resets as before; then the Rescue_Gate_Time is recomputed for the new lineage. After a fork to a Checkpoint earlier than the left Decompression, that entry is no longer active, so the gate is `null` and rescue is impossible until `needle-decompression-left` succeeds again on the new Branch (6.21).
+- **`forkSucceeded`**: sets `session`, `currentBranchId`, and recomputes `lineage` with the known `forkTime`. It clears `latestSample` and `history`, resets `ending` to `initialEndingState`, clears `endingSnapshot`, and arms `staleGuard = { maxTime: forkTime + STALE_TOLERANCE_S }`. It sets `avatar = mapAvatar({ sample: { simulation_time: forkTime }, previous: null, ... })`, which gives default vital-derived fields and correct sides for the fork point (4.15, 4.20). Hint state, Intervention_Record, playback state and view are kept (6.11, 9.4, 10.8). The Ending state resets as before; then the Rescue_Gate_Time is recomputed for the new lineage. After a fork to a Checkpoint earlier than the left Decompression, that entry is no longer active, so the gate is `null` and rescue is impossible until `needle-decompression-left` succeeds again on the new Branch at or after the Earliest_Insult_Time (6.21, 6.25).
 - **`checkpointsLoaded`** and **`sessionLoaded`**: recompute `lineage` as today, then the Rescue_Gate_Time. If the new lineage closes the gate or moves it later than an open rescue stretch, `setRescueGate` ends that stretch (6.24); the Ending and the lost stretches are unchanged.
 - **`hintRevealed`**: if `hintsRevealed < hints.length`, increments it and appends `{ hintIndex: hintsRevealed + 1, branchId, wallClockTime, simulationTime }`, where `simulationTime` is `latestSample.simulation_time`, else the current Branch's `forkTime`, else 0 (9.2, 9.5).
 - A failed fork has no action, so state stays identical (6.17).
@@ -633,7 +665,7 @@ Effects and their dependencies:
 
 The retry and once-only rules live in two small pure helpers exported from the hook module, `runPauseWithRetry(send, sleep)` and `shouldSendDefaultSpeed(storage, sessionId, view, caseStatus)`, so they can be tested with mocks and fake timers without a DOM.
 
-`fork` sends the Fork_API request with a 30 s timeout. On success it loads Session metadata, dispatches `forkSucceeded`, then reloads lineage Checkpoints without blocking. Intervention buttons are disabled while a fork is pending, so a new Intervention_Record entry always carries the branch_id that the Intervention_API applied it to.
+`fork` sends the Fork_API request with a 30 s timeout. On success it loads Session metadata, dispatches `forkSucceeded`, then reloads lineage Checkpoints without blocking. The Play_View disables its Intervention buttons while its fork is pending (8.16, see "Play view"). In every view, `applyIntervention` also returns `'error'` without a request while a fork holds `pendingRef`, so a new Intervention_Record entry always carries the branch_id that the Intervention_API applied it to.
 
 ### API client change (`src/lib/api.ts`)
 
@@ -671,6 +703,7 @@ export default function SessionPage() {
 ```
 
 - **`ClinicianView`** holds the current header, playback controls, vitals grid, trend chart, intervention panel and Timeline unchanged, but reads all data from `sim`. It adds `EndingBanner` when the Ending is not `none` (7.8). When `caseData` is `null` because loading failed, it shows the six readouts in a neutral style with no alarm colour and replaces the intervention panel with "The case could not be loaded." (1.11). `VitalSign` gets an optional `alarmState`; when absent it uses the neutral grey style.
+- **Displayed values (Fix 2).** `VitalSign` takes a `vital: VitalName` and the raw value in place of `value`, `decimals` and the `* 100` for SpO2, and writes its text with `formatVital(vital, raw)` (15.13, 15.14). The local `alarmFor(value, threshold)` is replaced by an exported pure helper `clinicianAlarmState(alarms, vital, raw)` (`undefined` while `alarms` is `null`, `normal` for a vital without thresholds, as today), which calls `getAlarmState(displayedValue(vital, raw), alarms[vital])`, so the colour and the text come from the same Displayed_Value (15.7, 15.8, 15.16). The neutral style for a missing case or sample is unchanged.
 - The existing "Connecting to simulation..." screen shown while the WebSocket is not open stays as it is. It replaces only the view content, not the hook, so no state is lost while it shows.
 - The header warning chip in the current page is replaced by `SafetyNotice`, so the notice appears exactly once at the top in both views.
 
@@ -708,7 +741,7 @@ Elements:
 - **`StatusLine`**: an Overall_Status badge outside the live region (circle with check "OK", triangle "Worried", octagon "Danger"; 4.19, 11.1), and a `<p aria-live="polite">` that contains only the Status_Sentence text (5.11). React only updates the text node when the string changes, so an unchanged sentence is not announced again (5.13). The sentence wraps; no `truncate` or `line-clamp` (5.1).
 - **`GoalBar`**: Goal_Text in full (5.14), and when `timeLimitSeconds` exists, a `<progress>` with a visible `M:SS left` label from `remainingSeconds` (5.15).
 - **Playback controls**: the existing `PlaybackControls` with a new `variant="play"` prop for the Play palette. It already shows text labels ("Pause"/"Play") and highlights the selected speed; the selected speed button also gets `aria-pressed` and a check mark so the state does not rely on colour (11.9).
-- **Intervention buttons**: the existing `InterventionPanel` with two new optional props, `getLabel` (Play uses `playButtonText`; the Clinician_View keeps `label`, 8.2–8.4) and `disabledReason`. Buttons are disabled while disconnected, while an Intervention or fork request is pending, or while the Ending is not `none` (7.7, 8.9, 8.10). Disabled buttons show a lock icon and the text "Not available right now" (11.11).
+- **Intervention buttons**: the existing `InterventionPanel` with two new optional props, `getLabel` (Play uses `playButtonText`; the Clinician_View keeps `label`, 8.2–8.4) and `disabledReason`. Buttons are disabled while disconnected, while an Intervention or fork request is pending, or while the Ending is not `none` (7.7, 8.9, 8.10, 8.16). No other condition applies: `interventionsDisabled` reads no Intervention_Record entry, so a Decompression button stays enabled after it was used and can be applied again at or after the Earliest_Insult_Time (8.15, Fix 1). The current code already does this; only a test is added. The pending fork is `PlayView`'s own `forkPending` state, set around `actions.fork` and passed to `interventionsDisabled({ connected, interventionPending, forkPending, ending })`; when the Fork_API returns a success or an error, `forkPending` clears and the buttons follow 8.9, 8.10, 8.15 and 7.7 again (8.16). This is existing behaviour. It covers the Play_View only: the Clinician_View's `interventionsDisabled(connected, pending)` has no fork input, so its buttons stay enabled while a fork from its Timeline is pending (8.16). Disabled buttons show a lock icon and the text "Not available right now" (11.11).
 - **`Toast`**: success "Done: <button text>." for 3 s (8.7); error "That didn't work. Please try again." for 3 s (8.8); "The simulation could not be paused." while `notices.pauseFailed` (7.10). Toasts use `role="status"` and do not take focus.
 - **`HintPanel`** and **`RewindPanel`**: below.
 - **`EndingScreen`**: rendered when `ending !== 'none'` and the view is Play (7.2, 7.11).
@@ -1302,16 +1335,20 @@ It uses Node 22's global `fetch` and `WebSocket`, the `yaml` parser, and the shi
 
 Scenarios can run in parallel as separate Sessions. Speed is ignored by the current service loop, so one run takes about as many wall-clock seconds as simulated seconds.
 
-**Rescue gate in the script (13.13).** Each scenario has one Branch, so the script keeps its own Intervention_Record: one `InterventionRecordEntry` per successful Intervention_API call, with the actual Decompression time from step 2 and the scenario's branch id. It computes the gate the same way the reducer does, `rescueGateTime(requiredInterventions(play), entries)`, and applies it with `setRescueGate` at the point in the sample order where the call succeeded, so the evaluator sees the same gate sequence as the Web_App. The resulting gates for the current case are: no-intervention `null`, right-only `null` (`needle-decompression-right` is not required), left the actual left Decompression time, left-before-insult the early Decompression time, so its gate is open from before the insult (13.16).
+**Rescue gate in the script (13.13).** Each scenario has one Branch, so the script keeps its own Intervention_Record: one `InterventionRecordEntry` per successful Intervention_API call, with the actual Decompression time from step 2 and the scenario's branch id. It computes the gate the same way the reducer does, `rescueGateTime(requiredInterventions(play), entries, earliestInsultTime(case))` (in the shipped path this call exists only in `createOutcomeFold`, see "Shipped calibration path (13.18)"), and applies it with `setRescueGate` at the point in the sample order where the call succeeded, so the evaluator sees the same gate sequence as the Web_App. The resulting gates for the current case are: no-intervention `null`, right-only `null` (`needle-decompression-right` is not required), left the actual left Decompression time, and left-before-insult `null`, because its only left entry comes before the Earliest_Insult_Time and is not a Gate_Entry (6.25, 13.13, 13.16).
+
+**Shipped calibration path (13.18).** The engine-mcp implementation replaces this script. Its outcome fold, `createOutcomeFold` in `apps/web/src/lib/calibration.ts`, is the only calibration code that calls `rescueGateTime`; it passes `earliestInsultTime(rc)` like the reducer. The Scenario_Runner in `engineRunner.ts` takes the gate from that fold, through `scenarioOutcome` (post-hoc, `finalGate`) or its own incremental `createOutcomeFold` instance (for `stop_at_ending`), and writes it to the Scenario_Result's `rescue_gate_time`. The calibration orchestration in `engineCalibration.ts` reads `rescue_gate_time` back (`outcomeOf` → `gateOf`). Neither file calls `rescueGateTime` or computes the gate itself, so neither changes for Fix 1. (`buildEndingContext`, which `createOutcomeFold` calls for its initial context, also calls `rescueGateTime`; it lives in `endingEvaluator.ts`, not in the calibration path.) In the `affected-side-early` Scenario of each Variant the gate stays closed and the record states "closed".
 
 **Record.** The script writes `docs/calibration/play-mode-<YYYY-MM-DD>-<short-sha>.md` and appends a line to `docs/calibration/README.md` (index). Each record contains:
 
 - commit, date, service URL, and the drafted Play_Section values used: every Vital_Condition, Hold_Duration and the Time_Limit (13.3);
 - per scenario, a table of the 10-s samples with Simulation_Time and every vital referenced by the Rescue_Condition or Lost_Condition (13.2), the Decompression Simulation_Time, the Rescue_Gate_Time (13.13), and the Ending from `evaluateEnding` over the recorded samples with the time it first left `none` (13.4);
-- per scenario, for the author's threshold review (13.17): the Vital_Band (Alarm_State and direction) of every vital with Case thresholds at t = 0; an Overall_Status column in the sample table; and each Status_Rule that matched, with the sample times at which it matched and at which `selectStatus` returned its sentence, or the line "only the defaultSentence was returned". The 2026-11-20 run that motivated this showed `warning` from t = 0 (baseline RR ≈ 12 and EtCO2 ≈ 35 on the lower bounds of their normal bands) and the `defaultSentence` for the whole run. The script reports these facts and changes no threshold;
+- per scenario, for the author's threshold review (13.17), all computed from the Displayed_Values while the sample tables keep the raw Mark_Sample values (13.19; `bandsOf` and `statusItemMatches` call `readDisplayedVital`): the Vital_Band (Alarm_State and direction) of every vital with Case thresholds at t = 0; an Overall_Status column in the sample table; and each Status_Rule that matched, with the sample times at which it matched and at which `selectStatus` returned its sentence, or the line "only the defaultSentence was returned". The 2026-11-20 run that motivated this showed `warning` from t = 0 (baseline RR ≈ 12 and EtCO2 ≈ 35 on the lower bounds of their normal bands) and the `defaultSentence` for the whole run. The script reports these facts and changes no threshold;
 - checks with pass or fail: left scenario rescued at ≤ 300 s and at or after its Rescue_Gate_Time plus `holdSeconds`, with the chosen demo Decompression time stated (13.5, 13.14); right-only scenario lost at or before the Time_Limit, naming the Lost_Condition group or "Time_Limit", never rescued, labelled "answers open question 1, item c" (13.6, 13.15); no-intervention scenario lost at or before the Time_Limit and never rescued (13.7, 13.15). The `null` gate guarantees "never rescued" for the last two; the checks still run. For both, the record lists the samples at which every rescue Vital_Condition held without the gate, which shows what the gate excluded (13.15);
-- the left-before-insult scenario: its Rescue_Gate_Time (the early Decompression time), its Ending and time, a side-by-side comparison with the no-intervention samples after the insult time, and a statement whether the pneumothorax still develops, labelled "answers open question 1, item d". Because the gate is open from the early Decompression, this scenario's Ending depends only on the vitals and the insult bound; with baseline vitals that satisfy the rescue Vital_Conditions it can become `rescued` before any vital worsens, so the record states that the Ending is not evidence for item d and answers item d only from the vitals comparison. If the pneumothorax does not develop, the record flags Requirement 4.18 for revision (13.11, 13.12, 13.16);
+- the left-before-insult scenario: its Rescue_Gate_Time (`null`, "closed"), its Ending and time, a side-by-side comparison with the no-intervention samples after the insult time, and a statement whether the pneumothorax still develops, labelled "answers open question 1, item d". Because the early entry is not a Gate_Entry, this scenario cannot be `rescued`, so the record states that the Ending is not evidence for item d and answers item d only from the vitals comparison (13.16). The comparison uses `bandsOf`, so after Fix 2 it compares Alarm_States of Displayed_Values (engine-mcp D23). If the pneumothorax does not develop, the record flags Requirement 4.18 for revision (13.11, 13.12, 13.16);
 - if any check fails: the failing scenarios and their outcomes, and the line "Play_Section values NOT calibrated" (13.8).
+
+After Fix 1 and Fix 2 land, a new calibration run is recorded under `docs/calibration/` before any `TODO(author)` marker is removed from a Play_Section value (13.20).
 
 The script never edits the case file. The author reviews the record, revises values, and removes `TODO(author)` markers only after a passing record exists for the current values and a citation has been added (13.8–13.10). Any later change to a threshold, Hold_Duration, Time_Limit, Scheduled_Insult or the demo Decompression time needs a new record (13.9). The calibration script is excluded from the Vitest `include` pattern, so `vitest --run` opens no network connection (12.11).
 
@@ -1431,6 +1468,7 @@ Hints are not stored (9.4).
 | `STALE_TOLERANCE_S` | 5 | stale-sample guard after a fork |
 | `TOAST_MS` | 3000 | confirmation and error messages (8.7, 8.8: 2–5 s) |
 | `MAX_REWIND_MOMENTS` | 5 | 10.2 |
+| `DISPLAY_PRECISION` (in `vitals.ts`) | HR, RR, MAP, EtCO2, TV: scale 1, 0 decimals; SpO2: scale 100, 1 decimal | readout text and Displayed_Value (15.13); matches today's readouts |
 | Request timeouts | 10 s case, 10 s intervention, 30 s fork, 5 s playback | 1.11, 8.8, 10.10, 7.10, 11.13 |
 
 ### Per-vital test offsets (Requirement 12.6, 15.10)
@@ -1446,6 +1484,8 @@ Hints are not stored (9.4).
 
 The test asserts each offset is smaller than half the smallest gap, so `boundary ± offset` never crosses another boundary even if the author later moves thresholds; if a move breaks this, the test fails and names the vital.
 
+These offsets are inputs to `getAlarmState` and `getVitalBand`, which take the value as given. They are not meant for the Displayed_Value path: a raw RR of 11.5 has the Displayed_Value 12 ("12" under `toFixed(0)`), so `boundary − 0.5` does not cross a whole-number bound after rounding. Tests that go through `readDisplayedVital` use raw values at least one display step (1, or 0.001 for SpO2) from a bound, or the fixed examples of 15.17 and 15.19.
+
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
@@ -1458,15 +1498,15 @@ The test asserts each offset is smaller than half the smallest gap, so `boundary
 
 ### Property 2: Vital_Band agrees with the Alarm_Function
 
-*For any* threshold object and finite value, `getVitalBand(value, t).state` equals `getAlarmState(value, t)`; the direction is `none` exactly when the state is `normal`; a `low` direction implies the value is below a present low bound; and a `high` direction implies the value is above a present high bound.
+*For any* threshold object and finite value, `getVitalBand(value, t).state` equals `getAlarmState(value, t)`; the direction is `none` exactly when the state is `normal`; a `low` direction implies the value is below a present low bound; and a `high` direction implies the value is above a present high bound. The value here is whatever the caller passes; every caller passes the Displayed_Value, which Property 26 checks.
 
 **Validates: Requirements 4.1, 4.2, 15.7, 12.6**
 
 ### Property 3: Avatar fields follow their vital bands and rates
 
-*For any* sample with finite vitals, Case thresholds and Play_Section, `mapAvatar` returns: `skinTone` `healthy`/`pale`/`cyanotic` for SpO2 state `normal`/`warning`/`critical`; breathing period `60 / RR` when RR > 0 and stopped when RR ≤ 0; heartbeat period `60 / HR` when HR > 0 and stopped when HR ≤ 0; `sweating` equal to (MAP state ≠ `normal` or HR state = `critical`); and a breathing depth inside `[BREATH_DEPTH_MIN, BREATH_DEPTH_MAX]`, equal to the clamped ratio of tidal volume to the reference (`referenceTidalVolumeMl` if defined, else the first positive tidal volume), or `BREATH_DEPTH_DEFAULT` when no reference exists. The mapper has no Playback_Speed input, so these values do not depend on speed.
+*For any* sample with finite vitals, Case thresholds and Play_Section, `mapAvatar` returns: `skinTone` `healthy`/`pale`/`cyanotic` for SpO2 state `normal`/`warning`/`critical`; breathing period `60 / RR` when RR > 0 and stopped when RR ≤ 0; heartbeat period `60 / HR` when HR > 0 and stopped when HR ≤ 0; `sweating` equal to (MAP state ≠ `normal` or HR state = `critical`); where every state is the Vital_Band state of the vital's Displayed_Value and every rate and tidal volume is the raw value; and a breathing depth inside `[BREATH_DEPTH_MIN, BREATH_DEPTH_MAX]`, equal to the clamped ratio of tidal volume to the reference (`referenceTidalVolumeMl` if defined, else the first positive tidal volume), or `BREATH_DEPTH_DEFAULT` when no reference exists. The mapper has no Playback_Speed input, so these values do not depend on speed.
 
-**Validates: Requirements 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11, 4.12, 4.24**
+**Validates: Requirements 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11, 4.12, 4.24, 15.16**
 
 ### Property 4: Avatar_Mapper determinism
 
@@ -1518,9 +1558,9 @@ The test asserts each offset is smaller than half the smallest gap, so `boundary
 
 ### Property 12: Ending matches the reference model
 
-*For any* sample sequence (including non-finite and non-increasing Simulation_Times and missing vitals), Case, Play_Section and fixed Rescue_Gate_Time `g` in the context (`-Infinity`, `null` or a finite time), `evaluateEnding(...).ending` equals the Ending computed by a reference model in the test. The reference model first filters the accepted samples (finite time, strictly greater than the last accepted one), then finds the first accepted sample at which: the rescue conditions held at every accepted sample of an unbroken run that started at or after both the earliest insult time and `g`, and spans at least `holdSeconds` (no run counts when `g` is `null`); or some lost group's conditions held over an unbroken run spanning at least its `holdSeconds`; or the time reached `timeLimitSeconds`. At that sample the result is `rescued` if the rescue part holds, else `lost`. Conditions use the sample value and the operator directly, and a missing or non-finite value never holds. With no Play_Section or no samples the result is `none`.
+*For any* sample sequence (including non-finite and non-increasing Simulation_Times and missing vitals), Case, Play_Section and fixed Rescue_Gate_Time `g` in the context (`-Infinity`, `null` or a finite time), `evaluateEnding(...).ending` equals the Ending computed by a reference model in the test. The reference model first filters the accepted samples (finite time, strictly greater than the last accepted one), then finds the first accepted sample at which: the rescue conditions held at every accepted sample of an unbroken run that started at or after both the earliest insult time and `g`, and spans at least `holdSeconds` (no run counts when `g` is `null`); or some lost group's conditions held over an unbroken run spanning at least its `holdSeconds`; or the time reached `timeLimitSeconds`. At that sample the result is `rescued` if the rescue part holds, else `lost`. Conditions use the raw sample value and the operator directly, with no Display_Precision, and a missing or non-finite value never holds. With no Play_Section or no samples the result is `none`.
 
-**Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.15, 6.16, 6.22**
+**Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.15, 6.16, 6.22, 15.18**
 
 ### Property 13: The Ending is monotonic
 
@@ -1608,15 +1648,21 @@ The test asserts each offset is smaller than half the smallest gap, so `boundary
 
 ### Property 24: Rescue never comes before the Rescue_Gate_Time
 
-*For any* list of required ids and any Active_Interventions entries, `rescueGateTime` returns `-Infinity` when the list is empty, `null` when some required id has no entry, and otherwise the largest, over the required ids, of the smallest entry `simulationTime` for that id; adding or removing entries whose id is not required leaves the result unchanged. *For any* Ending context, sample sequence and Play_Section: with a finite gate `g`, when the Ending is `rescued`, every sample of the completing rescue stretch has a Simulation_Time of at least `g`, so `endedAt >= g + holdSeconds`; with a `null` gate the Ending is never `rescued`; and with a `-Infinity` gate the Ending and `endedAt` equal those of an ungated reference fold in the test that applies only the earliest-insult bound. *For any* Ending context, `EndingState` and new gate, `setRescueGate` returns a state whose `rescueStart` is `null` or at least the new gate when the Ending is `none`, and whose `ending`, `endedAt`, `lastTime` and `lostStarts` are unchanged.
+*For any* list of required ids, any Active_Interventions entries and any Earliest_Insult_Time `e` (a finite time or `undefined`), `rescueGateTime(ids, entries, e)` returns `-Infinity` when the list is empty, `null` when some required id has no Gate_Entry (an entry with `simulationTime >= e`, or any entry when `e` is `undefined`), and otherwise the largest, over the required ids, of the smallest Gate_Entry `simulationTime` for that id. Adding or removing entries whose id is not required, or entries with `simulationTime < e`, leaves the result unchanged; with `e` undefined the result equals the result with every entry counted. A finite result is never less than `e` when `e` is defined. *For any* Ending context, sample sequence and Play_Section: with a finite gate `g`, when the Ending is `rescued`, every sample of the completing rescue stretch has a Simulation_Time of at least `g`, so `endedAt >= g + holdSeconds`; with a `null` gate the Ending is never `rescued`; and with a `-Infinity` gate the Ending and `endedAt` equal those of an ungated reference fold in the test that applies only the earliest-insult bound. *For any* Ending context, `EndingState` and new gate, `setRescueGate` returns a state whose `rescueStart` is `null` or at least the new gate when the Ending is `none`, and whose `ending`, `endedAt`, `lastTime` and `lostStarts` are unchanged.
 
-**Validates: Requirements 6.3, 6.18, 6.19, 6.20, 6.22, 6.24**
+**Validates: Requirements 6.3, 6.18, 6.19, 6.20, 6.22, 6.24, 6.25, 6.26, 12.18**
 
 ### Property 25: The reducer keeps the Rescue_Gate_Time in step with the record and the lineage
 
-*For any* case with a Play_Section that lists Required_Interventions, and any sequence of `caseLoaded`, `sessionLoaded`, `checkpointsLoaded`, `interventionRecordRestored`, `interventionSucceeded`, `forkSucceeded` and `sampleReceived` actions over generated lineages, after every action `endingCtx.rescueGateTime` equals `rescueGateTime(requiredInterventions(play), activeInterventions(interventionRecord, lineage))`, and, while the Ending is `none`, `ending.rescueStart` is `null` or at least that gate (Requirement 6.24). In particular, after `forkSucceeded` to a fork time earlier than every lineage entry of a required id, the gate is `null`, and the new Branch's Ending is not `rescued` after any later `sampleReceived` until an `interventionSucceeded` for that id.
+*For any* case with a Play_Section that lists Required_Interventions, and any sequence of `caseLoaded`, `sessionLoaded`, `checkpointsLoaded`, `interventionRecordRestored`, `interventionSucceeded`, `forkSucceeded` and `sampleReceived` actions over generated lineages, after every action `endingCtx.rescueGateTime` equals `rescueGateTime(requiredInterventions(play), activeInterventions(interventionRecord, lineage), earliestInsultTime(caseData))`, every `interventionSucceeded` entry is in `interventionRecord` whether or not it is a Gate_Entry, and, while the Ending is `none`, `ending.rescueStart` is `null` or at least that gate (Requirement 6.24). In particular, after `forkSucceeded` to a fork time earlier than every lineage entry of a required id, the gate is `null`, and the new Branch's Ending is not `rescued` after any later `sampleReceived` until an `interventionSucceeded` for that id.
 
-**Validates: Requirements 6.21, 6.23, 6.24**
+**Validates: Requirements 6.21, 6.23, 6.24, 6.25, 6.27**
+
+### Property 26: Readouts and Vital_Bands come from one Displayed_Value
+
+*For any* vital name and any finite raw value (generated with magnitude at most 1e9), `formatVital(vital, raw)` equals `formatVital(vital, displayedValue(vital, raw))`, and `displayedValue(vital, displayedValue(vital, raw))` equals `displayedValue(vital, raw)` (round trip). *For any* sample, Case thresholds and vital with thresholds and a finite raw value, the Vital_Band in `mapAvatar(...).bands`, the band that `statusItemMatches` compares, the band from the calibration `bandsOf`, and the Clinician_View `clinicianAlarmState` all equal `getVitalBand(displayedValue(vital, raw), threshold)` (state only for `clinicianAlarmState`).
+
+**Validates: Requirements 4.2, 15.7, 15.13, 15.14, 15.15, 15.16, 15.19**
 
 ## Error Handling
 
@@ -1635,11 +1681,12 @@ All user-facing error text is plain language and never shows HTTP codes or stack
 | Default 2x request fails | `ApiError` or 5 s timeout | Keep the previous speed, do not retry, keep the speed controls enabled. The sent flag is already stored, so it is not resent. | 11.13 |
 | Vitals_Stream error or close | `onerror`, `onclose` | `connectionChanged(false)`; Intervention buttons disabled; the existing "Connecting to simulation..." screen shows. State in the hook is kept. | 8.9 |
 | Vitals_Stream message with `error` field | parsed JSON | Show the message as today (Clinician box; Play toast "The simulation stopped. Please reload the page."). The sample is not passed to the reducer. | (existing) |
-| Malformed or partial VitalSigns | non-finite or missing fields | Avatar_Mapper keeps previous values, Status_Selector treats conditions as not matching, Ending_Evaluator treats conditions as not held or ignores the sample when its time is invalid. Nothing throws. | 4.25, 5.4, 6.8, 6.16 |
+| Malformed or partial VitalSigns | non-finite or missing fields | A missing or non-finite raw value has no Displayed_Value (`displayedValue` and `readDisplayedVital` return `undefined`), so it is handled as missing (15.15). Avatar_Mapper keeps previous values, Status_Selector treats conditions as not matching, Ending_Evaluator treats conditions as not held or ignores the sample when its time is invalid. Nothing throws. | 4.25, 5.4, 6.8, 6.16 |
 | Stale old-Branch sample after a fork | time above `forkTime + 5 s` before the first accepted sample | Dropped by the stale-sample guard. | 6.11 |
 | sessionStorage unavailable or corrupted | exception or `parseRecord` → `[]` | Start with an empty Intervention_Record and continue in memory; view preference and default-speed flag fall back to defaults. | 8.14 |
 | Play_Section received without `hints` (schema skipped because the schema file is missing) | `!play.hints?.length` | Hide the Hint button and Hint_Panel. Other missing Play fields: the page treats the Play_Section as absent and shows the Clinician_View. | 9.9 |
 | `requiredInterventions` names an id that is not an Intervention of the case | `caseContent.test.ts` (the schema cannot see it) | The test fails and names the id. At run time no entry can match it, so the gate stays `null` and the Ending can only be `lost`; nothing throws. | 2.22, 6.18 |
+| Required_Intervention applied before the Earliest_Insult_Time | `rescueGateTime` skips the entry | Not an error: the Intervention is accepted, the toast and the sides show as usual, and the gate stays closed until the learner applies it again at or after the insult time. The button stays enabled for that (8.15). | 6.25, 6.27 |
 | Invalid case file | `jsonschema` in `case_loader.py` or `validate-case.py` | Existing `CaseLoadError` and non-zero script exit with the field path. | 2.17, 2.18 |
 
 ## Testing Strategy
@@ -1650,7 +1697,7 @@ All user-facing error text is plain language and never shows HTTP codes or stack
 - **fast-check** (add `fast-check@^3` to `devDependencies`) for property tests. `src/test/pbt.ts` exports `PBT_PARAMS = { seed: 20261031, numRuns: 100 }`, passed to every `fc.assert`, so every run uses the same generated inputs (12.10). A failing run prints the counterexample and the seed.
 - **yaml** (add `yaml@^2` to `devDependencies`) for case-content tests. The tests read `path.resolve(__dirname, '../../../../cases/adult-tension-pneumothorax.yaml')` from `apps/web/src/lib/` and use `parseDocument` so comments are available for the `TODO(author)` check.
 - **React server rendering** (`react-dom/server`, already a dependency) for markup tests of `StitchedPatient`, `StatusLine`, `ViewSwitcher` and `EndingScreen`. No jsdom or Testing Library dependency is needed.
-- Add `"test:run": "vitest --run"` to `apps/web/package.json`. Run with `cd apps/web && npm run test:run`. The Play tests must finish within 30 s on an Apple Silicon laptop (12.12); 25 properties at 100 runs over pure functions take well under that.
+- Add `"test:run": "vitest --run"` to `apps/web/package.json`. Run with `cd apps/web && npm run test:run`. The Play tests must finish within 30 s on an Apple Silicon laptop (12.12); 26 properties at 100 runs over pure functions take well under that.
 
 ### Why property-based testing applies
 
@@ -1676,6 +1723,7 @@ Each correctness property is implemented by exactly one `fc.assert` test.
 
 | File | Unit tests (fixed inputs) | Properties |
 |---|---|---|
+| `vitals.test.ts` (extended, Fix 2) | `DISPLAY_PRECISION` values of 15.13; raw RR 11.9999 → Displayed_Value 12, text "12", band `normal`/`none` through `mapAvatar` and `clinicianAlarmState` (15.17); raw SpO2 0.974 → "97.4"; raw SpO2 0.9496 → band `normal` while `conditionHolds(spO2 >= 0.95)` is false (15.18); `NaN`, `±Infinity` → no Displayed_Value (15.15); `VitalSign` and `displayedValue` both read `DISPLAY_PRECISION` (a text search of `VitalSign.tsx` and `ClinicianView.tsx` finds no `toFixed` and no `* 100`) (15.19) | 26 |
 | `alarms.test.ts` | each bound of each vital in the case: at, just inside, just outside with the per-vital offset (15.10); omitted `low`, `high` and `warning` (15.11); baseline vitals all `normal` (15.9, 15.12); offset-gap assertion | 1 |
 | `vitalBands.test.ts` | boundary values, ±offset and ≥100 evenly spaced values from 50% of the lowest to 150% of the highest boundary per vital (12.6) | 2 |
 | `avatarMapper.test.ts` | all cases in 12.1 and 12.13; samples without `systolic_pressure`/`diastolic_pressure` and with one case vital missing (12.14) | 3, 4, 5 |
@@ -1683,11 +1731,13 @@ Each correctness property is implemented by exactly one `fc.assert` test.
 | `branchLineage.test.ts` | fork-time lookup, missing fork Checkpoint fallback, Active_Interventions after fork (12.2, 10.9) | 7 |
 | `StitchedPatient.test.tsx` | default sentence as accessible name; speech text up to 200 chars present; empty and whitespace speech render no bubble; Overall_Status labels; one test per Expression with variant precedence; dress-up and craft parts present; celebration classes with and without Decompressed_Sides; reduced-motion CSS-text check of `globals.css` (12.15); cohesive-redraw checks for every Skin_Tone, every Expression and both chest geometries, each Skin_Tone's `shade` darker than its patches (3.48), and no `plaster` element (12.16) | 8, 9, 22, 23 |
 | `statusSelector.test.ts` | first of two matching rules; partial match of a multi-condition rule; no-direction condition matches both directions; default when none match (12.3); null sample; missing vital (12.14) | 10, 11 |
-| `endingEvaluator.test.ts` | every case listed in 12.4: exact-hold rescue and one sample short; pre-insult samples add no time; exact-hold for each lost group; restart after one failing sample; equal and decreasing times; sample at and below `timeLimitSeconds`; simultaneous rescue and lost → `rescued`; missing vitals (12.14); Rescue_Gate_Time cases of 12.17: no rescue time before a finite gate and exact-hold rescue from it; `null` gate never rescued but still lost by group and by Time_Limit; the 2026-11-20 no-intervention sequence stays `none` at 61 s; `rescueGateTime` max-of-earliest, missing id → `null`, right-only → `null`; no Required_Interventions → `-Infinity` and unchanged Endings; `setRescueGate` ends a stretch that starts before a later or `null` gate | 12, 13, 14, 24 |
+| `endingEvaluator.test.ts` | every case listed in 12.4: exact-hold rescue and one sample short; pre-insult samples add no time; exact-hold for each lost group; restart after one failing sample; equal and decreasing times; sample at and below `timeLimitSeconds`; simultaneous rescue and lost → `rescued`; missing vitals (12.14); Rescue_Gate_Time cases of 12.17: no rescue time before a finite gate and exact-hold rescue from it; `null` gate never rescued but still lost by group and by Time_Limit; the 2026-11-20 no-intervention sequence stays `none` at 61 s; `rescueGateTime` max-of-earliest, missing id → `null`, right-only → `null`; no Required_Interventions → `-Infinity` and unchanged Endings; `setRescueGate` ends a stretch that starts before a later or `null` gate; Gate_Entry cases of 12.18 with the insult at 30 s: entry at 20 s → `null`, at exactly 30 s → 30, at 20 s and 150 s → 150, no finite insult time → every entry counts; the `affected-side-early` sequence (left at 20 s, Rescue_Condition held from 0 s) never `rescued` (6.25, 6.26) | 12, 13, 14, 24 |
 | `playCase.test.ts` | `conditionsDisjoint` examples for each operator pair | 15, 18 |
 | `rewindMoments.test.ts` | ≤5 newest first; below latest sample; below Time_Limit; inclusion rule when the required Checkpoint is older than the 5 newest; empty result; the three label rules with the clinical-label fallback; "0:00", "1:30", "10:05" (12.5) | 16, 17 |
 | `interventionRecord.test.ts` | missing key, bad JSON, wrong version, storage that throws | 19 |
-| `sessionState.test.ts` | `caseLoaded` view choice (1.1, 1.2, 1.9); `caseFailed` (1.11); fork resets the new Branch's Ending to `none` and old samples add no hold time (6.11); failed fork leaves state unchanged (6.17); stale-sample guard; hint simulation-time fallbacks (9.5); intervention entry fields (8.6); Rescue_Gate_Time recomputed on `caseLoaded`, `sessionLoaded`, `checkpointsLoaded`, `interventionRecordRestored`, `interventionSucceeded` and `forkSucceeded` (6.23); fork to before the left Decompression gives a `null` gate, and redoing it on the new Branch opens the gate at the new entry's time (6.21) | 20, 21, 25 |
+| `sessionState.test.ts` | `caseLoaded` view choice (1.1, 1.2, 1.9); `caseFailed` (1.11); fork resets the new Branch's Ending to `none` and old samples add no hold time (6.11); failed fork leaves state unchanged (6.17); stale-sample guard; hint simulation-time fallbacks (9.5); intervention entry fields (8.6); Rescue_Gate_Time recomputed on `caseLoaded`, `sessionLoaded`, `checkpointsLoaded`, `interventionRecordRestored`, `interventionSucceeded` and `forkSucceeded` (6.23); fork to before the left Decompression gives a `null` gate, and redoing it on the new Branch opens the gate at the new entry's time (6.21); a left entry at 20 s keeps the gate `null`, stays in `interventionRecord` and puts `Left` in `avatar.decompressedSides` (6.25, 6.27) | 20, 21, 25 |
+| `calibration.test.ts` (extended, Fix 1 and 2) | the `affected-side-early` sequence through `scenarioOutcome`: `finalGate` `null`, never `rescued` (13.18); `bandsOf` and `statusRuleReport` use Displayed_Values (raw RR 11.9999 is `normal`) (13.19) | — |
+| `PlayView.test.tsx` (extended) | `interventionsDisabled` is `false` after an accepted Intervention while connected, nothing pending and the Ending `none` (8.15); `interventionsDisabled` is `true` with `forkPending` while connected, no Intervention pending and the Ending `none`, and `false` again once `forkPending` clears after a fork success or error (8.16) | — |
 | `useSimulationSession.test.ts` | with mocked `api` and fake timers: one pause request per Branch and the 2-retry policy (7.1, 7.10); default 2x sent once and not retried (11.12, 11.13); view switch sends no request (1.5). Runs the hook's effect logic through extracted pure helpers (`runPauseWithRetry`, `shouldSendDefaultSpeed`) so no DOM is needed. | — |
 | `caseContent.test.ts` | Requirement 12.7 checks with failing text in the message (12.8); fails when the Play_Section is missing (12.9); 2.14 Play_Label rules; 2.15 `TODO(author)` or covering `references`; 2.16 diagnosis terms; 9.7 exactly 3 Hints; 9.8 last Hint contains a Play_Label; 2.22 every `requiredInterventions` entry is an Intervention `id` in the file, naming unknown entries; 2.23 exactly `needle-decompression-left`, with the 2026-11-20 decision comment and no `TODO(author)` | — |
 
@@ -1712,15 +1762,15 @@ Visual design (3.2–3.6), layout fit (11.7), focus behaviour in a real browser 
 | 1 Two views | `useSimulationSession`, `sessionReducer` (`viewSelected`, `caseLoaded`, `caseFailed`), `ViewSwitcher`, `SafetyNotice`, `ClinicianView` |
 | 2 Case file | YAML shape (including `endings.rescued.requiredInterventions`), schema fragments, `caseContent.test.ts`, existing `validate-case.py` and `case_loader.py` |
 | 3 Avatar | `StitchedPatient`, `sideGeometry`, palette, Speech_Bubble_Slot headroom band, `expressionFor`, Expressions and dress-up layout constants, new animation classes, Cohesive redraw (scene group, Quilt, layer order, coordinate plan, outline constants, shade and scene colours) (Properties 8, 9, 22, 23) |
-| 4 Avatar follows vitals | `avatarMapper.ts`, `vitalBands.ts`, `sides.ts`, CSS custom-property animation |
+| 4 Avatar follows vitals | `avatarMapper.ts` (bands from `readDisplayedVital`, D10), `vitalBands.ts`, `sides.ts`, CSS custom-property animation |
 | 5 Status | `statusSelector.ts`, `StatusLine`, `GoalBar`, `timeFormat.ts` |
-| 6 Ending evaluation | `endingEvaluator.ts` (including `requiredInterventions`, `rescueGateTime`, `setRescueGate`), reducer fork handling and `withRescueGate`, stale-sample guard (Properties 12–14, 24, 25) |
+| 6 Ending evaluation | `endingEvaluator.ts` (including `requiredInterventions`, `rescueGateTime`, `setRescueGate`), reducer fork handling and `withRescueGate`, stale-sample guard (Properties 12–14, 24, 25); 6.25–6.27: `earliestInsultTime` and the Gate_Entry rule in `rescueGateTime` (D9) |
 | 7 Ending screen | `EndingScreen`, `EndingBanner`, pause-on-Ending effect |
-| 8 Interventions | `InterventionPanel` (`getLabel`), `playButtonText`, `applyIntervention`, `interventionRecord.ts`, `Toast` |
+| 8 Interventions | `InterventionPanel` (`getLabel`), `playButtonText`, `applyIntervention`, `interventionRecord.ts`, `Toast`; 8.15: `interventionsDisabled` reads no record; 8.16: `PlayView` `forkPending` in `interventionsDisabled` (Play_View only) |
 | 9 Hints | `HintPanel`, reducer `hintRevealed` |
 | 10 Rewind | `RewindPanel`, `rewindMoments.ts`, `branchLineage.ts`, `fork` action |
 | 11 Accessibility and layout | Play layout grid, focus ring, `useFocusTrap`, shape-plus-text status, default-2x effect |
-| 12 Automated tests | Testing Strategy |
-| 13 Calibration | `apps/web/scripts/calibratePlayMode.ts`, `docs/calibration/` |
+| 12 Automated tests | Testing Strategy; 12.18: Gate_Entry rows in the Test files table (Property 24) |
+| 13 Calibration | `apps/web/scripts/calibratePlayMode.ts`, `docs/calibration/`; 13.18: `createOutcomeFold` is the only calibration caller of `rescueGateTime` and passes `earliestInsultTime`; `engineRunner.ts` and `engineCalibration.ts` take the gate from it; 13.19: `bandsOf` and `statusItemMatches` on Displayed_Values; 13.20: new record after both fixes |
 | 14 Acceptance demo | manual checklist in `docs/play-mode-acceptance.md`, calibration record |
-| 15 Alarm bands | `alarms.ts` rewrite, coordination note |
+| 15 Alarm bands | `alarms.ts` rewrite, coordination note; 15.13–15.19: `DISPLAY_PRECISION`, `displayedValue`, `formatVital`, `readDisplayedVital` in `vitals.ts`, `VitalSign` and `clinicianAlarmState`, raw values in `conditionHolds` (D10, Property 26) |
