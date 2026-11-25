@@ -415,6 +415,27 @@
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795585493594
       }
+    ],
+    "8.1 Run the manual check against the real Physiology_Service (manual check (a))": [
+      {
+        "executionId": "b0afcc0e-c067-47a7-86dc-c2b505a53cf8",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795605017563
+      }
+    ],
+    "8.2 Record the one calibration run of the shipped case (manual check (c))": [
+      {
+        "executionId": "b0afcc0e-c067-47a7-86dc-c2b505a53cf8",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795605525706
+      }
+    ],
+    "8. Real-service check and the recorded calibration run (supersedes play-mode task 12.3)": [
+      {
+        "executionId": "b0afcc0e-c067-47a7-86dc-c2b505a53cf8",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795605525757
+      }
     ]
   }
 }

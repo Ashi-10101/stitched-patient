@@ -261,9 +261,9 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 15.5, 15.6, 15.7, 15.13, 15.14, 15.15, 16.9, 18.1, 18.4, 18.5_
 
-- [ ] 8. Real-service check and the recorded calibration run (supersedes play-mode task 12.3)
+- [x] 8. Real-service check and the recorded calibration run (supersedes play-mode task 12.3)
   - **Needs the Physiology_Service running at http://localhost:8000 — the user confirms it is up before this task starts.**
-  - [ ] 8.1 Run the manual check against the real Physiology_Service (manual check (a))
+  - [x] 8.1 Run the manual check against the real Physiology_Service (manual check (a))
     - Files: none. No file changes
     - **Needs the user:** start the Physiology_Service in their own terminal (for example `docker compose up physiology`) and confirm that it is up. The agent never starts, stops or restarts it and uses it only through its HTTP and WebSocket API
     - Call `list_cases`. If it returns the Unreachable_Error, stop and ask the user to start the service or give another Service_URL (13.2)
@@ -275,7 +275,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 12.3, 13.2, 15.10, 15.11, 17.8_
 
-  - [ ] 8.2 Record the one calibration run of the shipped case (manual check (c))
+  - [x] 8.2 Record the one calibration run of the shipped case (manual check (c))
     - Files: `docs/calibration/<case_id>-<YYYY-MM-DD>-<short-sha>.md` and `docs/calibration/README.md`, both written by the tool. No other file changes
     - The service must still be up. If `list_cases` returns the Unreachable_Error, stop and ask the user to start it or give another Service_URL (13.2)
     - Call `run_calibration` with `case_id` `adult-tension-pneumothorax` and `write` true, with the default times and no `max_seconds` (13.1). **Needs the user:** approve the call
