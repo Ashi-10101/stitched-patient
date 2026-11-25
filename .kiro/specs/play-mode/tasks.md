@@ -603,7 +603,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - Confirm from the task reports that no play-mode task changed `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-simulation-loop/`, and that `apps/web/package-lock.json` is present
     - _Requirements: 2.12, 12.10, 12.11, 12.12_
 
-- [ ] 15. Calibration fixes of 2026-11-25: early Decompression and displayed-value bands
+- [x] 15. Calibration fixes of 2026-11-25: early Decompression and displayed-value bands
   - [x] 15.1 Fix 1: count only Gate_Entries toward the Rescue_Gate_Time
     - Author's decision of 2026-11-25 (requirements "Dependencies and confirmed decisions" item 7, design D9). Follow the design sections "endingEvaluator.ts" (Rescue gate), "sessionState.ts — the reducer" and "Shipped calibration path (13.18)"
     - Files: `apps/web/src/lib/endingEvaluator.ts` and `endingEvaluator.test.ts`; `apps/web/src/lib/sessionState.ts` and `sessionState.test.ts`; `apps/web/src/lib/calibration.ts` and `calibration.test.ts`; `apps/web/src/test/generators.ts` if a generator needs insult times. Do not change `engineRunner.ts` or `engineCalibration.ts`: they take the gate from `createOutcomeFold` / `scenarioOutcome` (13.18)
@@ -668,7 +668,7 @@ Nothing under `services/physiology/`, `docker-compose.yml` or `.kiro/specs/core-
     - From `apps/web/`, `npx tsc --noEmit` (no new errors compared with the 1.1 baseline) and `npx vitest --run` pass, and `git status` shows no change under `services/physiology/` or `cases/`
     - _Requirements: 7.7, 8.9, 8.10, 8.15, 8.16, 12.18_
 
-  - [ ] 15.4 Record a new calibration run and measure open question 1(e) (ONE-TIME RECORDING RUN)
+  - [x] 15.4 Record a new calibration run and measure open question 1(e) (ONE-TIME RECORDING RUN)
     - Runs after 15.1 and 15.2 are done (13.20). Needs the running Physiology_Service. Never start, stop or restart it; if it is not reachable, ask the user to start it in their own terminal or to give its URL through `PHYSIOLOGY_URL`
     - Use the `stitched-patient-engine` MCP tools (`tool::stitched-patient-engine::list_cases`, `run_scenario`, `run_calibration`). Kiro asks for approval before each `run_scenario` and `run_calibration` call. Read the Variant ids and the affected-side Intervention of each Variant from `list_cases` (expected Variants `left` and `right`, with `needle-decompression-left` and `needle-decompression-right`)
     - (a) `run_calibration` with `case_id: "adult-tension-pneumothorax"`, default Decompression times and `write: false`. Report per Variant: the three Calibration_Checks with pass or fail; the `affected-side-early` Rescue_Gate_Time (expected `null`, "closed") and its Ending with time; the Vital_Band (Alarm_State and direction) of every vital at t = 0 (expected respiratoryRate `normal`, `none`)

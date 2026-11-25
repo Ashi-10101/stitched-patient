@@ -671,6 +671,25 @@
         "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
         "timestamp": 1795613743063
       }
+    ],
+    "15.4 Record a new calibration run and measure open question 1(e) (ONE-TIME RECORDING RUN)": [
+      {
+        "executionId": "9565793f-c56d-4270-8b87-b29b2f196278",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795613797828
+      },
+      {
+        "executionId": "9565793f-c56d-4270-8b87-b29b2f196278",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795616042080
+      }
+    ],
+    "15. Calibration fixes of 2026-11-25: early Decompression and displayed-value bands": [
+      {
+        "executionId": "9565793f-c56d-4270-8b87-b29b2f196278",
+        "chatSessionId": "sess_01930356-1e2d-4544-b6cb-3e93bc96b2a9",
+        "timestamp": 1795616042135
+      }
     ]
   }
 }
