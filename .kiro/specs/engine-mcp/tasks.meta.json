@@ -146,6 +146,37 @@
         "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
         "timestamp": 1795566226045
       }
+    ],
+    "4.1 Implement `apps/web/src/lib/engineCalibration.ts` with its tests": [
+      {
+        "executionId": "2f7448c6-4ccc-4df0-b5e4-70de01dee5e4",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795566621634
+      },
+      {
+        "executionId": "2f7448c6-4ccc-4df0-b5e4-70de01dee5e4",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795568319800
+      }
+    ],
+    "4.2 Implement `apps/web/src/lib/calibrationRecord.ts` with its tests": [
+      {
+        "executionId": "2f7448c6-4ccc-4df0-b5e4-70de01dee5e4",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795568319849
+      },
+      {
+        "executionId": "8805538e-1e67-416f-9204-3a9c785ba187",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795570123281
+      }
+    ],
+    "4. Calibration plan, evaluation and the Calibration_Record": [
+      {
+        "executionId": "8805538e-1e67-416f-9204-3a9c785ba187",
+        "chatSessionId": "sess_c9263d3c-d2e7-4c31-87cd-1aa1a128cbb8",
+        "timestamp": 1795570123313
+      }
     ]
   }
 }

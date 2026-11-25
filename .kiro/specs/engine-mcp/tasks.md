@@ -93,8 +93,8 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - _Requirements: 6.1, 6.4, 6.5, 7.1, 7.3, 17.4_
     - _Properties: 2_
 
-- [ ] 4. Calibration plan, evaluation and the Calibration_Record
-  - [ ] 4.1 Implement `apps/web/src/lib/engineCalibration.ts` with its tests
+- [x] 4. Calibration plan, evaluation and the Calibration_Record
+  - [x] 4.1 Implement `apps/web/src/lib/engineCalibration.ts` with its tests
     - Files: `apps/web/src/lib/engineCalibration.ts` (new), `apps/web/src/lib/engineCalibration.test.ts` (new). No other file changes
     - Implement the design sections "`engineCalibration.ts`", "The eight calibration Scenarios", "Calibration_Checks per Variant", "Calibration evaluation" (including `VariantEvaluation`, `CalibrationEvaluation` and `CalibrationSummary`) and the Error Handling section "Calibration": `SCENARIO_KINDS`, `readCaseFileFacts` (with the existing `yaml` devDependency), `preflightCalibration`, `planCalibration`, `decompressionFor` (by action and side, never by id), `OVERRIDE_TARGET_PLAY_PATHS`, `comparePlayWithCaseFile`, `runCalibration` (the first Scenario error aborts a call-internal controller and is rethrown with the Scenario name) and `evaluateCalibration`
     - Constants of this module: `CALIBRATION_SAMPLE_INTERVAL`, `DEFAULT_DEMO_DECOMPRESSION_TIME`, `DEFAULT_EARLY_DECOMPRESSION_TIME`, `DECOMPRESSION_CHECK_COMMIT`
@@ -102,7 +102,7 @@ Only task 8 needs the Physiology_Service running. Steps that need the user are m
     - End commands as in the Overview
     - _Requirements: 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 8.10, 8.11, 8.12, 9.2, 9.3, 9.5, 9.6, 9.7, 9.10, 9.11_
 
-  - [ ] 4.2 Implement `apps/web/src/lib/calibrationRecord.ts` with its tests
+  - [x] 4.2 Implement `apps/web/src/lib/calibrationRecord.ts` with its tests
     - Files: `apps/web/src/lib/calibrationRecord.ts` (new), `apps/web/src/lib/calibrationRecord.test.ts` (new). No other file changes
     - Implement the design sections "`calibrationRecord.ts`", "Record_Header", "Record_Body layout" (with its rules for the body), "Calibration_Index" and the Error Handling section "Record writer": `GitInfo`, `RecordHeader`, `SAFETY_NOTICE`, `NOT_ADVICE`, `NOT_CALIBRATED_LINE`, `ALL_PASSED_LINE`, `DECIMALS`, `renderRecordHeader`, `renderRecordBody`, `renderCalibrationRecord`, `RecordFs`, `recordFileName`, `indexLine`, `assertCalibrationPath` and `writeCalibrationRecord`
     - The record holds only the fixed texts of the design, engine numbers, and sentences quoted exactly from the Resolved_Case (9.13). No other prose
