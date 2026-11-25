@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { getAlarmState } from './alarms';
 import { selectStatus, statusItemMatches } from './statusSelector';
-import { VITAL_FIELD, VITAL_NAMES } from './vitals';
+import { VITAL_FIELD, VITAL_NAMES, displayedValue } from './vitals';
 import type {
   AlarmState,
   AlarmThreshold,
@@ -174,10 +174,13 @@ describe('selectStatus: examples', () => {
 // Reference model, written independently of statusSelector.ts
 // ---------------------------------------------------------------------------
 
-/** Finite value of the vital's VitalSigns field, or undefined. */
+/**
+ * Displayed_Value of the vital's finite VitalSigns field, or undefined
+ * (bands come from the Displayed_Value, Requirement 15.16).
+ */
 function refValue(sample: Partial<VitalSigns>, vital: VitalName): number | undefined {
   const v: unknown = sample[VITAL_FIELD[vital]];
-  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  return typeof v === 'number' && Number.isFinite(v) ? displayedValue(vital, v) : undefined;
 }
 
 /**

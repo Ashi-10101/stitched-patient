@@ -11,8 +11,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getAlarmState } from '@/lib/alarms';
 import type { SessionUiState } from '@/lib/sessionState';
+import { thresholdsFor } from '@/lib/vitalBands';
+import { displayedValue, type VitalName } from '@/lib/vitals';
 import type { SimulationSession } from '@/hooks/useSimulationSession';
-import type { AlarmState, AlarmThreshold, CheckpointMetadata } from '@/types';
+import type { AlarmState, AlarmThresholds, CheckpointMetadata } from '@/types';
 import { EndingBanner } from './EndingBanner';
 import { InterventionPanel } from './InterventionPanel';
 import { PlaybackControls } from './PlaybackControls';
@@ -88,6 +90,24 @@ export function nextActionError(previous: boolean, outcome: ActionOutcome): bool
   return previous;
 }
 
+/**
+ * Alarm_State of a readout (play-mode 15.7, 15.8, 15.16): `undefined` (neutral
+ * style) while `alarms` is `null` or when `raw` has no Displayed_Value,
+ * `normal` for a vital without thresholds, otherwise the Alarm_Function of the
+ * Displayed_Value, so the colour and the readout text come from one value.
+ */
+export function clinicianAlarmState(
+  alarms: AlarmThresholds | null,
+  vital: VitalName,
+  raw: number,
+): AlarmState | undefined {
+  if (alarms === null) return undefined;
+  const threshold = thresholdsFor(alarms, vital);
+  if (threshold === undefined) return 'normal';
+  const shown = displayedValue(vital, raw);
+  return shown === undefined ? undefined : getAlarmState(shown, threshold);
+}
+
 export interface ClinicianViewProps {
   sim: Pick<SimulationSession, 'state' | 'actions' | 'notices'>;
 }
@@ -138,10 +158,6 @@ export function ClinicianView({ sim }: ClinicianViewProps) {
   // Alarm colours need the case's thresholds and a real sample; otherwise the
   // readouts are neutral, so a missing value never reads as an alarm (1.11).
   const alarms = caseData !== null && latestSample !== null ? caseData.alarms : null;
-  const alarmFor = (value: number, threshold: AlarmThreshold | undefined): AlarmState | undefined => {
-    if (alarms === null) return undefined;
-    return threshold ? getAlarmState(value, threshold) : 'normal';
-  };
 
   const v = latestSample ?? {
     simulation_time: 0,
@@ -198,38 +214,48 @@ export function ClinicianView({ sim }: ClinicianViewProps) {
           <div className="grid grid-cols-3 gap-4">
             <VitalSign
               label="Heart Rate"
-              value={v.heart_rate}
+              vital="heartRate"
+              raw={v.heart_rate}
               unit="bpm"
-              alarmState={alarmFor(v.heart_rate, alarms?.heartRate)}
+              alarmState={clinicianAlarmState(alarms, 'heartRate', v.heart_rate)}
             />
             <VitalSign
               label="SpO₂"
-              value={v.spo2 * 100}
+              vital="spO2"
+              raw={v.spo2}
               unit="%"
-              decimals={1}
-              alarmState={alarmFor(v.spo2, alarms?.spO2)}
+              alarmState={clinicianAlarmState(alarms, 'spO2', v.spo2)}
             />
             <VitalSign
               label="MAP"
-              value={v.mean_arterial_pressure}
+              vital="meanArterialPressure"
+              raw={v.mean_arterial_pressure}
               unit="mmHg"
-              alarmState={alarmFor(v.mean_arterial_pressure, alarms?.meanArterialPressure)}
+              alarmState={clinicianAlarmState(alarms, 'meanArterialPressure', v.mean_arterial_pressure)}
             />
           </div>
 
           <div className="grid grid-cols-3 gap-4">
             <VitalSign
               label="Resp Rate"
-              value={v.respiratory_rate}
+              vital="respiratoryRate"
+              raw={v.respiratory_rate}
               unit="br/min"
-              alarmState={alarmFor(v.respiratory_rate, alarms?.respiratoryRate)}
+              alarmState={clinicianAlarmState(alarms, 'respiratoryRate', v.respiratory_rate)}
             />
-            <VitalSign label="EtCO₂" value={v.etco2} unit="mmHg" alarmState={alarmFor(v.etco2, alarms?.etCO2)} />
+            <VitalSign
+              label="EtCO₂"
+              vital="etCO2"
+              raw={v.etco2}
+              unit="mmHg"
+              alarmState={clinicianAlarmState(alarms, 'etCO2', v.etco2)}
+            />
             <VitalSign
               label="Tidal Volume"
-              value={v.tidal_volume}
+              vital="tidalVolume"
+              raw={v.tidal_volume}
               unit="mL"
-              alarmState={alarmFor(v.tidal_volume, alarms?.tidalVolume)}
+              alarmState={clinicianAlarmState(alarms, 'tidalVolume', v.tidal_volume)}
             />
           </div>
 

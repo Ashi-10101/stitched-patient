@@ -8,7 +8,7 @@
  */
 
 import { getVitalBand, thresholdsFor } from './vitalBands';
-import { readVital } from './vitals';
+import { readDisplayedVital } from './vitals';
 import type { AlarmThresholds, PlaySection, StatusWhen, VitalSigns } from '@/types';
 
 /** 5.3, 5.4: thresholds and a finite value present, band equal, direction absent or equal. */
@@ -19,7 +19,8 @@ export function statusItemMatches(
 ): boolean {
   const threshold = thresholdsFor(alarms, item.vital);
   if (threshold === undefined) return false;
-  const value = readVital(sample, item.vital);
+  // Band of the Displayed_Value (play-mode 15.16).
+  const value = readDisplayedVital(sample, item.vital);
   if (value === undefined) return false;
   const band = getVitalBand(value, threshold);
   if (band.state !== item.band) return false;

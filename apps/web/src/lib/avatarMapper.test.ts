@@ -11,7 +11,7 @@ import {
   type AvatarInput,
 } from './avatarMapper';
 import { foundSides } from './sides';
-import { VITAL_FIELD, VITAL_NAMES } from './vitals';
+import { VITAL_FIELD, VITAL_NAMES, displayedValue } from './vitals';
 import type {
   AlarmState,
   AlarmThresholds,
@@ -405,7 +405,7 @@ const arbPrevious = fc.oneof(fc.constant(null), arbAvatarParameters);
 describe('mapAvatar properties', () => {
   // Feature: play-mode, Property 3: Avatar fields follow their vital bands and rates
   it('Property 3: Avatar fields follow their vital bands and rates', () => {
-    /** Validates: Requirements 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11, 4.12, 4.24 */
+    /** Validates: Requirements 4.3, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9, 4.10, 4.11, 4.12, 4.24, 15.16 */
     fc.assert(
       fc.property(
         arbFiniteSample,
@@ -424,8 +424,12 @@ describe('mapAvatar properties', () => {
             revealedSides: 'all',
           });
 
+          // States from the Displayed_Value (15.16); rates and tidal volume below stay raw.
           const state = (v: VitalName): AlarmState =>
-            getAlarmState((sample as Partial<VitalSigns>)[VITAL_FIELD[v]] as number, ALARMS[v]!);
+            getAlarmState(
+              displayedValue(v, (sample as Partial<VitalSigns>)[VITAL_FIELD[v]] as number)!,
+              ALARMS[v]!,
+            );
 
           for (const v of VITAL_NAMES) expect(out.bands[v]?.state, v).toBe(state(v));
           expect(out.skinTone).toBe(EXPECTED_TONE[state('spO2')]);

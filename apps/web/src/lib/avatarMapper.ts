@@ -2,15 +2,16 @@
  * Avatar_Mapper (play-mode Requirement 4, design "avatarMapper.ts").
  *
  * Pure function from one VitalSigns sample (plus case data and the previous
- * result) to Avatar_Parameters. Bands come from `getVitalBand`, sides from
- * `computeSides`, and vitals are read with `readVital`. There is no
+ * result) to Avatar_Parameters. Bands come from `getVitalBand` of the
+ * Displayed_Value (`readDisplayedVital`, play-mode 15.16), sides from
+ * `computeSides`, and rates and tidal volume are read raw with `readVital`. There is no
  * Playback_Speed input, so periods are wall-clock seconds and identical at
  * every speed (4.6, 4.10).
  */
 
 import { computeSides, shownSwollenSides, type RevealedSides } from './sides';
 import { getVitalBand, overallStatus, thresholdsFor } from './vitalBands';
-import { VITAL_NAMES, readVital } from './vitals';
+import { VITAL_NAMES, readDisplayedVital, readVital } from './vitals';
 import type {
   AlarmState,
   AlarmThresholds,
@@ -110,7 +111,8 @@ export function mapAvatar(input: AvatarInput): AvatarParameters {
   for (const vital of VITAL_NAMES) {
     const threshold = thresholdsFor(alarms, vital);
     if (threshold === undefined) continue;
-    const value = readVital(sample, vital);
+    // Bands from the Displayed_Value (15.16); periods and depth below stay raw (D10).
+    const value = readDisplayedVital(sample, vital);
     const kept = previous?.bands[vital];
     bands[vital] =
       value !== undefined ? getVitalBand(value, threshold) : { ...(kept ?? NORMAL_BAND) };

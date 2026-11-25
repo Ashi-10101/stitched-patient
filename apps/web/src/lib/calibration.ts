@@ -25,7 +25,7 @@ import {
 import { examButtons, examFinding } from './examFinding';
 import { selectStatus, statusItemMatches } from './statusSelector';
 import { getVitalBand, overallStatus, thresholdsFor } from './vitalBands';
-import { VITAL_NAMES, readVital, type VitalName } from './vitals';
+import { VITAL_NAMES, readDisplayedVital, type VitalName } from './vitals';
 import type {
   AlarmState,
   AlarmThresholds,
@@ -284,12 +284,16 @@ export function checkLostNeverRescued(
 // Vital_Bands, Overall_Status (9.8, 5.1)
 // ---------------------------------------------------------------------------
 
-/** 9.8 / 5.1, using getVitalBand, thresholdsFor and overallStatus. */
+/**
+ * 9.8 / 5.1, using getVitalBand, thresholdsFor and overallStatus, on the
+ * Displayed_Value of each raw value (play-mode 13.19, 15.16). The sample itself
+ * stays raw.
+ */
 export function bandsOf(sample: Sample, alarms: AlarmThresholds): Partial<Record<VitalName, VitalBand>> {
   const bands: Partial<Record<VitalName, VitalBand>> = {};
   for (const vital of VITAL_NAMES) {
     const threshold = thresholdsFor(alarms, vital);
-    const value = readVital(sample, vital);
+    const value = readDisplayedVital(sample, vital);
     if (threshold !== undefined && value !== undefined) bands[vital] = getVitalBand(value, threshold);
   }
   return bands;

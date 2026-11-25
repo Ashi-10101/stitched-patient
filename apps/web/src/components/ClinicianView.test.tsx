@@ -11,6 +11,7 @@ import {
   CASE_NOT_LOADED_TEXT,
   ClinicianView,
   PAUSE_FAILED_TEXT,
+  clinicianAlarmState,
   forkFromTimeline,
   forkTimeFor,
   interventionsDisabled,
@@ -117,6 +118,49 @@ describe('ClinicianView', () => {
     expect(t).toContain(getAlarmBgColor('warning'));
     expect(t).toContain('93.0');
     expect(tile(html, 'Heart Rate')).toContain(getAlarmColor('normal'));
+  });
+
+  it('keeps the readout texts for the baseline sample (15.14)', () => {
+    const baseline = sample(10, {
+      heart_rate: 72,
+      respiratory_rate: 12,
+      spo2: 0.974,
+      mean_arterial_pressure: 95,
+      etco2: 36,
+      tidal_volume: 535,
+    });
+    const html = render(build(...LOADED, { type: 'sampleReceived', sample: baseline }));
+    const expected: Record<string, string> = {
+      'Heart Rate': '72',
+      'SpO₂': '97.4',
+      MAP: '95',
+      'Resp Rate': '12',
+      'EtCO₂': '36',
+      'Tidal Volume': '535',
+    };
+    for (const [label, text] of Object.entries(expected)) {
+      expect(tile(html, label)).toContain(`tabular-nums ${getAlarmColor('normal')}">${text}</div>`);
+    }
+  });
+
+  it('shows raw RR 11.9999 as "12" with the normal colour, not the warning colour (15.17)', () => {
+    const html = render(build(...LOADED, { type: 'sampleReceived', sample: sample(10, { respiratory_rate: 11.9999 }) }));
+    const t = tile(html, 'Resp Rate');
+    expect(t).toContain('>12</div>');
+    expect(t).toContain(getAlarmColor('normal'));
+    expect(t).toContain(getAlarmBgColor('normal'));
+    expect(t).not.toContain(getAlarmColor('warning'));
+    expect(t).not.toContain(getAlarmBgColor('warning'));
+  });
+
+  it('clinicianAlarmState: undefined without alarms or a Displayed_Value, normal without thresholds', () => {
+    expect(clinicianAlarmState(null, 'heartRate', 72)).toBeUndefined();
+    expect(clinicianAlarmState(CASE.alarms, 'heartRate', NaN)).toBeUndefined();
+    const alarms = structuredClone(CASE.alarms);
+    delete alarms.etCO2;
+    expect(clinicianAlarmState(alarms, 'etCO2', 10)).toBe('normal');
+    expect(clinicianAlarmState(CASE.alarms, 'respiratoryRate', 11.9999)).toBe('normal');
+    expect(clinicianAlarmState(CASE.alarms, 'spO2', 0.93)).toBe('warning');
   });
 
   it('shows neutral readouts before the first sample', () => {

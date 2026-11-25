@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { getAlarmState } from './alarms';
 import { examButtonText, examButtons, examFinding } from './examFinding';
 import type { ExamFindingInput } from './examFinding';
-import { VITAL_FIELD, VITAL_NAMES } from './vitals';
+import { VITAL_FIELD, VITAL_NAMES, displayedValue } from './vitals';
 import type {
   AlarmState,
   AlarmThreshold,
@@ -342,10 +342,13 @@ function refAffected(insults: ScheduledInsult[]): { side: Side; timeSeconds: num
   return insult ? { side: insult.parameters.side as Side, timeSeconds: insult.timeSeconds } : null;
 }
 
-/** Finite value of the vital's VitalSigns field, or undefined (copy of the play-mode reference). */
+/**
+ * Displayed_Value of the vital's finite VitalSigns field, or undefined (copy of
+ * the play-mode reference; bands come from the Displayed_Value, play-mode 15.16).
+ */
 function refValue(sample: Partial<VitalSigns>, vital: VitalName): number | undefined {
   const v: unknown = sample[VITAL_FIELD[vital]];
-  return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  return typeof v === 'number' && Number.isFinite(v) ? displayedValue(vital, v) : undefined;
 }
 
 /** Band from the Alarm_Function; direction `low` when below any present low bound (copy of the play-mode reference). */

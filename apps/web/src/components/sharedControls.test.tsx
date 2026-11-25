@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { AlarmState, Hint, Intervention, PlaybackSpeed } from '@/types';
+import type { AlarmState, Hint, Intervention, PlaybackSpeed, VitalName } from '@/types';
 import { getAlarmBgColor, getAlarmColor } from '@/lib/alarms';
 import { playButtonText } from '@/lib/playCase';
 import { VitalSign } from './VitalSign';
@@ -84,12 +84,26 @@ function buttonBodies(html: string): string[] {
 describe('VitalSign', () => {
   it('renders exactly as before when alarmState is given', () => {
     for (const s of STATES) {
-      expect(renderToStaticMarkup(<VitalSign label="HR" value={72} unit="bpm" alarmState={s} />)).toBe(OLD_VITAL[s]);
+      expect(
+        renderToStaticMarkup(<VitalSign label="HR" vital="heartRate" raw={72} unit="bpm" alarmState={s} />),
+      ).toBe(OLD_VITAL[s]);
     }
   });
 
+  it('writes the readout text from the raw value with the Display_Precision (15.14)', () => {
+    const text = (vital: VitalName, raw: number) =>
+      /tabular-nums [^"]*">([^<]*)<\/div>/.exec(
+        renderToStaticMarkup(<VitalSign label="X" vital={vital} raw={raw} unit="u" alarmState="normal" />),
+      )?.[1];
+    expect(text('heartRate', 72)).toBe('72');
+    expect(text('spO2', 0.974)).toBe('97.4');
+    expect(text('meanArterialPressure', 95)).toBe('95');
+    expect(text('respiratoryRate', 11.9999)).toBe('12');
+    expect(text('spO2', 0.93)).toBe('93.0');
+  });
+
   it('has no alarm colour class without alarmState', () => {
-    const html = renderToStaticMarkup(<VitalSign label="HR" value={72} unit="bpm" />);
+    const html = renderToStaticMarkup(<VitalSign label="HR" vital="heartRate" raw={72} unit="bpm" />);
     const tokens = classTokens(html);
     for (const s of STATES) {
       for (const cls of [getAlarmColor(s), getAlarmBgColor(s)]) {
@@ -99,6 +113,8 @@ describe('VitalSign', () => {
     expect(html).toContain('>72<');
     expect(html).toContain('>HR<');
     expect(html).toContain('>bpm<');
+    expect(html).toContain('text-gray-100');
+    expect(html).toContain('bg-gray-900');
   });
 });
 
