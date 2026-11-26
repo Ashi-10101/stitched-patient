@@ -107,15 +107,15 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 8.2, 8.3**
 
-- [ ] 4. Speech_State in the session reducer
-  - [ ] 4.1 Fold speech in `sessionState.ts`
+- [x] 4. Speech_State in the session reducer
+  - [x] 4.1 Fold speech in `sessionState.ts`
     - Files: `apps/web/src/lib/sessionState.ts`, `apps/web/src/lib/sessionState.test.ts`. No other file changes
     - Add `speech: SpeechState | null` and `speechLastTime: number | null` to `SessionUiState`, both `null` initially and on `caseLoaded` and `forkSucceeded`. In `onSample`, after `stepEnding`, apply the step of the design section "`sessionState.ts`" (finite time, greater than `speechLastTime`, current Branch and case known, gate from `state.endingCtx.rescueGateTime`). No other action reads or writes the two fields
     - Unit tests: speech steps after the Ending on the same sample (`rescued` line in the Ending's sample); `forkSucceeded` resets both fields and the first new-Branch sample gives a fresh state; a fork failure dispatches nothing and leaves speech unchanged; a non-increasing or non-finite sample is not folded; `viewSelected` and `playbackChanged` return the same `speech` object
     - Existing reducer tests stay green; update only fixtures that build a full `SessionUiState` by hand, if `tsc` requires the new fields
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 5.5, 5.6, 5.7, 5.8, 5.9_
-  - [ ] 4.2 Write the property test for the reducer fold
+  - [x] 4.2 Write the property test for the reducer fold
     - **Property 3: The speech fold is deterministic and ignores non-sample actions**
     - Files: `apps/web/src/lib/sessionState.test.ts`. No other file changes
     - Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 3: The speech fold is deterministic and ignores non-sample actions`

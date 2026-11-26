@@ -23,6 +23,7 @@ import {
 import { examFinding, isSidedAction } from './examFinding';
 import { buildExamEntry } from './examRecord';
 import { computeSides, foundSides, shownSwollenSides, type RevealedSides } from './sides';
+import { selectSpeech, type SpeechState } from './speechSelector';
 import { readVital } from './vitals';
 import type {
   AvatarParameters,
@@ -66,6 +67,13 @@ export interface SessionUiState {
   ending: EndingState;
   /** Avatar at the sample that changed the Ending (7.3). */
   endingSnapshot: AvatarParameters | null;
+  /**
+   * Speech_State of the current Branch (patient-speech 5.5 to 5.9, D1). `null`
+   * before the first folded sample, after `caseLoaded` and after a fork.
+   */
+  speech: SpeechState | null;
+  /** Simulation_Time of the last sample folded into `speech` (D2); read by `onSample` only. */
+  speechLastTime: number | null;
   hintsRevealed: number;
   hintRecord: HintRecordEntry[];
   interventionRecord: InterventionRecordEntry[];
@@ -132,6 +140,8 @@ export function initialSessionState(): SessionUiState {
     endingCtx,
     ending: initialEndingState(endingCtx),
     endingSnapshot: null,
+    speech: null,
+    speechLastTime: null,
     hintsRevealed: 0,
     hintRecord: [],
     interventionRecord: [],
@@ -277,7 +287,9 @@ function onFork(
       : defaultAvatar();
 
   // A fresh Ending state: stepEnding ignores non-increasing times, so the old
-  // Branch's state must not be reused (6.11).
+  // Branch's state must not be reused (6.11). Speech likewise starts over: no
+  // speech until the first new-Branch sample, which has no previous state
+  // (patient-speech 5.5).
   return {
     ...state,
     session,
@@ -290,6 +302,8 @@ function onFork(
     avatar,
     ending: initialEndingState(state.endingCtx),
     endingSnapshot: null,
+    speech: null,
+    speechLastTime: null,
   };
 }
 
@@ -386,6 +400,31 @@ function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
   const endingSnapshot =
     state.ending.ending === 'none' && ending.ending !== 'none' ? avatar : state.endingSnapshot;
 
+  // 7. Speech_State (patient-speech 5.7, D1, D2): stepped after the Ending, so
+  //    it sees the Ending after this sample. Same time rule as 6.8 with its own
+  //    last time, because `ending.lastTime` freezes once the Ending is set.
+  //    The gate is the one `stepEnding` used for this sample.
+  let speech = state.speech;
+  let speechLastTime = state.speechLastTime;
+  const t = sample.simulation_time;
+  if (
+    caseData !== null &&
+    state.currentBranchId !== null &&
+    Number.isFinite(t) &&
+    (speechLastTime === null || t > speechLastTime)
+  ) {
+    speech = selectSpeech({
+      sample,
+      caseData,
+      ending: ending.ending,
+      simulationTime: t,
+      branchId: state.currentBranchId,
+      rescueGateTime: state.endingCtx.rescueGateTime,
+      previous: state.speech,
+    });
+    speechLastTime = t;
+  }
+
   return {
     ...state,
     staleGuard: null,
@@ -395,6 +434,8 @@ function onSample(state: SessionUiState, sample: VitalSigns): SessionUiState {
     avatar,
     ending,
     endingSnapshot,
+    speech,
+    speechLastTime,
   };
 }
 
@@ -413,6 +454,8 @@ export function sessionReducer(state: SessionUiState, action: SessionAction): Se
         endingCtx,
         ending: initialEndingState(endingCtx),
         endingSnapshot: null,
+        speech: null,
+        speechLastTime: null,
         view,
       });
     }

@@ -19,6 +19,10 @@
     "3.6 Write the property test for side symmetry": {
       "status": "passed",
       "lastRunTimestamp": 1795681498067
+    },
+    "4.2 Write the property test for the reducer fold": {
+      "status": "passed",
+      "lastRunTimestamp": 1795683173784
     }
   },
   "executionHistory": {
@@ -195,6 +199,37 @@
         "executionId": "0a09a979-8de3-4399-964e-7d024c386c35",
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795681137832
+      }
+    ],
+    "4.1 Fold speech in `sessionState.ts`": [
+      {
+        "executionId": "fc035c1a-59aa-4c99-a422-5a2e59d01623",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795681696294
+      },
+      {
+        "executionId": "fc035c1a-59aa-4c99-a422-5a2e59d01623",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795682337966
+      }
+    ],
+    "4.2 Write the property test for the reducer fold": [
+      {
+        "executionId": "fc035c1a-59aa-4c99-a422-5a2e59d01623",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795682338473
+      },
+      {
+        "executionId": "fc035c1a-59aa-4c99-a422-5a2e59d01623",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795683275890
+      }
+    ],
+    "4. Speech_State in the session reducer": [
+      {
+        "executionId": "fc035c1a-59aa-4c99-a422-5a2e59d01623",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795683275925
       }
     ]
   }

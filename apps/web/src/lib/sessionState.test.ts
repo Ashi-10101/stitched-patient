@@ -22,6 +22,14 @@ import {
   type View,
 } from './sessionState';
 import { affectedInsult, computeSides, foundSides } from './sides';
+import {
+  foldSpeech,
+  selectSpeech,
+  targetSpeechKey,
+  type SpeechInput,
+  type SpeechState,
+  type SpeechStep,
+} from './speechSelector';
 import type {
   AvatarParameters,
   CaseData,
@@ -582,6 +590,8 @@ describe('forkSucceeded', () => {
       history: [],
       ending: initialEndingState(buildEndingContext(CASE_LOST)),
       endingSnapshot: null,
+      speech: null,
+      speechLastTime: null,
       staleGuard: { maxTime: 30 + STALE_TOLERANCE_S },
       avatar,
     });
@@ -2006,5 +2016,631 @@ describe('sessionReducer: side gate properties', () => {
       ),
       PBT_PARAMS,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// patient-speech task 4.1: the Speech_State in the reducer
+// (Requirements 5.5, 5.6, 5.7, 5.8, 5.9)
+// ---------------------------------------------------------------------------
+
+describe('sessionReducer: Speech_State', () => {
+  // The shipped `left` Resolved_Case: insult at 30 s, left Decompression required,
+  // two early lines and one rescued line. Lines are read from the case, not copied.
+  const SPEECH = CASE.play!.speech!;
+
+  it('the shipped case has the speech lists these tests use', () => {
+    expect(earliestInsultTime(CASE)).toBe(30);
+    expect(requiredInterventions(CASE.play)).toEqual(['needle-decompression-left']);
+    expect(SPEECH.early).toHaveLength(2);
+    expect(SPEECH.rescued).toHaveLength(1);
+  });
+
+  it('steps after the Ending on the same sample, so the sample that sets `rescued` shows the rescued line (5.7, D1)', () => {
+    let state = onMain(CASE);
+    const steps: SpeechStep[] = [];
+    const push = (t: number): void => {
+      state = reduce(state, { type: 'sampleReceived', sample: sample(t) });
+      steps.push({
+        sample: sample(t),
+        simulationTime: t,
+        ending: state.ending.ending,
+        rescueGateTime: state.endingCtx.rescueGateTime,
+      });
+      // The reducer's Speech_State is the fold over the accepted samples with the Ending after each.
+      const folded = foldSpeech(CASE, 'main', steps);
+      expect(state.speech).toEqual(folded[folded.length - 1]);
+      expect(state.speechLastTime).toBe(t);
+    };
+
+    range(0, 40).forEach(push);
+    state = reduce(state, { type: 'interventionSucceeded', entry: decompression('Left', 40, 'main') });
+    expect(state.endingCtx.rescueGateTime).toBe(40);
+
+    let endedAt: number | null = null;
+    for (const t of range(41, 80)) {
+      const before = state;
+      push(t);
+      if (before.ending.ending === 'none' && state.ending.ending !== 'none') {
+        endedAt = t;
+        expect(before.speech?.key).not.toBe('rescued');
+        expect(state.ending.ending).toBe('rescued');
+        expect(state.speech).toEqual({ branchId: 'main', key: 'rescued', index: 0, since: t, line: SPEECH.rescued![0] });
+      }
+    }
+    // Rescue stretch from 41 s with a 30 s hold.
+    expect(endedAt).toBe(71);
+
+    // After the Ending the speech fold keeps its own last time; the Ending's is frozen.
+    expect(state.ending.lastTime).toBe(71);
+    expect(state.speechLastTime).toBe(80);
+    expect(state.speech?.key).toBe('rescued');
+  });
+
+  it('forkSucceeded resets both fields, and the first new-Branch sample gives a fresh Speech_State (5.5)', () => {
+    const main = feed(onMain(CASE), range(0, 70));
+    // early from 30 s, rotated to the second line at 60 s.
+    expect(main.speech).toEqual({ branchId: 'main', key: 'early', index: 1, since: 60, line: SPEECH.early![1] });
+    expect(main.speechLastTime).toBe(70);
+
+    const forked = fork(main, 60);
+    expect(forked.speech).toBeNull();
+    expect(forked.speechLastTime).toBeNull();
+
+    // 61 s is below the old Branch's last speech time, so the reset is what lets it fold.
+    const first = reduce(forked, { type: 'sampleReceived', sample: sample(61) });
+    expect(first.speech).toEqual(
+      selectSpeech({
+        sample: sample(61),
+        caseData: CASE,
+        ending: 'none',
+        simulationTime: 61,
+        branchId: 'fork1',
+        rescueGateTime: forked.endingCtx.rescueGateTime,
+        previous: null,
+      }),
+    );
+    expect(first.speech).toEqual({ branchId: 'fork1', key: 'early', index: 0, since: 61, line: SPEECH.early![0] });
+    expect(first.speechLastTime).toBe(61);
+  });
+
+  it('a failed fork dispatches nothing and leaves the Speech_State unchanged (5.6)', () => {
+    let state = reduce(onMain(CASE), { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    state = feed(state, range(0, 70));
+    const speech = state.speech;
+    expect(speech).not.toBeNull();
+
+    // No action dispatched: the state object is the one before the attempt.
+    const afterFailure = state;
+    expect(afterFailure.speech).toBe(speech);
+
+    // Actions the hook may dispatch around a failed attempt keep the same speech objects.
+    let other = reduce(afterFailure, { type: 'playbackChanged', playing: false });
+    other = reduce(other, { type: 'connectionChanged', connected: true });
+    other = reduce(other, { type: 'sessionLoaded', session: SESSION_MAIN });
+    other = reduce(other, { type: 'checkpointsLoaded', byBranch: CHECKPOINTS });
+    other = reduce(other, { type: 'viewSelected', view: 'clinician' });
+    expect(other.speech).toBe(speech);
+    expect(other.speechLastTime).toBe(70);
+  });
+
+  it('does not fold a non-increasing or non-finite sample, nor one before the Branch is known (D2)', () => {
+    // Before the insult: silent since 20 s. Folding an earlier time would restart it.
+    const state = feed(onMain(CASE), [20]);
+    expect(state.speech).toEqual({ branchId: 'main', key: 'silent', index: 0, since: 20, line: null });
+
+    for (const t of [20, 10, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      const next = reduce(state, { type: 'sampleReceived', sample: sample(t, { spo2: 0.5 }) });
+      expect(next.speech).toBe(state.speech);
+      expect(next.speechLastTime).toBe(20);
+    }
+
+    // Case loaded, no Session yet: no current Branch, nothing folded.
+    const noBranch = feed(loaded(CASE), [40]);
+    expect(noBranch.speech).toBeNull();
+    expect(noBranch.speechLastTime).toBeNull();
+  });
+
+  it('viewSelected and playbackChanged return the same speech object (5.8, 5.9)', () => {
+    const state = feed(onMain(CASE), range(0, 40));
+    expect(state.speech?.key).toBe('early');
+
+    const clinician = reduce(state, { type: 'viewSelected', view: 'clinician' });
+    const play = reduce(clinician, { type: 'viewSelected', view: 'play' });
+    const playing = reduce(play, { type: 'playbackChanged', playing: true, speed: '4x' });
+    const paused = reduce(playing, { type: 'playbackChanged', playing: false });
+    for (const s of [clinician, play, playing, paused]) {
+      expect(s.speech).toBe(state.speech);
+      expect(s.speechLastTime).toBe(state.speechLastTime);
+    }
+  });
+
+  it('caseLoaded resets both fields', () => {
+    const state = feed(onMain(CASE), range(0, 40));
+    expect(state.speech).not.toBeNull();
+    const next = reduce(state, { type: 'caseLoaded', caseData: CASE, storedView: null });
+    expect(next.speech).toBeNull();
+    expect(next.speechLastTime).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// patient-speech task 4.2: Property 3 (Requirements 4.1, 4.6, 5.7, 5.8, 5.9)
+// ---------------------------------------------------------------------------
+
+type SpeechProfile = 'calm' | 'spo2Warning' | 'spo2Critical' | 'lostRange' | 'hrHigh';
+
+/**
+ * Vitals of a generated sample, picked against the shipped case's alarm bands.
+ * Test inputs, not clinical content.
+ */
+const SPEECH_PROFILES: Record<SpeechProfile, Partial<VitalSigns>> = {
+  // Every vital normal: the defaultSentence, inside the Rescue_Condition.
+  calm: {},
+  // SpO2 warning: a Status_Rule with two Speech_Lines.
+  spo2Warning: { spo2: 0.9 },
+  // SpO2 critical, outside the Lost_Condition: a Status_Rule with two Speech_Lines.
+  spo2Critical: { spo2: 0.86 },
+  // SpO2 critical and inside the Lost_Condition.
+  lostRange: { spo2: 0.8 },
+  // Heart rate warning high: a Status_Rule with one Speech_Line.
+  hrHigh: { heart_rate: 130 },
+};
+
+type RejectMode = 'repeat' | 'earlier' | 'nan' | 'posInf' | 'negInf' | 'stale';
+
+/** One step of a generated action sequence for Property 3; turned into an action by `toSpeechAction`. */
+type SpeechOp =
+  /** Accepted: `offset` s after the last accepted sample of the Branch (or its start), clamped to the stale-guard bound. */
+  | { kind: 'sample'; offset: number; profile: SpeechProfile }
+  /** Not folded: a repeat or earlier time, a non-finite time, or an old-Branch time above the stale-guard bound. */
+  | { kind: 'rejected'; mode: RejectMode; back: number; profile: SpeechProfile }
+  | { kind: 'intervention'; side: Side }
+  | { kind: 'fork'; at: number }
+  /** A failed fork: the hook dispatches nothing (5.6). */
+  | { kind: 'forkFailed' }
+  | { kind: 'view'; view: View }
+  | { kind: 'playback'; playing: boolean | undefined; speed: PlaybackSpeed | undefined }
+  | { kind: 'connection'; connected: boolean }
+  | { kind: 'hint' }
+  | { kind: 'exam'; pick: number; side: Side }
+  | { kind: 'sessionReloaded' }
+  | { kind: 'checkpointsReloaded' }
+  /** Restores a prefix (`keep`, 0 to 1) of the current Intervention_Record; may close the gate again. */
+  | { kind: 'interventionsRestored'; keep: number }
+  /** Restores a prefix (`keep`, 0 to 1) of the current Exam_Record. */
+  | { kind: 'examsRestored'; keep: number }
+  | { kind: 'caseFailed' };
+
+/** Every non-sample action type Property 3 generates, besides `forkSucceeded` (5.8, 5.9, design "sessionState.ts"). */
+const SPEECH_IGNORED_ACTIONS = [
+  'viewSelected',
+  'playbackChanged',
+  'connectionChanged',
+  'hintRevealed',
+  'examPerformed',
+  'sessionLoaded',
+  'checkpointsLoaded',
+  'interventionSucceeded',
+  'interventionRecordRestored',
+  'examRecordRestored',
+  'caseFailed',
+] as const satisfies readonly SessionAction['type'][];
+
+const arbSpeechProfile: fc.Arbitrary<SpeechProfile> = fc.oneof(
+  { weight: 6, arbitrary: fc.constant<SpeechProfile>('calm') },
+  { weight: 2, arbitrary: fc.constant<SpeechProfile>('spo2Warning') },
+  { weight: 1, arbitrary: fc.constant<SpeechProfile>('spo2Critical') },
+  { weight: 1, arbitrary: fc.constant<SpeechProfile>('lostRange') },
+  { weight: 1, arbitrary: fc.constant<SpeechProfile>('hrHigh') },
+);
+
+const arbRejectMode: fc.Arbitrary<RejectMode> = fc.oneof(
+  { weight: 2, arbitrary: fc.constant<RejectMode>('repeat') },
+  { weight: 2, arbitrary: fc.constant<RejectMode>('earlier') },
+  { weight: 1, arbitrary: fc.constantFrom<RejectMode>('nan', 'posInf', 'negInf') },
+  { weight: 3, arbitrary: fc.constant<RejectMode>('stale') },
+);
+
+/**
+ * A stretch of 3 to 8 accepted samples with one profile, 4 to 10 s apart, so a
+ * run holds one Speech_Key long enough to rotate, and holds the Rescue_Condition
+ * or the Lost_Condition long enough to reach an Ending.
+ */
+const arbSampleStretch: fc.Arbitrary<SpeechOp[]> = fc
+  .record({
+    profile: arbSpeechProfile,
+    offsets: fc.array(fc.integer({ min: 4, max: 10 }), { minLength: 3, maxLength: 8 }),
+  })
+  .map(({ profile, offsets }) => offsets.map((offset): SpeechOp => ({ kind: 'sample', offset, profile })));
+
+/** One op: mostly accepted samples; rejected samples, Interventions, forks and non-sample actions. */
+const arbSingleSpeechOp: fc.Arbitrary<SpeechOp> = fc.oneof(
+    {
+      weight: 12,
+      arbitrary: fc.record({
+        kind: fc.constant('sample' as const),
+        offset: fc.integer({ min: 1, max: 24 }).map((n) => n / 2),
+        profile: arbSpeechProfile,
+      }),
+    },
+    {
+      weight: 3,
+      arbitrary: fc.record({
+        kind: fc.constant('rejected' as const),
+        mode: arbRejectMode,
+        back: fc.integer({ min: 1, max: 10 }),
+        profile: arbSpeechProfile,
+      }),
+    },
+    {
+      weight: 2,
+      arbitrary: fc.record({
+        kind: fc.constant('intervention' as const),
+        side: fc.constantFrom<Side>('Left', 'Left', 'Right'),
+      }),
+    },
+    {
+      weight: 1,
+      arbitrary: fc.record({ kind: fc.constant('fork' as const), at: fc.integer({ min: 0, max: 4 }).map((n) => n / 4) }),
+    },
+    { weight: 1, arbitrary: fc.constant({ kind: 'forkFailed' as const }) },
+    { weight: 1, arbitrary: fc.record({ kind: fc.constant('view' as const), view: fc.constantFrom<View>('play', 'clinician') }) },
+    {
+      weight: 1,
+      arbitrary: fc.record({
+        kind: fc.constant('playback' as const),
+        playing: fc.option(fc.boolean(), { nil: undefined }),
+        speed: fc.option(fc.constantFrom<PlaybackSpeed>('1x', '2x', '4x'), { nil: undefined }),
+      }),
+    },
+    { weight: 1, arbitrary: fc.record({ kind: fc.constant('connection' as const), connected: fc.boolean() }) },
+    { weight: 1, arbitrary: fc.constant({ kind: 'hint' as const }) },
+    {
+      weight: 1,
+      arbitrary: fc.record({
+        kind: fc.constant('exam' as const),
+        pick: fc.nat(),
+        side: fc.constantFrom<Side>('Left', 'Right'),
+      }),
+    },
+    { weight: 1, arbitrary: fc.constant({ kind: 'sessionReloaded' as const }) },
+    { weight: 1, arbitrary: fc.constant({ kind: 'checkpointsReloaded' as const }) },
+    {
+      weight: 1,
+      arbitrary: fc.record({
+        kind: fc.constant('interventionsRestored' as const),
+        keep: fc.integer({ min: 0, max: 4 }).map((n) => n / 4),
+      }),
+    },
+    {
+      weight: 1,
+      arbitrary: fc.record({
+        kind: fc.constant('examsRestored' as const),
+        keep: fc.integer({ min: 0, max: 4 }).map((n) => n / 4),
+      }),
+    },
+    { weight: 1, arbitrary: fc.constant({ kind: 'caseFailed' as const }) },
+);
+
+/** Single ops interleaved with sample stretches. */
+const arbSpeechOps: fc.Arbitrary<SpeechOp[]> = fc
+  .array(
+    fc.oneof(
+      { weight: 3, arbitrary: arbSampleStretch },
+      { weight: 26, arbitrary: arbSingleSpeechOp.map((op) => [op]) },
+    ),
+    { minLength: 15, maxLength: 60 },
+  )
+  .map((groups) => groups.flat());
+
+/** Running facts kept by the test, independent of the reducer's speech fields. */
+interface SpeechModel {
+  branchId: string;
+  branchStart: number;
+  /** Simulation_Time of the last sample accepted by the D2 rule on the current Branch. */
+  lastAccepted: number | null;
+  forks: number;
+}
+
+/** Turns a SpeechOp into an action for `state`, or `null` for a failed fork (nothing is dispatched). */
+function toSpeechAction(state: SessionUiState, model: SpeechModel, op: SpeechOp, step: number): SessionAction | null {
+  const now = model.lastAccepted ?? model.branchStart;
+  const guard = state.staleGuard;
+  switch (op.kind) {
+    case 'sample': {
+      const t = guard === null ? now + op.offset : Math.min(now + op.offset, guard.maxTime);
+      return { type: 'sampleReceived', sample: sample(t, SPEECH_PROFILES[op.profile]) };
+    }
+    case 'rejected': {
+      const last = model.lastAccepted;
+      const t =
+        op.mode === 'stale'
+          ? guard !== null
+            ? guard.maxTime + op.back
+            : Number.POSITIVE_INFINITY
+          : op.mode === 'repeat'
+            ? (last ?? Number.NaN)
+            : op.mode === 'earlier'
+              ? last === null
+                ? Number.NaN
+                : last - op.back
+              : op.mode === 'nan'
+                ? Number.NaN
+                : op.mode === 'posInf'
+                  ? Number.POSITIVE_INFINITY
+                  : Number.NEGATIVE_INFINITY;
+      return { type: 'sampleReceived', sample: sample(t, SPEECH_PROFILES[op.profile]) };
+    }
+    case 'intervention':
+      return { type: 'interventionSucceeded', entry: decompression(op.side, now, model.branchId) };
+    case 'fork': {
+      const parentId = model.branchId;
+      const forkTime = model.branchStart + Math.round(op.at * (now - model.branchStart) * 2) / 2;
+      const newBranchId = `speech-fork${model.forks + 1}`;
+      const session: SessionMetadata = {
+        ...state.session!,
+        current_branch_id: newBranchId,
+        branches: [
+          ...(state.session!.branches ?? []),
+          {
+            branch_id: newBranchId,
+            parent_branch_id: parentId,
+            forked_from_checkpoint: `${parentId}-cp-${forkTime}`,
+            created_at: '2026-11-20T10:06:00Z',
+            event_count: 0,
+          },
+        ],
+      };
+      return { type: 'forkSucceeded', session, newBranchId, forkTime };
+    }
+    case 'forkFailed':
+      return null;
+    case 'view':
+      return { type: 'viewSelected', view: op.view };
+    case 'playback':
+      return { type: 'playbackChanged', playing: op.playing, speed: op.speed };
+    case 'connection':
+      return { type: 'connectionChanged', connected: op.connected };
+    case 'hint':
+      return { type: 'hintRevealed', wallClockTime: new Date(Date.UTC(2026, 10, 20, 10, 0, step)).toISOString() };
+    case 'exam': {
+      const actions = CASE.play!.exam!.actions;
+      const action = actions[op.pick % actions.length];
+      return {
+        type: 'examPerformed',
+        actionId: action.id,
+        side: isSidedAction(action) ? op.side : null,
+        wallClockTime: new Date(Date.UTC(2026, 10, 20, 10, 0, step)).toISOString(),
+      };
+    }
+    case 'sessionReloaded':
+      // The same Session metadata again, with the current Branch unchanged.
+      return { type: 'sessionLoaded', session: state.session! };
+    case 'checkpointsReloaded': {
+      // The current Branch's Checkpoint list again, if one is loaded.
+      const list = state.checkpointsByBranch[model.branchId];
+      return { type: 'checkpointsLoaded', byBranch: list === undefined ? {} : { [model.branchId]: list } };
+    }
+    case 'interventionsRestored': {
+      const record = state.interventionRecord;
+      return { type: 'interventionRecordRestored', record: record.slice(0, Math.round(op.keep * record.length)) };
+    }
+    case 'examsRestored': {
+      const record = state.examRecord;
+      return { type: 'examRecordRestored', record: record.slice(0, Math.round(op.keep * record.length)) };
+    }
+    case 'caseFailed':
+      return { type: 'caseFailed', message: 'Test failure' };
+  }
+}
+
+function sameSpeech(a: SpeechState | null, b: SpeechState | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.branchId === b.branchId && a.key === b.key && a.index === b.index && a.since === b.since && a.line === b.line;
+}
+
+/** `speech` and `speechLastTime` after every action of `actions`, folded from `start`. */
+function speechTrace(start: SessionUiState, actions: readonly SessionAction[]): [SpeechState | null, number | null][] {
+  let state = start;
+  return actions.map((action) => {
+    state = reduce(state, action);
+    return [state.speech, state.speechLastTime];
+  });
+}
+
+/** `speech` after every `sampleReceived` action of `actions`, folded from `start`. */
+function speechAtSamples(start: SessionUiState, actions: readonly SessionAction[]): (SpeechState | null)[] {
+  let state = start;
+  const out: (SpeechState | null)[] = [];
+  for (const action of actions) {
+    state = reduce(state, action);
+    if (action.type === 'sampleReceived') out.push(state.speech);
+  }
+  return out;
+}
+
+describe('sessionReducer: speech fold property', () => {
+  it('the sample profiles reach the Speech_Keys the property needs', () => {
+    const at = (profile: SpeechProfile): string =>
+      targetSpeechKey({
+        sample: sample(40, SPEECH_PROFILES[profile]),
+        caseData: CASE,
+        ending: 'none',
+        simulationTime: 40,
+        rescueGateTime: null,
+      });
+    const keys = (['calm', 'spo2Warning', 'spo2Critical', 'hrHigh'] as const).map(at);
+    expect(keys[0]).toBe('early');
+    expect(keys.slice(1).every((k) => k.startsWith('status:'))).toBe(true);
+    expect(new Set(keys).size).toBe(4);
+    expect(at('lostRange')).toBe(keys[2]);
+  });
+
+  // Feature: patient-speech, Property 3: The speech fold is deterministic and ignores non-sample actions
+  it('Property 3: The speech fold is deterministic and ignores non-sample actions', () => {
+    /** Validates: Requirements 4.1, 4.6, 5.7, 5.8, 5.9 */
+    // Guards against a vacuous pass: each counter must be reached by some run.
+    const reached = {
+      keyChanges: 0,
+      heldChanges: 0,
+      rotations: 0,
+      openGateFolds: 0,
+      forksFromSpeech: 0,
+      freshAfterForkBelowOldTime: 0,
+      gateMatters: 0,
+      rejectedRepeat: 0,
+      rejectedEarlier: 0,
+      rejectedNonFinite: 0,
+      rejectedStale: 0,
+      rejectedRepeatThatWouldChange: 0,
+      rejectedEarlierThatWouldChange: 0,
+      nonSampleWithSpeech: 0,
+      viewOrPlaybackWithSpeech: 0,
+      failedForksWithSpeech: 0,
+      rescuedOnSample: 0,
+      endingOrderMatters: 0,
+      foldsAfterEnding: 0,
+      removalRuns: 0,
+    };
+    // Non-sample action types reached while the Speech_State is not null.
+    const ignoredWithSpeech = new Set<SessionAction['type']>();
+
+    fc.assert(
+      fc.property(arbSpeechOps, (ops) => {
+        const model: SpeechModel = { branchId: 'main', branchStart: 0, lastAccepted: null, forks: 0 };
+        // Accepted samples of the current Branch, with the Ending after each and the gate in force (5.7).
+        let steps: SpeechStep[] = [];
+        // Set on a fork: the parent's last accepted time; cleared by the new Branch's first accepted sample.
+        let pendingFork: { parentLast: number | null } | null = null;
+        const actions: SessionAction[] = [];
+        const trace: [SpeechState | null, number | null][] = [];
+        const atSamples: (SpeechState | null)[] = [];
+
+        let state = onMain(CASE);
+        ops.forEach((op, i) => {
+          const action = toSpeechAction(state, model, op, i);
+          if (action === null) {
+            // A failed fork dispatches nothing: the state, and so the speech, stay as they are (5.6).
+            if (state.speech !== null) reached.failedForksWithSpeech += 1;
+            return;
+          }
+          const prev = state;
+          const next = reduce(prev, action);
+
+          if (action.type === 'sampleReceived') {
+            const t = action.sample.simulation_time;
+            const dropped = prev.staleGuard !== null && t > prev.staleGuard.maxTime;
+            const accepted =
+              !dropped && Number.isFinite(t) && (model.lastAccepted === null || t > model.lastAccepted);
+            const gate = prev.endingCtx.rescueGateTime;
+            const input: SpeechInput = {
+              sample: action.sample,
+              caseData: CASE,
+              ending: next.ending.ending,
+              simulationTime: t,
+              branchId: model.branchId,
+              rescueGateTime: gate,
+              previous: prev.speech,
+            };
+            if (accepted) {
+              // selectSpeech twice with deep-equal inputs gives deep-equal results (4.1, 4.6).
+              expect(selectSpeech(structuredClone(input))).toEqual(selectSpeech(structuredClone(input)));
+              steps.push({ sample: action.sample, simulationTime: t, ending: next.ending.ending, rescueGateTime: gate });
+              model.lastAccepted = t;
+
+              const before = prev.speech;
+              const after = next.speech;
+              if (before !== null && after !== null && before.branchId === model.branchId) {
+                if (after.key !== before.key) reached.keyChanges += 1;
+                if (after === before && targetSpeechKey(input) !== before.key) reached.heldChanges += 1;
+                if (after.key === before.key && after.index !== before.index) reached.rotations += 1;
+              }
+              if (gate !== null && Number.isFinite(gate) && gate <= t) reached.openGateFolds += 1;
+              // A closed gate in place of the one in force would give another Speech_State.
+              if (!sameSpeech(selectSpeech({ ...input, rescueGateTime: null }), selectSpeech(input))) {
+                reached.gateMatters += 1;
+              }
+              if (pendingFork !== null) {
+                if (pendingFork.parentLast !== null && t <= pendingFork.parentLast) {
+                  reached.freshAfterForkBelowOldTime += 1;
+                }
+                pendingFork = null;
+              }
+              if (prev.ending.ending === 'none' && next.ending.ending === 'rescued') {
+                reached.rescuedOnSample += 1;
+                // Folding with the Ending before this sample would give another Speech_State.
+                if (!sameSpeech(selectSpeech({ ...input, ending: prev.ending.ending }), selectSpeech(input))) {
+                  reached.endingOrderMatters += 1;
+                }
+              }
+              if (prev.ending.ending !== 'none') reached.foldsAfterEnding += 1;
+            } else {
+              // Not folded: the same speech object and last time (D2).
+              expect(next.speech).toBe(prev.speech);
+              expect(next.speechLastTime).toBe(prev.speechLastTime);
+              if (dropped) reached.rejectedStale += 1;
+              else if (!Number.isFinite(t)) reached.rejectedNonFinite += 1;
+              else {
+                // Folding it anyway would change the Speech_State.
+                const wouldChange = prev.speech !== null && !sameSpeech(selectSpeech(input), prev.speech);
+                if (t === model.lastAccepted) {
+                  reached.rejectedRepeat += 1;
+                  if (wouldChange) reached.rejectedRepeatThatWouldChange += 1;
+                } else {
+                  reached.rejectedEarlier += 1;
+                  if (wouldChange) reached.rejectedEarlierThatWouldChange += 1;
+                }
+              }
+            }
+          } else if (action.type === 'forkSucceeded') {
+            if (prev.speech !== null) reached.forksFromSpeech += 1;
+            pendingFork = { parentLast: model.lastAccepted };
+            model.branchId = action.newBranchId;
+            model.branchStart = action.forkTime;
+            model.lastAccepted = null;
+            model.forks += 1;
+            steps = [];
+          } else {
+            // Every other action leaves both speech fields as the same values (5.8, 5.9).
+            expect(next.speech).toBe(prev.speech);
+            expect(next.speechLastTime).toBe(prev.speechLastTime);
+            if (prev.speech !== null) {
+              reached.nonSampleWithSpeech += 1;
+              ignoredWithSpeech.add(action.type);
+              if (action.type === 'viewSelected' || action.type === 'playbackChanged') {
+                reached.viewOrPlaybackWithSpeech += 1;
+              }
+            }
+          }
+
+          // The Speech_State is the fold of selectSpeech over the accepted samples of
+          // the current Branch, with the Ending after each sample (5.7, D1, D2); none
+          // before the Branch's first accepted sample (5.5).
+          const folded = foldSpeech(CASE, model.branchId, steps);
+          expect(next.speech).toEqual(folded.length === 0 ? null : folded[folded.length - 1]);
+          expect(next.speechLastTime).toBe(model.lastAccepted);
+
+          actions.push(action);
+          trace.push([next.speech, next.speechLastTime]);
+          if (action.type === 'sampleReceived') atSamples.push(next.speech);
+          state = next;
+        });
+
+        // Folding the same action sequence again gives the same speech values (4.6, 5.7).
+        expect(speechTrace(onMain(CASE), actions)).toEqual(trace);
+
+        // Without viewSelected and playbackChanged, the same speech at each sample (5.7, 5.8, 5.9).
+        const kept = actions.filter((a) => a.type !== 'viewSelected' && a.type !== 'playbackChanged');
+        if (kept.length < actions.length && atSamples.some((s) => s !== null)) reached.removalRuns += 1;
+        expect(speechAtSamples(onMain(CASE), kept)).toEqual(atSamples);
+      }),
+      PBT_PARAMS,
+    );
+
+    for (const [name, count] of Object.entries(reached)) {
+      expect(count, name).toBeGreaterThan(0);
+    }
+    expect([...ignoredWithSpeech].sort()).toEqual([...SPEECH_IGNORED_ACTIONS].sort());
   });
 });
