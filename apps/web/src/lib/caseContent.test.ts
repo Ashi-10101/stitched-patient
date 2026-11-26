@@ -14,8 +14,15 @@
  * built from `BASE_CASE` with the independent test resolver
  * `resolveCaseForTest`, and `perVariant` prefixes each failure with
  * `variant '<id>': `.
+ *
+ * Patient-speech checks (patient-speech Requirements 1.5, 2.2, 2.4 to 2.6,
+ * 3.1, 3.4, 8.1, 12.7) check the Speech_Section `play.speech`. Each returns
+ * `play.speech is missing` without a Speech_Section, so none passes with
+ * nothing to check (2.6).
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   LineCounter,
@@ -29,6 +36,7 @@ import {
 import type { CaseData, ExamAction, ExamRule, PlaySection, Side, SidedExamAction } from '@/types';
 import { BASE_CASE, CASE_LEFT, CASE_RIGHT, CASE_TEXT, resolveCaseForTest } from '@/test/caseFixtures';
 import { conditionsDisjoint, interventionSide, playButtonText } from './playCase';
+import { speechCheck } from './speechCheck';
 
 const MISSING = 'Play_Section is missing';
 const DRAFT_SUFFIX =
@@ -256,9 +264,22 @@ const BEDSIDE_EXAM_ITEM_PATTERNS: RegExp[] = [
   /^variants\[\d+\]\.overrides\.sideRevealText$/,
 ];
 
+/**
+ * Field paths added by the patient-speech spec: every Speech_Line and every
+ * `forbiddenTerms` entry. Their TODO(author) marker must contain `SPEECH_MARK`
+ * (patient-speech 2.5).
+ */
+const SPEECH_MARK = 'patient-speech spec';
+const SPEECH_ITEM_PATTERNS: RegExp[] = [
+  /^play\.speech\.status\[\d+\]\.lines\[\d+\]$/,
+  /^play\.speech\.(early|rescued)\[\d+\]$/,
+  /^play\.speech\.forbiddenTerms\[\d+\]$/,
+];
+
 /** Field paths that need a TODO(author) marker, besides every number in the Play_Section. */
 const TEXT_ITEM_PATTERNS: RegExp[] = [
   ...BEDSIDE_EXAM_ITEM_PATTERNS,
+  ...SPEECH_ITEM_PATTERNS,
   /^play\.status\.rules\[\d+\]\.sentence$/,
   /^play\.status\.defaultSentence$/,
   // Draft text values (author away): goal text, diagnosis terms.
@@ -283,6 +304,7 @@ function coveringReferencesPaths(path: string): Array<Array<string | number>> {
     ];
   }
   if (path.startsWith('play.exam.')) return [['play', 'exam', 'references']];
+  if (path.startsWith('play.speech.')) return [['play', 'speech', 'references']];
   const variantHint = /^variants\[(\d+)\]\.overrides\.hints\[(\d+)\]/.exec(path);
   if (variantHint) {
     return [['variants', Number(variantHint[1]), 'overrides', 'hints', Number(variantHint[2]), 'references']];
@@ -327,7 +349,9 @@ function collectWhenVitalsLists(examNode: unknown): ScalarItem[] {
  * lists) has a comment containing `TODO(author)` on its source line or on a
  * comment-only line directly above, unless a covering `references` array is
  * non-empty. A marker on an item added by the bedside-exam spec must contain
- * "bedside-exam spec"; every other marker must end with the draft suffix.
+ * "bedside-exam spec"; a marker on a Speech_Line or `forbiddenTerms` entry
+ * (patient-speech 2.5, covered only by `play.speech.references`) must contain
+ * "patient-speech spec"; every other marker must end with the draft suffix.
  * `insultSide` and `requiredInterventions` inside `variants` need no marker
  * (bedside-exam 2.6).
  */
@@ -374,6 +398,10 @@ function checkTodoMarkers(doc: Document, lineCounter: LineCounter, lines: string
       failures.push(
         `${path} (line ${lineIdx + 1}) has no TODO(author) comment on its line or the line directly above`,
       );
+    } else if (SPEECH_ITEM_PATTERNS.some((p) => p.test(path))) {
+      if (!marker.includes(SPEECH_MARK)) {
+        failures.push(`${path} (line ${lineIdx + 1}) TODO(author) comment does not contain "${SPEECH_MARK}"`);
+      }
     } else if (BEDSIDE_EXAM_ITEM_PATTERNS.some((p) => p.test(path))) {
       if (!marker.includes(BEDSIDE_EXAM_MARK)) {
         failures.push(`${path} (line ${lineIdx + 1}) TODO(author) comment does not contain "${BEDSIDE_EXAM_MARK}"`);
@@ -995,6 +1023,191 @@ const EXAM_CHECKERS = [
   checkExamVitals,
 ];
 
+// ---------------------------------------------------------------------------
+// Speech_Section checkers (patient-speech Requirements 1.5, 2, 3, 8.1)
+// ---------------------------------------------------------------------------
+
+const SPEECH_MISSING = 'play.speech is missing';
+const SPEECH_PATH = 'play.speech';
+/** The first Early_Line of the shipped case (patient-speech 3.1, demo video shot 2). */
+const REQUESTED_EARLY_LINE = "I... can't... get a breath in. My chest-";
+
+interface SpeechLineItem {
+  path: string;
+  text: unknown;
+}
+
+/** Every Speech_Line with its field path: status entries, then `early`, then `rescued`. */
+function speechLineItems(c: CaseData): SpeechLineItem[] {
+  const speech = c.play?.speech;
+  if (!speech) return [];
+  return [
+    ...(speech.status ?? []).flatMap((entry, i) =>
+      (entry?.lines ?? []).map((text, j) => ({ path: `${SPEECH_PATH}.status[${i}].lines[${j}]`, text })),
+    ),
+    ...(speech.early ?? []).map((text, i) => ({ path: `${SPEECH_PATH}.early[${i}]`, text })),
+    ...(speech.rescued ?? []).map((text, i) => ({ path: `${SPEECH_PATH}.rescued[${i}]`, text })),
+  ];
+}
+
+/**
+ * The Speech_Check on every Speech_Line, one failure per broken rule as
+ * `<path> "<line>": <rule>` (patient-speech 2.2). Run through `perVariant` so
+ * each failure carries the Variant_Id.
+ */
+function checkSpeechLines(c: CaseData): string[] {
+  if (!c.play?.speech) return [SPEECH_MISSING];
+  const items = speechLineItems(c);
+  if (items.length === 0) return [`${SPEECH_PATH} has no Speech_Lines`];
+  const failures: string[] = [];
+  for (const { path, text } of items) {
+    if (typeof text !== 'string') {
+      failures.push(`${path} is not a string`);
+      continue;
+    }
+    for (const rule of speechCheck(text, c)) failures.push(`${path} "${text}": ${rule}`);
+  }
+  return failures;
+}
+
+/**
+ * Each Status_Speech_Entry `sentence` equals the `sentence` of some
+ * Status_Rule, differs from the `defaultSentence`, and appears once
+ * (patient-speech 2.4).
+ */
+function checkSpeechSentences(c: CaseData): string[] {
+  const play = c.play;
+  if (!play?.speech) return [SPEECH_MISSING];
+  const entries = play.speech.status ?? [];
+  if (entries.length === 0) return [`${SPEECH_PATH}.status is empty`];
+  const ruleSentences = (play.status?.rules ?? []).map((r) => r?.sentence);
+  const failures: string[] = [];
+  const sentences = entries.map((e) => e?.sentence);
+  sentences.forEach((sentence, i) => {
+    const path = `${SPEECH_PATH}.status[${i}].sentence`;
+    if (typeof sentence !== 'string') {
+      failures.push(`${path} is not a string`);
+      return;
+    }
+    if (!ruleSentences.includes(sentence)) {
+      failures.push(`${path} "${sentence}" equals no Status_Rule sentence`);
+    }
+    if (sentence === play.status?.defaultSentence) {
+      failures.push(`${path} "${sentence}" equals the defaultSentence`);
+    }
+    const first = sentences.indexOf(sentence);
+    if (first !== i) failures.push(`${path} "${sentence}" repeats ${SPEECH_PATH}.status[${first}].sentence`);
+  });
+  return failures;
+}
+
+/** The count of lines in a list, or 0 when the list is absent. */
+function lineCount(list: unknown): number {
+  return Array.isArray(list) ? list.length : 0;
+}
+
+/**
+ * One Status_Speech_Entry per Status_Rule in Status_Rule order with 1 or 2
+ * lines; Early_Lines with 1 or 2 lines, the first the requested line;
+ * Rescued_Lines with 1 line; a non-empty `forbiddenTerms` (patient-speech 3.1).
+ */
+function checkSpeechShape(c: CaseData): string[] {
+  const play = c.play;
+  if (!play?.speech) return [SPEECH_MISSING];
+  const speech = play.speech;
+  const rules = play.status?.rules ?? [];
+  const entries = speech.status ?? [];
+  const failures: string[] = [];
+  if (entries.length !== rules.length) {
+    failures.push(`${SPEECH_PATH}.status has ${entries.length} entries, expected one per Status_Rule (${rules.length})`);
+  }
+  entries.slice(0, rules.length).forEach((entry, i) => {
+    const expected = rules[i]?.sentence;
+    if (entry?.sentence !== expected) {
+      failures.push(
+        `${SPEECH_PATH}.status[${i}].sentence is ${describeValue(entry?.sentence)}, expected the sentence of play.status.rules[${i}] ${describeValue(expected)}`,
+      );
+    }
+  });
+  entries.forEach((entry, i) => {
+    const n = lineCount(entry?.lines);
+    if (n < 1 || n > 2) failures.push(`${SPEECH_PATH}.status[${i}].lines has ${n} lines, expected 1 or 2`);
+  });
+  const early = lineCount(speech.early);
+  if (early < 1 || early > 2) failures.push(`${SPEECH_PATH}.early has ${early} lines, expected 1 or 2`);
+  if (early > 0 && speech.early?.[0] !== REQUESTED_EARLY_LINE) {
+    failures.push(`${SPEECH_PATH}.early[0] is ${describeValue(speech.early?.[0])}, expected "${REQUESTED_EARLY_LINE}"`);
+  }
+  const rescued = lineCount(speech.rescued);
+  if (rescued !== 1) failures.push(`${SPEECH_PATH}.rescued has ${rescued} lines, expected exactly 1`);
+  if (lineCount(speech.forbiddenTerms) === 0) failures.push(`${SPEECH_PATH}.forbiddenTerms is missing or empty`);
+  return failures;
+}
+
+/** The Base_Case defines `play.speech`, and no Variant's `overrides` has `speech` (patient-speech 3.4). */
+function checkSpeechInBaseOnly(base: BaseCase): string[] {
+  if (!base.play?.speech) return [SPEECH_MISSING];
+  return (base.variants ?? [])
+    .filter((v) => isPlainObject(v?.overrides) && 'speech' in v.overrides)
+    .map((v) => `variant '${v.id}': overrides has speech`);
+}
+
+/**
+ * The Speech_Sections of all Resolved_Cases are deep-equal; names the first
+ * differing path per Variant (patient-speech 8.1).
+ */
+function checkSpeechEqualAcrossVariants(cases: ResolvedEntry[]): string[] {
+  if (cases.length === 0) return [NO_VARIANTS];
+  const missing = cases.filter(({ data }) => !data.play?.speech).map(({ id }) => `variant '${id}': ${SPEECH_MISSING}`);
+  if (missing.length > 0) return missing;
+  const [first, ...rest] = cases;
+  return rest.flatMap(({ id, data }) =>
+    differences(data.play?.speech, first.data.play?.speech, SPEECH_PATH)
+      .slice(0, 1)
+      .map(
+        (d) => `variant '${id}': ${d.path} is ${describeValue(d.actual)}, ${describeValue(d.expected)} in variant '${first.id}'`,
+      ),
+  );
+}
+
+/**
+ * The TODO(author) markers of `checkTodoMarkers` on the Speech_Lines and the
+ * `forbiddenTerms` entries (patient-speech 2.5), failing without a
+ * Speech_Section or with no such item to check (2.6).
+ */
+function checkSpeechTodoMarkers(doc: Document, lineCounter: LineCounter, lines: string[]): string[] {
+  const speechNode = doc.getIn(['play', 'speech'], true);
+  if (!isMap(speechNode)) return [SPEECH_MISSING];
+  const items = collectScalars(speechNode, SPEECH_PATH).filter(({ path }) =>
+    SPEECH_ITEM_PATTERNS.some((p) => p.test(path)),
+  );
+  if (items.length === 0) return [`${SPEECH_PATH} has no Speech_Line or forbiddenTerms entry to check`];
+  return checkTodoMarkers(doc, lineCounter, lines).filter((f) => f.startsWith(`${SPEECH_PATH}.`));
+}
+
+// cases/case-schema.json, resolved from this file's location (apps/web/src/lib/ -> repository root).
+const SCHEMA_PATH = fileURLToPath(new URL('../../../../cases/case-schema.json', import.meta.url));
+
+/**
+ * The Variant_Overrides definition has no `speech` property and rejects
+ * additional properties, so `speech` is no Override_Target (patient-speech 1.5).
+ */
+function checkVariantOverridesSchema(schema: unknown): string[] {
+  const definitions = isPlainObject(schema) ? schema.definitions : undefined;
+  const def = isPlainObject(definitions) ? definitions.variantOverrides : undefined;
+  if (!isPlainObject(def)) return ['definitions.variantOverrides is missing'];
+  const failures: string[] = [];
+  if (isPlainObject(def.properties) && 'speech' in def.properties) {
+    failures.push('definitions.variantOverrides.properties has a speech property');
+  }
+  if (def.additionalProperties !== false) {
+    failures.push(
+      `definitions.variantOverrides.additionalProperties is ${describeValue(def.additionalProperties)}, expected false`,
+    );
+  }
+  return failures;
+}
+
 const DATA_CHECKERS: Array<[string, (c: CaseData) => string[]]> = [
   ['checkNoDiagnosisTermsInSentences', checkNoDiagnosisTermsInSentences],
   ['checkRequiredDiagnosisTerms', checkRequiredDiagnosisTerms],
@@ -1458,5 +1671,191 @@ describe('Exam_Section checkers on broken copies', () => {
     expect(perVariant(resolveAll(b), checkExamVitals)).toEqual(
       both('play.exam.actions[2].rules[0].when.vitals[0] names vital "etCO2", which has no thresholds in alarms'),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Patient speech (patient-speech Requirements 1.5, 2.2, 2.4 to 2.6, 3.1, 3.4, 8.1, 12.7)
+// ---------------------------------------------------------------------------
+
+describe('patient-speech: the shipped Speech_Section', () => {
+  it('per Resolved_Case, every Speech_Line passes the Speech_Check (2.2)', () => {
+    expect(speechLineItems(PARSED.data).length).toBeGreaterThan(0);
+    expect(perVariant(RESOLVED, checkSpeechLines)).toEqual([]);
+  });
+
+  it('each Status_Speech_Entry sentence equals a Status_Rule sentence, differs from the defaultSentence and appears once (2.4)', () => {
+    expect(checkSpeechSentences(PARSED.data)).toEqual([]);
+  });
+
+  it('every Speech_Line and forbiddenTerms entry has a TODO(author) marker naming the patient-speech spec (2.5)', () => {
+    expect(checkSpeechTodoMarkers(PARSED.doc, PARSED.lineCounter, PARSED.lines)).toEqual([]);
+  });
+
+  it('has one entry per Status_Rule in order, the requested first Early_Line, one Rescued_Line and forbiddenTerms (3.1)', () => {
+    expect(checkSpeechShape(PARSED.data)).toEqual([]);
+  });
+
+  it('is defined in the Base_Case and in no Variant (3.4)', () => {
+    expect(checkSpeechInBaseOnly(BASE_CASE)).toEqual([]);
+  });
+
+  it('is deep-equal in both Resolved_Cases (8.1)', () => {
+    expect(RESOLVED).toHaveLength(2);
+    expect(checkSpeechEqualAcrossVariants(RESOLVED)).toEqual([]);
+  });
+
+  it('case-schema.json keeps speech out of the Variant_Overrides and rejects additional properties there (1.5)', () => {
+    expect(checkVariantOverridesSchema(JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')))).toEqual([]);
+  });
+});
+
+describe('patient-speech checkers on broken copies', () => {
+  /** The same failure once per Variant, as a change to the shared Speech_Section gives. */
+  const both = (...failures: string[]) =>
+    ['left', 'right'].flatMap((id) => failures.map((f) => `variant '${id}': ${f}`));
+
+  it(`every speech check fails with "${SPEECH_MISSING}" without a Speech_Section or a Play_Section (2.6)`, () => {
+    const noSpeech = structuredClone(BASE_CASE);
+    delete noSpeech.play!.speech;
+    const noPlay = structuredClone(BASE_CASE);
+    delete noPlay.play;
+    for (const base of [noSpeech, noPlay]) {
+      expect(checkSpeechLines(base)).toEqual([SPEECH_MISSING]);
+      expect(checkSpeechSentences(base)).toEqual([SPEECH_MISSING]);
+      expect(checkSpeechShape(base)).toEqual([SPEECH_MISSING]);
+      expect(checkSpeechInBaseOnly(base)).toEqual([SPEECH_MISSING]);
+    }
+    expect(perVariant(resolveAll(noSpeech), checkSpeechLines)).toEqual(both(SPEECH_MISSING));
+    expect(checkSpeechEqualAcrossVariants(resolveAll(noSpeech))).toEqual(both(SPEECH_MISSING));
+    expect(checkSpeechEqualAcrossVariants([])).toEqual([NO_VARIANTS]);
+
+    const docNoSpeech = PARSED.doc.clone();
+    docNoSpeech.deleteIn(['play', 'speech']);
+    expect(checkSpeechTodoMarkers(docNoSpeech, PARSED.lineCounter, PARSED.lines)).toEqual([SPEECH_MISSING]);
+    const docNoPlay = PARSED.doc.clone();
+    docNoPlay.delete('play');
+    expect(checkSpeechTodoMarkers(docNoPlay, PARSED.lineCounter, PARSED.lines)).toEqual([SPEECH_MISSING]);
+  });
+
+  it('names the Speech_Line, its text and each broken rule, once per Variant (2.2)', () => {
+    const b = structuredClone(BASE_CASE);
+    const text = 'His left side hurts.';
+    b.play!.speech!.early![1] = text;
+    expect(perVariant(resolveAll(b), checkSpeechLines)).toEqual(
+      both(
+        `play.speech.early[1] "${text}": contains Side_Word "left"`,
+        `play.speech.early[1] "${text}": contains Third_Person_Word "his"`,
+      ),
+    );
+  });
+
+  it('names the entry sentence that matches no Status_Rule, equals the defaultSentence or repeats (2.4)', () => {
+    const c = structuredClone(PARSED.data);
+    const status = c.play!.speech!.status!;
+    const defaultSentence = c.play!.status.defaultSentence;
+    status[1].sentence = defaultSentence;
+    status[2].sentence = status[0].sentence;
+    status[3].sentence = 'He looks fine.';
+    expect(checkSpeechSentences(c)).toEqual([
+      `play.speech.status[1].sentence "${defaultSentence}" equals no Status_Rule sentence`,
+      `play.speech.status[1].sentence "${defaultSentence}" equals the defaultSentence`,
+      `play.speech.status[2].sentence "${status[0].sentence}" repeats play.speech.status[0].sentence`,
+      'play.speech.status[3].sentence "He looks fine." equals no Status_Rule sentence',
+    ]);
+  });
+
+  it('names the Speech_Line or forbiddenTerms entry whose marker is missing or does not name the patient-speech spec, and honours play.speech.references (2.5)', () => {
+    const rescuedMarker =
+      '      # TODO(author): rescued speech line - draft from the patient-speech spec, pending author review\n';
+    expect(CASE_TEXT).toContain(rescuedMarker);
+    const noMarker = parseCase(CASE_TEXT.replace(rescuedMarker, ''));
+    const missing = checkSpeechTodoMarkers(noMarker.doc, noMarker.lineCounter, noMarker.lines);
+    expect(missing).toHaveLength(1);
+    expect(missing[0]).toContain('play.speech.rescued[0]');
+    expect(missing[0]).toContain('has no TODO(author) comment');
+    expect(checkTodoMarkers(noMarker.doc, noMarker.lineCounter, noMarker.lines)).toEqual(missing);
+
+    const termsMarker =
+      '    # TODO(author): Forbidden_Speech_Terms list (still open question 9) - draft from the patient-speech spec, pending author review\n';
+    expect(CASE_TEXT).toContain(termsMarker);
+    const parsed = parseCase(
+      CASE_TEXT.replace(termsMarker, '    # TODO(author): Forbidden_Speech_Terms list - pending author review\n'),
+    );
+    const failures = checkSpeechTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines);
+    const termCount = BASE_CASE.play!.speech!.forbiddenTerms!.length;
+    expect(termCount).toBeGreaterThan(0);
+    expect(failures).toHaveLength(termCount);
+    failures.forEach((f, k) => {
+      expect(f).toContain(`play.speech.forbiddenTerms[${k}]`);
+      expect(f).toContain(`does not contain "${SPEECH_MARK}"`);
+    });
+
+    const speech = parsed.doc.getIn(['play', 'speech'], true);
+    if (!isMap(speech)) throw new Error('play.speech is not a map');
+    speech.set('references', parsed.doc.createNode(['A citation']));
+    expect(checkSpeechTodoMarkers(parsed.doc, parsed.lineCounter, parsed.lines)).toEqual([]);
+  });
+
+  it('names the entries out of Status_Rule order, the wrong first Early_Line, a second Rescued_Line and empty forbiddenTerms (3.1)', () => {
+    const c = structuredClone(PARSED.data);
+    const speech = c.play!.speech!;
+    const status = speech.status!;
+    [status[0], status[1]] = [status[1], status[0]];
+    speech.early = ['It hurts... when I try to breathe in.'];
+    speech.rescued = [...speech.rescued!, 'Thank you.'];
+    speech.forbiddenTerms = [];
+    const rules = c.play!.status.rules;
+    expect(checkSpeechShape(c)).toEqual([
+      `play.speech.status[0].sentence is "${rules[1].sentence}", expected the sentence of play.status.rules[0] "${rules[0].sentence}"`,
+      `play.speech.status[1].sentence is "${rules[0].sentence}", expected the sentence of play.status.rules[1] "${rules[1].sentence}"`,
+      `play.speech.early[0] is "It hurts... when I try to breathe in.", expected "${REQUESTED_EARLY_LINE}"`,
+      'play.speech.rescued has 2 lines, expected exactly 1',
+      'play.speech.forbiddenTerms is missing or empty',
+    ]);
+
+    const short = structuredClone(PARSED.data);
+    const shortStatus = short.play!.speech!.status!;
+    shortStatus.pop();
+    shortStatus[0].lines = ['One.', 'Two.', 'Three.'];
+    expect(checkSpeechShape(short)).toEqual([
+      `play.speech.status has ${rules.length - 1} entries, expected one per Status_Rule (${rules.length})`,
+      'play.speech.status[0].lines has 3 lines, expected 1 or 2',
+    ]);
+  });
+
+  it('names the Variant whose overrides set speech (3.4)', () => {
+    const b = structuredClone(BASE_CASE);
+    (b.variants![1].overrides as unknown as Record<string, unknown>).speech = structuredClone(b.play!.speech);
+    expect(checkSpeechInBaseOnly(b)).toEqual(["variant 'right': overrides has speech"]);
+  });
+
+  it('names the first path where the Speech_Sections of the Resolved_Cases differ (8.1)', () => {
+    const right = structuredClone(CASE_RIGHT);
+    right.play!.speech!.early![1] = 'It hurts a lot.';
+    right.play!.speech!.rescued = ['Thank you.'];
+    expect(
+      checkSpeechEqualAcrossVariants([{ id: 'left', data: CASE_LEFT }, { id: 'right', data: right }]),
+    ).toEqual([
+      `variant 'right': play.speech.early[1] is "It hurts a lot.", ${JSON.stringify(CASE_LEFT.play!.speech!.early![1])} in variant 'left'`,
+    ]);
+  });
+
+  it('names a speech property in the Variant_Overrides schema and additional properties allowed there (1.5)', () => {
+    const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8')) as {
+      definitions: { variantOverrides: { properties: Record<string, unknown>; additionalProperties?: unknown } };
+    };
+    schema.definitions.variantOverrides.properties.speech = { $ref: '#/definitions/speechSection' };
+    schema.definitions.variantOverrides.additionalProperties = true;
+    expect(checkVariantOverridesSchema(schema)).toEqual([
+      'definitions.variantOverrides.properties has a speech property',
+      'definitions.variantOverrides.additionalProperties is true, expected false',
+    ]);
+    delete schema.definitions.variantOverrides.additionalProperties;
+    delete schema.definitions.variantOverrides.properties.speech;
+    expect(checkVariantOverridesSchema(schema)).toEqual([
+      'definitions.variantOverrides.additionalProperties is absent, expected false',
+    ]);
+    expect(checkVariantOverridesSchema({})).toEqual(['definitions.variantOverrides is missing']);
   });
 });

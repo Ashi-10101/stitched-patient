@@ -38,8 +38,8 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 2.1**
 
-- [ ] 2. Case data: schema, case file and checks
-  - [ ] 2.1 Add `speechSection` to the schema and the `play.speech` block to the case file
+- [x] 2. Case data: schema, case file and checks
+  - [x] 2.1 Add `speechSection` to the schema and the `play.speech` block to the case file
     - Files: `cases/case-schema.json`, `cases/adult-tension-pneumothorax.yaml`. No other file changes
     - In `case-schema.json`: the `speech` property under `properties.play.properties` and the `speechLineList` and `speechSection` definitions, exactly as the design section "JSON Schema changes" states. Do not touch `variantOverrides` or any other definition
     - In the case file: insert the `play.speech` block of the design section "Case file addition", character for character, at the end of the `play` mapping, after the `exam` block and before the blank line and the `# Author's game-rule decision ...` comment. Every Speech_Line and the `forbiddenTerms` line keep their `TODO(author)` comment containing "patient-speech spec" on the comment-only line directly above
@@ -47,7 +47,7 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - A save under `cases/` triggers the `case-check` hook; read its output and report it
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 3.1, 3.2, 3.3, 3.4, 11.2_
-  - [ ] 2.2 Add the Python Speech_Check to `scripts/validate-case.py` and run the case check
+  - [x] 2.2 Add the Python Speech_Check to `scripts/validate-case.py` and run the case check
     - Files: `scripts/validate-case.py`. No other file changes
     - Implement `SPEECH_MAX_CODE_POINTS`, `SIDE_WORD`, `THIRD_PERSON_WORD`, `forbidden_speech_terms`, `speech_check`, `speech_lines`, `speech_problems` and `validate_speech` as the design section "`scripts/validate-case.py`" states: the same patterns and the same rule texts as `SPEECH_RULE_TEXT`, rules (a) to (f) in the same order, run after the schema checks pass on the Base_Case (prefix `""`) and on each Resolved_Case from `case_resolver.resolve_variant` (prefix `variant '<id>': `). Print `✗ <problem>` per failure, or `✓ Every Speech_Line passes the speech checks`; `main` exits with 1 when the schema or the speech check fails. Add no pytest (decision 14)
     - Run the case check exactly as Requirement 11.6 describes, never with the host Python:
@@ -58,7 +58,7 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Quote the output and the exit code of both runs in the task report
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 1.7, 2.3, 11.6_
-  - [ ] 2.3 Add the speech case-content checks
+  - [x] 2.3 Add the speech case-content checks
     - Files: `apps/web/src/lib/caseContent.test.ts`. No other file changes
     - Add, as the design section "Case-content test additions" states: `SPEECH_MARK`, `SPEECH_ITEM_PATTERNS` joined to `TEXT_ITEM_PATTERNS`, the `play.speech.references` covering path, `checkSpeechLines` (through `perVariant`, failures as `<path> "<line>": <rule>`), `checkSpeechSentences`, `checkSpeechShape`, `checkSpeechInBaseOnly`, `checkSpeechEqualAcrossVariants` and the `variantOverrides` schema test
     - Each checker returns `play.speech is missing` without a Speech_Section, and each is also run on a broken copy in the test to show that it names the failing path

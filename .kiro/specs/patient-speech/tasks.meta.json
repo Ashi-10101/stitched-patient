@@ -48,6 +48,49 @@
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795670706432
       }
+    ],
+    "2.1 Add `speechSection` to the schema and the `play.speech` block to the case file": [
+      {
+        "executionId": "f5e47447-236d-4d60-a724-6233f7ac5b62",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795671357297
+      },
+      {
+        "executionId": "58905b5a-2923-49d3-bb71-4d73747f0b13",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795672098624
+      }
+    ],
+    "2.2 Add the Python Speech_Check to `scripts/validate-case.py` and run the case check": [
+      {
+        "executionId": "58905b5a-2923-49d3-bb71-4d73747f0b13",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795672102552
+      },
+      {
+        "executionId": "58905b5a-2923-49d3-bb71-4d73747f0b13",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795672560744
+      }
+    ],
+    "2.3 Add the speech case-content checks": [
+      {
+        "executionId": "58905b5a-2923-49d3-bb71-4d73747f0b13",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795672564605
+      },
+      {
+        "executionId": "58905b5a-2923-49d3-bb71-4d73747f0b13",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795674909829
+      }
+    ],
+    "2. Case data: schema, case file and checks": [
+      {
+        "executionId": "58905b5a-2923-49d3-bb71-4d73747f0b13",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795674909873
+      }
     ]
   }
 }

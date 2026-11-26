@@ -231,6 +231,7 @@
         "hints": { "$ref": "#/definitions/hintList" },
         "exam": { "$ref": "#/definitions/examSection" },
         "sideRevealText": { "$ref": "#/definitions/sideRevealText" },
+        "speech": { "$ref": "#/definitions/speechSection" },
         "status": {
           "type": "object",
           "additionalProperties": false,
@@ -411,6 +412,41 @@
       "type": "array",
       "minItems": 1,
       "items": { "type": "string", "minLength": 1 }
+    },
+    "speechLineList": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "speechSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sentence", "lines"],
+            "properties": {
+              "sentence": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "lines": { "$ref": "#/definitions/speechLineList" }
+            }
+          }
+        },
+        "early": { "$ref": "#/definitions/speechLineList" },
+        "rescued": { "$ref": "#/definitions/speechLineList" },
+        "forbiddenTerms": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": { "type": "string", "minLength": 1, "maxLength": 60 }
+        },
+        "references": { "$ref": "#/definitions/citationList" }
+      }
     },
     "vitalCondition": {
       "type": "object",

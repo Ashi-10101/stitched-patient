@@ -222,6 +222,46 @@ play:
             abnormal: true
         # TODO(author): normal neck vein finding - draft from the bedside-exam spec, verify and cite a source
         defaultSentence: "His neck veins look normal."
+  speech:
+    status:
+      - sentence: "His lips are turning blue and he is fighting for breath."
+        lines:
+          # TODO(author): speech line for critical SpO2 - draft from the patient-speech spec, pending author review
+          - "Can't... breathe..."
+          # TODO(author): speech line for critical SpO2 - draft from the patient-speech spec, pending author review
+          - "Help... me..."
+      - sentence: "He looks pale and is struggling to breathe."
+        lines:
+          # TODO(author): speech line for warning SpO2 - draft from the patient-speech spec, pending author review
+          - "It's getting worse... I can't catch my breath."
+          # TODO(author): speech line for warning SpO2 - draft from the patient-speech spec, pending author review
+          - "Why can't I breathe properly?"
+      - sentence: "His heart is racing and he looks frightened."
+        lines:
+          # TODO(author): speech line for critical high heart rate - draft from the patient-speech spec, pending author review
+          - "My heart... it's pounding so hard..."
+      - sentence: "His heart is beating fast and he looks uneasy."
+        lines:
+          # TODO(author): speech line for warning high heart rate - draft from the patient-speech spec, pending author review
+          - "My heart's racing. What's happening to me?"
+      - sentence: "He is breathing faster than normal."
+        lines:
+          # TODO(author): speech line for warning high respiratory rate - draft from the patient-speech spec, pending author review
+          - "I can't... slow my breathing down."
+      - sentence: "He looks clammy and a little faint."
+        lines:
+          # TODO(author): speech line for warning low mean arterial pressure - draft from the patient-speech spec, pending author review
+          - "I feel dizzy... like I might pass out."
+    early:
+      # TODO(author): early speech line (requested, demo video shot 2) - draft from the patient-speech spec, pending author review
+      - "I... can't... get a breath in. My chest-"
+      # TODO(author): early speech line - draft from the patient-speech spec, pending author review
+      - "It hurts... when I try to breathe in."
+    rescued:
+      # TODO(author): rescued speech line - draft from the patient-speech spec, pending author review
+      - "Oh... I can breathe again. Thank you."
+    # TODO(author): Forbidden_Speech_Terms list (still open question 9) - draft from the patient-speech spec, pending author review
+    forbiddenTerms: ["needle", "decompress", "drain", "chest tube", "trapped air", "let the air out", "oxygen", "listen", "stethoscope", "windpipe", "trachea", "neck vein"]
 
 # Author's game-rule decision recorded in the bedside-exam spec (Requirements 2.1-2.6): the side variants and their insultSide and requiredInterventions values
 variants:
