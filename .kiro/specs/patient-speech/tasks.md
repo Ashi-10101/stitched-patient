@@ -142,7 +142,7 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 6.5, 6.6, 6.7, 6.8, 6.9, 6.11**
 
-- [ ] 6. Checkpoint - Ensure all tests pass
+- [x] 6. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
   - From `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
 
