@@ -362,6 +362,7 @@ The rules in this requirement protect the Casual_Player (decision 12). Every pla
 6. THE Web_App SHALL show the Variant_Id nowhere on the page, and SHALL put neither the Variant_Id nor the Affected_Side in the page title, the URL, a browser storage key or an accessible name.
 7. THE session page SHALL keep the page title "Stitched Patient" and the URL `/session/<session_id>` for every Variant.
 8. THE Speech_Bubble_Slot SHALL stay empty, as in play-mode, so that no patient speech names the side.
+   - Since patient-speech: the Speech_Bubble_Slot shows the scripted speech lines of `.kiro/specs/patient-speech/`. They contain no Side_Word and are the same in every Variant (patient-speech Requirements 2 and 8).
 9. WHILE the Ending of the current Branch is `none`, the Intervention_Record is empty, the Active_Exam_Entries hold no entry from a Sided_Action, and fewer Hints are revealed than the Play_Section defines, THE Play_View and the Clinician_View SHALL render the same markup for the `left` and the `right` Resolved_Case when given the same VitalSigns samples, Session_Metadata other than `variant_id`, Checkpoint lists and records (screen symmetry property).
 
 ### Requirement 11: Hints without the side

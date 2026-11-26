@@ -194,14 +194,14 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 9.2**
 
-- [ ] 9. Add the four pointer lines to the older specs
+- [x] 9. Add the four pointer lines to the older specs
   - Files: `.kiro/specs/bedside-exam/requirements.md`, `.kiro/specs/play-mode/requirements.md`, `.kiro/specs/engine-mcp/requirements.md`. Doc-only; no other file and no other line changes
   - Add exactly the four lines of Requirements 10.1 to 10.4, copied character for character (including the leading spaces), directly under bedside-exam 10.8, the play-mode glossary entry **Speech_Bubble_Slot**, engine-mcp 5.1 and engine-mcp 9.4
   - Run `git diff --stat` and `git diff` on the three files and quote them: four added lines, nothing removed or changed
   - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
 
-- [ ] 10. Final check before the calibration run
+- [x] 10. Final check before the calibration run
   - Ensure all tests pass, ask the user if questions arise.
   - From `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
   - `git diff --numstat cases/adult-tension-pneumothorax.yaml` (against the commit before task 2.1, if the user has committed since) shows 0 deleted lines, and `grep -c "TODO(author)"` on the case file is the earlier count plus the added speech markers

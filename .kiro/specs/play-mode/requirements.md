@@ -133,6 +133,7 @@ Terms reused from core-simulation-loop keep that spec's meaning: **Case**, **Cas
 - **Decompressed_Sides**: The anatomical sides on which a Decompression has been applied in the current Branch_Lineage
 - **Anatomical_Side**: A side named from the patient's point of view. The Avatar faces the viewer, so the patient's `Left` is drawn on the viewer's right and the patient's `Right` on the viewer's left
 - **Speech_Bubble_Slot**: The empty, reserved place on the Avatar where a later spec will show the patient's speech
+  - Since patient-speech: the Speech_Bubble_Slot shows the scripted speech lines of `.kiro/specs/patient-speech/` in the Play_View and on the `rescued` Ending_Screen (patient-speech Requirements 4 and 7).
 - **Reduced_Motion_Preference**: The user's operating-system setting exposed through the CSS media query `prefers-reduced-motion: reduce`
 - **Safety_Notice**: The text "Educational simulation, not for clinical use"
 - **Case_Schema**: The JSON Schema at `cases/case-schema.json`

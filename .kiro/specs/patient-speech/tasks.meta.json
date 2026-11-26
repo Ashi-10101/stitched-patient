@@ -402,6 +402,30 @@
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795696074919
       }
+    ],
+    "9. Add the four pointer lines to the older specs": [
+      {
+        "executionId": "bfde8784-2973-4a2b-9e21-ff8109a52bf9",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696133790
+      },
+      {
+        "executionId": "bfde8784-2973-4a2b-9e21-ff8109a52bf9",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696277506
+      }
+    ],
+    "10. Final check before the calibration run": [
+      {
+        "executionId": "bfde8784-2973-4a2b-9e21-ff8109a52bf9",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696277746
+      },
+      {
+        "executionId": "bfde8784-2973-4a2b-9e21-ff8109a52bf9",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696574784
+      }
     ]
   }
 }
