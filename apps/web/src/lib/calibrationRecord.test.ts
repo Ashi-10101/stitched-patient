@@ -11,10 +11,12 @@
  * fixture's per-vital test offsets. Sentences come from the case fixtures. No clinical value is
  * written here, nothing touches the real file system and no network connection is opened (17.7).
  */
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { SAFETY_NOTICE_TEXT } from '@/components/SafetyNotice';
 import { BASE_CASE, CASE_LEFT, CASE_RIGHT, CASE_TEXT, VITAL_OFFSETS } from '@/test/caseFixtures';
 import { DEFAULT_FAKE_VITALS } from '@/test/fakePhysiologyService';
+import { PBT_PARAMS } from '@/test/pbt';
 import type { CaseData, Intervention, PlaySection, Side, VitalCondition, VitalSigns } from '@/types';
 import {
   ALL_PASSED_LINE,
@@ -28,6 +30,7 @@ import {
   renderCalibrationRecord,
   renderRecordBody,
   renderRecordHeader,
+  speechChanges,
   writeCalibrationRecord,
   type RecordFs,
   type RecordHeader,
@@ -45,7 +48,7 @@ import {
   type CaseFileFacts,
   type ScenarioKind,
 } from './engineCalibration';
-import { buildScenarioResult, type ScenarioResult } from './engineRunner';
+import { buildScenarioResult, type MarkRow, type ScenarioResult } from './engineRunner';
 import { conditionHolds } from './endingEvaluator';
 import { buildInterventionEntry } from './interventionRecord';
 import { interventionSide } from './playCase';
@@ -753,6 +756,207 @@ describe('renderRecordBody', () => {
       }
       expect(checked).toBeGreaterThan(100);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Speech table (patient-speech 9.2 to 9.5)
+// ---------------------------------------------------------------------------
+
+describe('speech table (patient-speech 9.2 to 9.5)', () => {
+  const SPEECH_SENTENCE =
+    'Speech lines are computed on the Mark_Samples; the Web_App computes them on every received sample, so its line changes can come up to one Sample_Interval earlier or later.';
+  const NONE_LINE = 'Speech: none (the case has no speech section)';
+  const EARLY_LINE = "I... can't... get a breath in. My chest-";
+  const PIPE_LINE = 'Line A | with a pipe';
+
+  /** Per mark index: [speech, speech_key]; the last entry repeats to the end. */
+  const PLAN: readonly (readonly [string | null, string])[] = [
+    [null, 'silent'], // 0: first mark, a row
+    [null, 'silent'], // 1: same line, no row
+    [EARLY_LINE, 'early'], // 2: a row
+    [EARLY_LINE, 'play.status.rules[0]'], // 3: key change with the same line, no row
+    [PIPE_LINE, 'play.status.rules[1]'], // 4: a row, `|` escaped
+    ['Line B', 'play.status.rules[1]'], // 5: same key, new line, a row
+    [null, 'silent'], // 6 to the end: back to an earlier line, one row
+  ];
+
+  function applyPlan(r: ScenarioResult, hasSection: boolean): void {
+    r.has_speech_section = hasSection;
+    r.marks.forEach((m, i) => {
+      const [speech, key] = PLAN[Math.min(i, PLAN.length - 1)];
+      m.speech = speech;
+      m.speech_key = key;
+    });
+  }
+
+  function planned(hasSection: boolean): typeof GOOD {
+    const e = structuredClone(GOOD);
+    for (const v of e.variants) for (const kind of SCENARIO_KINDS) applyPlan(v.scenarios[kind], hasSection);
+    return e;
+  }
+
+  /** The body without the speech blocks: the `#### Speech` heading, its table and sentence, or the none line. */
+  function withoutSpeech(text: string): string {
+    const blocks = text.split('\n\n');
+    const out: string[] = [];
+    for (let i = 0; i < blocks.length; i += 1) {
+      if (blocks[i] === '#### Speech') {
+        i += 2;
+        continue;
+      }
+      if (blocks[i] !== NONE_LINE) out.push(blocks[i]);
+    }
+    return out.join('\n\n');
+  }
+
+  const time = (t: number): string => t.toFixed(DECIMALS.simulation_time);
+
+  it('9.2: speechChanges keeps the first mark and each mark whose line differs from the previous one', () => {
+    const marks = planned(true).variants[0].scenarios['affected-side'].marks;
+    expect(marks.length).toBeGreaterThanOrEqual(PLAN.length + 1);
+    expect(speechChanges(marks)).toEqual([marks[0], marks[2], marks[4], marks[5], marks[6]]);
+    expect(speechChanges([])).toEqual([]);
+  });
+
+  it('9.2, 9.3: renders the table after Status_Rules with the fixed sentence under it', () => {
+    const body = renderRecordBody(planned(true));
+    let checked = 0;
+    for (const v of GOOD.variants) {
+      for (const kind of SCENARIO_KINDS) {
+        const sc = scenarioText(body, v.variantId, kind);
+        const times = v.scenarios[kind].marks.map((m) => time(m.time));
+        const blocks = sc.split('\n\n');
+        const at = blocks.indexOf('#### Speech');
+        expect(blocks.indexOf('#### Status_Rules')).toBeLessThan(at);
+        expect(at).toBeLessThan(blocks.indexOf('#### Exam_Findings'));
+        expect(blocks.filter((b) => b === '#### Speech')).toHaveLength(1);
+        const t = firstTable(blocks[at + 1]);
+        expect(t.headings).toEqual(['Time (s)', 'Speech_Key', 'Line']);
+        expect(t.rows).toEqual([
+          [times[0], 'silent', 'silent'],
+          [times[2], 'early', EARLY_LINE],
+          [times[4], 'play.status.rules[1]', 'Line A \\| with a pipe'],
+          [times[5], 'play.status.rules[1]', 'Line B'],
+          [times[6], 'silent', 'silent'],
+        ]);
+        expect(unescape(t.rows[2][2])).toBe(PIPE_LINE);
+        expect(blocks[at + 2]).toBe(SPEECH_SENTENCE);
+        expect(sc).not.toContain(NONE_LINE);
+        checked += 1;
+      }
+    }
+    expect(checked).toBe(GOOD.variants.length * SCENARIO_KINDS.length);
+  });
+
+  it('9.4: says Speech: none for each Scenario when the case has no speech section', () => {
+    const body = renderRecordBody(planned(false));
+    expect(body).not.toContain('#### Speech');
+    expect(body).not.toContain(SPEECH_SENTENCE);
+    expect(body).not.toContain(EARLY_LINE);
+    for (const v of GOOD.variants) {
+      for (const kind of SCENARIO_KINDS) {
+        const blocks = scenarioText(body, v.variantId, kind).split('\n\n');
+        const at = blocks.indexOf(NONE_LINE);
+        expect(blocks.filter((b) => b === NONE_LINE)).toHaveLength(1);
+        expect(blocks.indexOf('#### Status_Rules')).toBeLessThan(at);
+        expect(at).toBeLessThan(blocks.indexOf('#### Exam_Findings'));
+      }
+    }
+  });
+
+  it('9.5: the rest of the record body is the same when the speech fields are changed or removed', () => {
+    const reference = withoutSpeech(renderRecordBody(GOOD));
+    const sets = { left: goodSet('left'), right: goodSet('right', 7) };
+    for (const kind of SCENARIO_KINDS) {
+      applyPlan(sets.left[kind], true);
+      const r = sets.right[kind];
+      Reflect.deleteProperty(r, 'has_speech_section');
+      for (const m of r.marks) {
+        Reflect.deleteProperty(m, 'speech');
+        Reflect.deleteProperty(m, 'speech_key');
+      }
+    }
+    const changed = renderRecordBody(evaluate(sets));
+    expect(changed).toContain('#### Speech');
+    expect(changed).toContain(NONE_LINE);
+    expect(withoutSpeech(changed)).toBe(reference);
+    expect(withoutSpeech(renderRecordBody(planned(false)))).toBe(reference);
+  });
+
+  // Feature: patient-speech, Property 8: The speech table compresses the per-mark speech without loss
+  it('Property 8: the speech table compresses the per-mark speech without loss', () => {
+    // **Validates: Requirements 9.2**
+    const LINES = [null, 'Line A', PIPE_LINE, 'Line C'] as const;
+    const KEYS = ['silent', 'early', 'play.status.rules[0]', 'play.status.rules[1]'] as const;
+    const escape = (s: string): string => s.replace(/\|/g, '\\|');
+    const v = GOOD.variants[0];
+    const template = v.scenarios['affected-side'].marks[0];
+    const seen = { compressed: 0, returned: 0, sameLineNewKey: 0, pipe: 0 };
+
+    const arbMarks = fc
+      .array(
+        fc.record({ step: fc.integer({ min: 1, max: 20 }), speech: fc.constantFrom(...LINES), key: fc.constantFrom(...KEYS) }),
+        { minLength: 1, maxLength: 30 },
+      )
+      .map((specs) => {
+        let t = 0;
+        return specs.map(({ step, speech, key }): MarkRow => {
+          t += step;
+          return { ...structuredClone(template), time: t, speech, speech_key: key };
+        });
+      });
+
+    fc.assert(
+      fc.property(arbMarks, (marks) => {
+        const rows = speechChanges(marks);
+        const at = rows.map((r) => marks.indexOf(r));
+
+        // The rows are marks, in order, starting with the first mark.
+        expect(at[0]).toBe(0);
+        at.forEach((idx, k) => {
+          expect(idx).toBeGreaterThanOrEqual(0);
+          if (k > 0) {
+            expect(idx).toBeGreaterThan(at[k - 1]);
+            expect(marks[idx].speech).not.toBe(marks[idx - 1].speech);
+            expect(rows[k].speech).not.toBe(rows[k - 1].speech);
+          }
+        });
+
+        // Expanding each row's line until the next row's time reproduces every mark's speech.
+        for (const m of marks) {
+          const row = [...rows].reverse().find((r) => r.time <= m.time);
+          expect(row?.speech).toBe(m.speech);
+        }
+
+        // The rendered table shows exactly these rows.
+        const e = structuredClone(GOOD);
+        const sc = e.variants[0].scenarios['affected-side'];
+        sc.has_speech_section = true;
+        sc.marks = marks;
+        const blocks = scenarioText(renderRecordBody(e), v.variantId, 'affected-side').split('\n\n');
+        const table = firstTable(blocks[blocks.indexOf('#### Speech') + 1]);
+        expect(table.rows).toEqual(rows.map((m) => [time(m.time), escape(m.speech_key), escape(m.speech ?? 'silent')]));
+        table.rows.forEach((r, k) => expect(unescape(r[2])).toBe(rows[k].speech ?? 'silent'));
+
+        marks.forEach((m, i) => {
+          if (i > 0 && m.speech === marks[i - 1].speech) {
+            seen.compressed += 1;
+            if (m.speech_key !== marks[i - 1].speech_key) seen.sameLineNewKey += 1;
+          }
+        });
+        rows.forEach((r, k) => {
+          if (k > 1 && rows.slice(0, k - 1).some((p) => p.speech === r.speech)) seen.returned += 1;
+          if (r.speech === PIPE_LINE) seen.pipe += 1;
+        });
+      }),
+      PBT_PARAMS,
+    );
+
+    expect(seen.compressed).toBeGreaterThan(0);
+    expect(seen.returned).toBeGreaterThan(0);
+    expect(seen.sameLineNewKey).toBeGreaterThan(0);
+    expect(seen.pipe).toBeGreaterThan(0);
   });
 });
 

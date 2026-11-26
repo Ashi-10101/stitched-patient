@@ -26,6 +26,7 @@ import type { Intervention } from '@/types';
 import type { GitInfo, RecordFs } from './calibrationRecord';
 import { HEALTH_TIMEOUT_MS, KEBAB, createPhysiologyClient, unreachableMessage } from './engineClient';
 import { SCENARIO_KINDS } from './engineCalibration';
+import type { ScenarioResult } from './engineRunner';
 import { createSessionRegistry, createSessionSlots } from './engineSlots';
 import {
   PROGRESS_INTERVAL_MS,
@@ -377,6 +378,7 @@ describe('run_scenario', () => {
     expect(JSON.parse(text(outcome))).toEqual(structured);
     expect(ScenarioResultSchema.parse(structured)).toEqual(structured);
     expect(structured).toMatchObject({
+      has_speech_section: true,
       case_id: CASE_ID,
       variant_id: 'left',
       max_seconds: 20,
@@ -390,6 +392,33 @@ describe('run_scenario', () => {
       { method: 'GET', path: '/' },
       { method: 'POST', path: '/sessions', body: { case_id: CASE_ID, variant_id: 'left' } },
     ]);
+    expectAllDeleted(h);
+  });
+
+  it('ScenarioResultSchema accepts and keeps speech, speech_key and has_speech_section (patient-speech 9.1)', async () => {
+    const h = harness();
+    const outcome = await call(h, 'run_scenario', SCENARIO_ARGS);
+    const structured = defined(outcome.result.structuredContent, 'structuredContent') as unknown as ScenarioResult;
+    const marks = structured.marks;
+    expect(marks.length).toBeGreaterThanOrEqual(2);
+    for (const m of marks) expect(m).toHaveProperty('speech_key');
+    const spoken: ScenarioResult = {
+      ...structured,
+      has_speech_section: false,
+      marks: [
+        { ...marks[0], speech: 'A test line.', speech_key: 'play.status.rules[3]' },
+        { ...marks[1], speech: null, speech_key: 'silent' },
+        ...marks.slice(2),
+      ],
+    };
+    expect(ScenarioResultSchema.parse(spoken)).toEqual(spoken);
+    expect(ScenarioResultSchema.safeParse({ ...spoken, has_speech_section: 'yes' }).success).toBe(false);
+    const { has_speech_section: _h, ...noFlag } = spoken;
+    expect(ScenarioResultSchema.safeParse(noFlag).success).toBe(false);
+    const badRow = (row: Record<string, unknown>) => ({ ...spoken, marks: [row, ...spoken.marks.slice(1)] });
+    expect(ScenarioResultSchema.safeParse(badRow({ ...marks[0], speech: 5 })).success).toBe(false);
+    const { speech_key: _k, ...noKey } = marks[0];
+    expect(ScenarioResultSchema.safeParse(badRow(noKey)).success).toBe(false);
     expectAllDeleted(h);
   });
 

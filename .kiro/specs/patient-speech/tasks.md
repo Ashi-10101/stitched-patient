@@ -172,8 +172,8 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 8.4**
 
-- [ ] 8. Speech in the calibration output
-  - [ ] 8.1 Add speech values to the Scenario_Result
+- [x] 8. Speech in the calibration output
+  - [x] 8.1 Add speech values to the Scenario_Result
     - Files: `apps/web/src/lib/calibration.ts`, `apps/web/src/lib/engineRunner.ts`, `apps/web/src/lib/engineTools.ts`, `apps/web/src/lib/calibration.test.ts`, `apps/web/src/lib/engineRunner.test.ts`, `apps/web/src/lib/engineTools.test.ts`. No other file changes
     - `calibration.ts`: `OutcomeFold.gateAt` and `ScenarioOutcome.gateAt`, the gate after the entries for each mark and before `stepEnding`. No existing field changes
     - `engineRunner.ts`: `MarkRow.speech` and `MarkRow.speech_key` from `foldSpeech` over the marks with `endingAfter[i]` and `gateAt[i]`, `recordKey` mapping `status:<s>` to `play.status.rules[<i>]` (first rule with that sentence), and `ScenarioResult.has_speech_section`
@@ -181,13 +181,13 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Tests with fixed Mark_Samples: the expected `speech` and `speech_key` per row; `gateAt` per mark; `has_speech_section` true and false; the zod schemas accept the new fields. Existing tests keep their assertions, adding only the new fields where a test compares whole rows
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 9.1, 9.5, 12.8_
-  - [ ] 8.2 Add the speech table to the Record_Body
+  - [x] 8.2 Add the speech table to the Record_Body
     - Files: `apps/web/src/lib/calibrationRecord.ts`, `apps/web/src/lib/calibrationRecord.test.ts`. No other file changes
     - `speechChanges(marks)` and the `#### Speech` table after "Status_Rules" in `scenarioSection`, with the fixed sentence of 9.3 under it; `Speech: none (the case has no speech section)` when `has_speech_section` is false; lines through the existing `cell()` escaping. No Calibration_Check or other block reads the speech fields
     - Tests: the table for fixed rows, the fixed sentence, the `Speech: none ...` line, a line with a `|` escaped; existing record tests stay green
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 9.2, 9.3, 9.4, 9.5, 12.8_
-  - [ ] 8.3 Write the property test for the speech table
+  - [x] 8.3 Write the property test for the speech table
     - **Property 8: The speech table compresses the per-mark speech without loss**
     - Files: `apps/web/src/lib/calibrationRecord.test.ts`. No other file changes
     - Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 8: The speech table compresses the per-mark speech without loss`

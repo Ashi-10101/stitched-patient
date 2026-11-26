@@ -27,6 +27,10 @@
     "5.3 Write the property test for the gate": {
       "status": "passed",
       "lastRunTimestamp": 1795690478605
+    },
+    "8.3 Write the property test for the speech table": {
+      "status": "passed",
+      "lastRunTimestamp": 1795695974707
     }
   },
   "executionHistory": {
@@ -354,6 +358,49 @@
         "executionId": "e6165dbe-fb14-4b7f-b8ba-cd4f5ecbe067",
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795694623060
+      }
+    ],
+    "8.1 Add speech values to the Scenario_Result": [
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795694666634
+      },
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795695529210
+      }
+    ],
+    "8.2 Add the speech table to the Record_Body": [
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795695529310
+      },
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795695864673
+      }
+    ],
+    "8.3 Write the property test for the speech table": [
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795695864722
+      },
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696074869
+      }
+    ],
+    "8. Speech in the calibration output": [
+      {
+        "executionId": "3043ed20-0e47-4ccb-b974-eaa182000e52",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696074919
       }
     ]
   }

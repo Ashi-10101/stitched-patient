@@ -206,6 +206,8 @@ const MarkRowSchema = z.object({
   exam: z.array(
     z.object({ action_id: z.string(), side: SideSchema.nullable(), sentence: z.string(), abnormal: z.boolean() }),
   ),
+  speech: z.string().nullable(),
+  speech_key: z.string(),
 });
 
 /** A zod object that mirrors ScenarioResult (Data Models); run_scenario's outputSchema is
@@ -273,6 +275,7 @@ export const ScenarioResultSchema: z.ZodType<ScenarioResult> = z.object({
   first_abnormal: z.array(
     z.object({ action_id: z.string(), side: SideSchema.nullable(), first_at: z.number().nullable() }),
   ),
+  has_speech_section: z.boolean(),
   marks: z.array(MarkRowSchema),
   undeleted_sessions: z.array(z.string()).optional(),
 });

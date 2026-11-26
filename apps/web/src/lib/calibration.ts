@@ -87,6 +87,9 @@ export interface OutcomeFold {
   readonly gate: number | null;
   /** The Ending after each pushed Mark_Sample, in push order (5.1). */
   readonly endingAfter: readonly Ending[];
+  /** The Rescue_Gate_Time at each pushed Mark_Sample, in push order: after the entries for that
+   *  mark were applied and before `stepEnding` (patient-speech 9.1). */
+  readonly gateAt: readonly (number | null)[];
 }
 
 /**
@@ -120,6 +123,7 @@ export function createOutcomeFold(rc: CaseData): OutcomeFold {
   /** Entries whose gate change has been applied, in record order. */
   const applied: InterventionRecordEntry[] = [];
   const endingAfter: Ending[] = [];
+  const gateAt: (number | null)[] = [];
   let lostCause: LostCause | null = null;
 
   return {
@@ -137,6 +141,7 @@ export function createOutcomeFold(rc: CaseData): OutcomeFold {
           i += 1;
         }
       }
+      gateAt.push(ctx.rescueGateTime);
       const before = state.ending;
       state = stepEnding(ctx, state, { ...m.sample, simulation_time: m.mark });
       if (before === 'none' && state.ending === 'lost') lostCause = lostCauseOf(ctx, state);
@@ -157,6 +162,9 @@ export function createOutcomeFold(rc: CaseData): OutcomeFold {
     get endingAfter() {
       return endingAfter;
     },
+    get gateAt() {
+      return gateAt;
+    },
   };
 }
 
@@ -166,6 +174,10 @@ export interface ScenarioOutcome {
   lostCause: LostCause | null;
   finalGate: number | null;
   endingAfter: Ending[];
+  /** The Rescue_Gate_Time at each Mark_Sample, before its `stepEnding` (OutcomeFold.gateAt).
+   *  Always set by `scenarioOutcome`; optional because an outcome rebuilt from a Scenario_Result
+   *  (engineCalibration.ts) has no per-mark gate, and no Calibration_Check reads it. */
+  gateAt?: (number | null)[];
   /** Marks at which every rescue Vital_Condition held, ignoring the gate and the insult bound (13.15). */
   rescueHeldWithoutGate: number[];
 }
@@ -176,7 +188,7 @@ export function scenarioOutcome(
   rc: CaseData,
   marks: readonly MarkSample[],
   entries: readonly InterventionRecordEntry[],
-): ScenarioOutcome {
+): ScenarioOutcome & Required<Pick<ScenarioOutcome, 'gateAt'>> {
   const fold = createOutcomeFold(rc);
   for (const entry of entries) fold.addEntry(entry);
   for (const m of marks) fold.push(m);
@@ -198,6 +210,7 @@ export function scenarioOutcome(
     lostCause: fold.lostCause,
     finalGate: fold.gate,
     endingAfter: [...fold.endingAfter],
+    gateAt: [...fold.gateAt],
     rescueHeldWithoutGate,
   };
 }

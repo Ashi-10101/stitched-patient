@@ -37,6 +37,7 @@ import {
 import { requiredInterventions, type Ending, type Sample } from './endingEvaluator';
 import { buildInterventionEntry } from './interventionRecord';
 import { affectedInsult } from './sides';
+import { foldSpeech, type SpeechKey } from './speechSelector';
 import { selectStatus } from './statusSelector';
 import type { VitalName } from './vitals';
 import type {
@@ -137,6 +138,8 @@ export interface MarkRow {
   status_sentence: string | null; // selectStatus on this sample; null without a Play_Section
   ending: Ending; // the Ending after this Mark_Sample (OutcomeFold.endingAfter)
   exam: ExamRowJson[]; // examButtons order; [] without an Exam_Section (5.3)
+  speech: string | null; // the Scripted_Line of foldSpeech over the Mark_Samples; null for silence (patient-speech 9.1)
+  speech_key: string; // 'silent', 'early', 'rescued' or 'play.status.rules[<i>]' (recordKey)
 }
 
 export interface PlayValuesJson {
@@ -193,6 +196,7 @@ export interface ScenarioResult {
   rescue_held_without_gate: number[]; // marks where every rescue condition held, gate ignored (13.15 basis)
   status_rules: StatusRuleReportJson;
   first_abnormal: FirstAbnormalJson[]; // examButtons order
+  has_speech_section: boolean; // the Resolved_Case's Play_Section has a Speech_Section (patient-speech 9.4)
   marks: MarkRow[]; // Sample_Mark order
   undeleted_sessions?: string[]; // only when a DELETE failed (6.4); never rendered in the Record_Body
 }
@@ -291,6 +295,20 @@ function gateJson(gate: number | null): GateJson {
   return gate === -Infinity ? 'no-required-interventions' : gate;
 }
 
+/** The one Branch of a Scenario's speech fold; any fixed id works, since the fold never crosses Branches. */
+const CALIBRATION_BRANCH_ID = 'calibration';
+const STATUS_KEY_PREFIX = 'status:';
+
+/** Speech_Key in the record form (patient-speech D12): `status:<s>` becomes `play.status.rules[<i>]`
+ *  with `i` the first Status_Rule whose sentence is `s`; the other keys are unchanged. */
+function recordKey(key: SpeechKey, rc: CaseData): string {
+  if (!key.startsWith(STATUS_KEY_PREFIX)) return key;
+  const sentence = key.slice(STATUS_KEY_PREFIX.length);
+  const index = rc.play?.status.rules.findIndex((rule) => rule.sentence === sentence) ?? -1;
+  // A status key comes from selectStatus, so a rule with its sentence exists; keep the key otherwise.
+  return index === -1 ? key : `play.status.rules[${index}]`;
+}
+
 /** Pure: Mark_Samples, bands, Overall_Status, Status_Sentence, Exam rows, Ending timeline (5.1 to 5.6). */
 export function buildScenarioResult(raw: RawScenario, serviceUrl: string): ScenarioResult {
   const { req, rc, kept, entries, applied } = raw;
@@ -300,6 +318,17 @@ export function buildScenarioResult(raw: RawScenario, serviceUrl: string): Scena
   const outcome = scenarioOutcome(rc, marks, entries);
 
   const perMark = marks.map((m) => ({ mark: m.mark, rows: examRows(rc, m, entries) }));
+  // patient-speech 9.1: the Ending after each Mark_Sample and the gate applied before it.
+  const speech = foldSpeech(
+    rc,
+    CALIBRATION_BRANCH_ID,
+    marks.map((m, i) => ({
+      sample: { ...m.sample, simulation_time: m.mark },
+      simulationTime: m.mark,
+      ending: outcome.endingAfter[i],
+      rescueGateTime: outcome.gateAt[i],
+    })),
+  );
   const rows: MarkRow[] = marks.map((m, i) => ({
     time: m.mark,
     substituted: m.substituted,
@@ -315,6 +344,8 @@ export function buildScenarioResult(raw: RawScenario, serviceUrl: string): Scena
       sentence: r.sentence,
       abnormal: r.abnormal,
     })),
+    speech: speech[i].line,
+    speech_key: recordKey(speech[i].key, rc),
   }));
 
   let ending: EndingTimelineJson;
@@ -374,6 +405,7 @@ export function buildScenarioResult(raw: RawScenario, serviceUrl: string): Scena
       side: f.side,
       first_at: f.firstAt,
     })),
+    has_speech_section: play?.speech !== undefined,
     marks: rows,
   };
 }

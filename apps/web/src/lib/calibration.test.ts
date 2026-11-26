@@ -335,6 +335,7 @@ describe('createOutcomeFold and scenarioOutcome', () => {
       lostCause: null,
       finalGate: actual,
       endingAfter: [...fold.endingAfter],
+      gateAt: marks.map((m) => (m.mark >= gateMark ? actual : null)),
       rescueHeldWithoutGate: marks.map((m) => m.mark),
     });
   });
@@ -406,6 +407,39 @@ describe('createOutcomeFold and scenarioOutcome', () => {
 
     const upToActual = marks.filter((m) => m.mark <= actual);
     expect(scenarioOutcome(CASE_LEFT, upToActual, [entry]).finalGate).toBe(actual);
+  });
+
+  it('records the gate per mark after that mark\'s entries and before stepEnding (gateAt, patient-speech 9.1)', () => {
+    // Synthetic times: entry A on a mark, entry B (not required) between two marks. Kept samples
+    // meet the rescue conditions, so the Ending turns rescued while gateAt keeps its values.
+    const actual = ceilToInterval(INSULT.timeSeconds) + INTERVAL;
+    const hold = PLAY.endings.rescued.holdSeconds;
+    const marks = markSamples(keptUpTo(actual + hold + INTERVAL, RESCUE_SAMPLE), INTERVAL);
+    const required = new Set(requiredInterventions(PLAY));
+    const other = CASE_LEFT.interventions.find((i) => !required.has(i.id))!;
+    const entries = [requiredEntry(actual), buildInterventionEntry(other, actual - INTERVAL / 2, BRANCH)];
+    const expected = marks.map((m) => (m.mark >= actual ? actual : null));
+
+    const fold = createOutcomeFold(CASE_LEFT);
+    for (const e of entries) fold.addEntry(e);
+    const afterPush: (number | null)[] = [];
+    for (const m of marks) {
+      fold.push(m);
+      afterPush.push(fold.gateAt[fold.gateAt.length - 1]);
+    }
+    expect(fold.gateAt).toEqual(expected);
+    expect(afterPush).toEqual(expected);
+    expect(fold.gateAt).toHaveLength(fold.endingAfter.length);
+    // The Ending changes after the gate opened; gateAt is the gate, not the Ending.
+    expect(fold.endingAfter).toContain('rescued');
+    expect(scenarioOutcome(CASE_LEFT, marks, entries).gateAt).toEqual(expected);
+
+    // No Required_Interventions: the gate is open (-Infinity) at every mark.
+    const open = structuredClone(CASE_LEFT);
+    delete (open.play as PlaySection).endings.rescued.requiredInterventions;
+    expect(scenarioOutcome(open, marks, []).gateAt).toEqual(marks.map(() => -Infinity));
+    // No entries: closed (null) at every mark.
+    expect(scenarioOutcome(CASE_LEFT, marks, []).gateAt).toEqual(marks.map(() => null));
   });
 
   it('keeps the gate closed in the affected-side-early fixture, through createOutcomeFold and scenarioOutcome (play-mode 6.25, 13.18)', () => {

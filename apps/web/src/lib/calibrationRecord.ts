@@ -89,6 +89,13 @@ const D23_RULE =
 /** 9.6 open-question sentence. */
 const OPEN_QUESTION_LINE = "The early Scenario's Ending is not evidence for play-mode open question 1, item d.";
 
+/** patient-speech 9.3: the sentence under each speech table. */
+const SPEECH_TIMING_LINE =
+  'Speech lines are computed on the Mark_Samples; the Web_App computes them on every received sample, so its line changes can come up to one Sample_Interval earlier or later.';
+
+/** patient-speech 9.4: the line for a Scenario whose Resolved_Case has no Speech_Section. */
+const SPEECH_NONE_LINE = 'Speech: none (the case has no speech section)';
+
 const PLAYBACK_LINE = `Playback speed: ${RUN_SPEED}, ${APPROACH_SPEED} within ${APPROACH_WINDOW_S} s before each Decompression; the speed affects wall-clock time only`;
 
 const CALIBRATION_DIR = 'docs/calibration';
@@ -301,6 +308,12 @@ function kindSideWords(kind: ScenarioKind): string {
   return 'n/a';
 }
 
+/** patient-speech 9.2: the first Mark row, then every Mark row whose `speech` differs from the
+ *  previous row's. A Speech_Key change with the same line adds no row. */
+export function speechChanges(marks: readonly MarkRow[]): MarkRow[] {
+  return marks.filter((m, i) => i === 0 || m.speech !== marks[i - 1].speech);
+}
+
 function scenarioSection(v: VariantEvaluation, kind: ScenarioKind): string {
   const r: ScenarioResult = v.scenarios[kind];
   const blocks = [`### Scenario ${scenarioTitle(v.variantId, kind)}`];
@@ -375,6 +388,21 @@ function scenarioSection(v: VariantEvaluation, kind: ScenarioKind): string {
   }
   if (sr.only_default && sr.default_sentence !== null) {
     blocks.push(`Only the defaultSentence was returned: "${sr.default_sentence}"`);
+  }
+
+  // patient-speech 9.2 to 9.4: the Mark_Samples at which the Scripted_Line changes. Only this
+  // block reads the speech fields (9.5).
+  if (r.has_speech_section) {
+    blocks.push('#### Speech');
+    blocks.push(
+      table(
+        ['Time (s)', 'Speech_Key', 'Line'],
+        speechChanges(r.marks).map((m) => [timeText(m.time), cell(m.speech_key), cell(m.speech ?? 'silent')]),
+      ),
+    );
+    blocks.push(SPEECH_TIMING_LINE);
+  } else {
+    blocks.push(SPEECH_NONE_LINE);
   }
 
   // 9.9: Exam_Findings per Exam_Button and per Mark_Sample.

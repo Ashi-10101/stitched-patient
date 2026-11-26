@@ -48,6 +48,7 @@ import { examButtons } from './examFinding';
 import { buildInterventionEntry } from './interventionRecord';
 import { interventionSide } from './playCase';
 import { DECOMPRESSION_ACTION, affectedInsult } from './sides';
+import { SPEECH_HOLD_SECONDS } from './speechSelector';
 import { selectStatus } from './statusSelector';
 import { thresholdsFor } from './vitalBands';
 import { VITAL_FIELD, VITAL_NAMES } from './vitals';
@@ -622,6 +623,116 @@ describe('runScenario: Scenario_Result fields (5.1 to 5.6)', () => {
       SERVICE_URL,
     );
     expect(rebuilt).toEqual(result);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Speech values (patient-speech 9.1, 9.5, 12.8)
+// ---------------------------------------------------------------------------
+
+describe('buildScenarioResult: speech values (patient-speech 9.1, 9.5)', () => {
+  const INTERVAL = 10;
+  const RULES = PLAY.status.rules;
+  /** Test-only lines (not case content), so every expected row names its source. */
+  const EARLY = ['Test early line one.', 'Test early line two.'];
+  const STATUS_LINE = 'Test status line.';
+  const RESCUED_LINE = 'Test rescued line.';
+
+  /** The `left` Resolved_Case with a test Speech_Section; rule 4 gets rule 2's sentence, so the
+   *  first rule with a sentence (2) differs from the rule that matched (4). */
+  const SPEECH_CASE: CaseData = structuredClone(CASE_LEFT);
+  const speechPlay = SPEECH_CASE.play as PlaySection;
+  speechPlay.status.rules[4].sentence = RULES[2].sentence;
+  speechPlay.speech = {
+    status: [{ sentence: RULES[2].sentence, lines: [STATUS_LINE] }],
+    early: EARLY,
+    rescued: [RESCUED_LINE],
+  };
+  const NO_SPEECH: CaseData = structuredClone(SPEECH_CASE);
+  delete (NO_SPEECH.play as PlaySection).speech;
+
+  /** Every vital with Case thresholds in the middle of its normal range. */
+  const NORMAL: Partial<VitalSigns> = {};
+  for (const v of VITAL_NAMES) {
+    const n = thresholdsFor(CASE_LEFT.alarms, v)?.normal;
+    if (n) (NORMAL as Record<string, number>)[VITAL_FIELD[v]] = (n.low + n.high) / 2;
+  }
+  const hr = defined(thresholdsFor(CASE_LEFT.alarms, 'heartRate'), 'heart rate thresholds');
+  const HR_CRITICAL = { ...NORMAL, heart_rate: defined(hr.critical?.high, 'critical high') + VITAL_OFFSETS.heartRate };
+  const rr = defined(thresholdsFor(CASE_LEFT.alarms, 'respiratoryRate'), 'respiratory rate thresholds');
+  const RR_WARNING = {
+    ...NORMAL,
+    respiratory_rate: (defined(rr.normal, 'normal').high + defined(rr.critical?.high, 'critical high')) / 2,
+  };
+
+  const I = INSULT_TIME;
+  const ENTRY_AT = I + 25; // synthetic Actual_Time between two marks; the gate applies at mark I + 30
+  /** Vitals per mark: normal, then the rule-2 and rule-4 samples, then normal (rescue conditions hold). */
+  const vitalsAt = (t: number): Partial<VitalSigns> => (t === I + 10 ? HR_CRITICAL : t === I + 20 ? RR_WARNING : NORMAL);
+  const LAST = I + 30 + Math.ceil(HOLD / INTERVAL) * INTERVAL + INTERVAL;
+
+  function build(rc: CaseData): ScenarioResult {
+    const kept = Array.from({ length: LAST / INTERVAL + 1 }, (_, k) => ({ ...vitalsAt(k * INTERVAL), simulation_time: k * INTERVAL }));
+    return buildScenarioResult(
+      {
+        req: request({ maxSeconds: LAST, sampleIntervalSeconds: INTERVAL }),
+        rc,
+        kept,
+        entries: [buildInterventionEntry(LEFT, ENTRY_AT, 'fake-branch-1-1')],
+        applied: [{ interventionId: LEFT.id, requestedTime: ENTRY_AT, actualTime: ENTRY_AT, late: false }],
+      },
+      SERVICE_URL,
+    );
+  }
+
+  it('preconditions: the synthetic vitals select the intended Status_Sentences and Ending inputs', () => {
+    expect(I % INTERVAL).toBe(0);
+    expect(INTERVAL).toBeGreaterThanOrEqual(SPEECH_HOLD_SECONDS);
+    const at = (v: Partial<VitalSigns>) => ({ ...v, simulation_time: 0 });
+    expect(selectStatus(at(NORMAL), CASE_LEFT.alarms, PLAY)).toBe(PLAY.status.defaultSentence);
+    expect(selectStatus(at(HR_CRITICAL), CASE_LEFT.alarms, PLAY)).toBe(RULES[2].sentence);
+    expect(selectStatus(at(RR_WARNING), CASE_LEFT.alarms, PLAY)).toBe(RULES[4].sentence);
+    expect(RULES.findIndex((r) => r.sentence === RULES[2].sentence)).toBe(2);
+    expect(RULES[4].sentence).not.toBe(RULES[2].sentence);
+    expect(RESCUE.conditions.every((c) => conditionHolds(c, at(NORMAL)))).toBe(true);
+    expect(LOST_GROUP.conditions.every((c) => conditionHolds(c, at(NORMAL)))).toBe(false);
+  });
+
+  it('gives speech and speech_key per Mark_Sample from the Ending after it and the gate before it', () => {
+    const result = build(SPEECH_CASE);
+    const rescuedAt = I + 30 + Math.ceil(HOLD / INTERVAL) * INTERVAL;
+    expect(result.marks.map((m) => [m.time, m.ending])).toEqual(
+      result.marks.map((m) => [m.time, m.time >= rescuedAt ? 'rescued' : 'none']),
+    );
+    const expected = result.marks.map((m): [number, string, string | null] => {
+      const t = m.time;
+      if (t < I) return [t, 'silent', null]; // before the Earliest_Insult_Time
+      if (t === I) return [t, 'early', EARLY[0]]; // default sentence, gate closed
+      if (t === I + 10) return [t, 'play.status.rules[2]', STATUS_LINE]; // rule 2 matched
+      if (t === I + 20) return [t, 'play.status.rules[2]', STATUS_LINE]; // rule 4 matched, same sentence
+      if (t < rescuedAt) return [t, 'silent', null]; // default sentence, gate open since I + 30
+      return [t, 'rescued', RESCUED_LINE]; // the Ending overrides the hold
+    });
+    expect(result.marks.map((m) => [m.time, m.speech_key, m.speech])).toEqual(expected);
+    expect(result.has_speech_section).toBe(true);
+  });
+
+  it('reports has_speech_section false and silence without a Speech_Section, and no other change (9.5)', () => {
+    const withSpeech = build(SPEECH_CASE);
+    const without = build(NO_SPEECH);
+    expect(without.has_speech_section).toBe(false);
+    expect(without.marks.map((m) => [m.speech_key, m.speech])).toEqual(without.marks.map(() => ['silent', null]));
+
+    const noPlay = build(NO_PLAY);
+    expect(noPlay.has_speech_section).toBe(false);
+    expect(noPlay.marks.map((m) => [m.speech_key, m.speech])).toEqual(noPlay.marks.map(() => ['silent', null]));
+
+    const strip = (r: ScenarioResult) => {
+      const { has_speech_section: _h, marks, ...rest } = r;
+      return { ...rest, marks: marks.map(({ speech: _s, speech_key: _k, ...row }) => row) };
+    };
+    expect(strip(withSpeech)).toEqual(strip(without));
+    expect(ScenarioResultSchema.parse(withSpeech)).toEqual(withSpeech);
   });
 });
 
