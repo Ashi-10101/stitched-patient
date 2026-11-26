@@ -23,6 +23,10 @@
     "4.2 Write the property test for the reducer fold": {
       "status": "passed",
       "lastRunTimestamp": 1795683173784
+    },
+    "5.3 Write the property test for the gate": {
+      "status": "passed",
+      "lastRunTimestamp": 1795690478605
     }
   },
   "executionHistory": {
@@ -230,6 +234,59 @@
         "executionId": "fc035c1a-59aa-4c99-a422-5a2e59d01623",
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795683275925
+      }
+    ],
+    "5.1 Implement `speechProvider.ts` and `speechGate.ts`": [
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795683329070
+      },
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795685596165
+      },
+      {
+        "executionId": "449c1296-e771-47ff-a717-d4688cbd8ae0",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795690683480
+      },
+      {
+        "executionId": "449c1296-e771-47ff-a717-d4688cbd8ae0",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795691099885
+      }
+    ],
+    "5.2 Write the gate unit tests": [
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795685596730
+      },
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795685947775
+      }
+    ],
+    "5.3 Write the property test for the gate": [
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795685948253
+      },
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795690634619
+      }
+    ],
+    "5. Speech_Provider seam": [
+      {
+        "executionId": "690db944-a659-40d9-87c4-1c5d674f8131",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795690634663
       }
     ]
   }

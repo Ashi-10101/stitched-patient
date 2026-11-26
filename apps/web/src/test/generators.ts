@@ -27,6 +27,7 @@ import type {
 } from '@/types';
 import type { Ending } from '@/lib/endingEvaluator';
 import type { SpeechKey, SpeechState } from '@/lib/speechSelector';
+import { PROVIDER_TIMEOUT_MS } from '@/lib/speechGate';
 import { VITAL_FIELD, VITAL_NAMES } from '@/lib/vitals';
 import { CASE, VITAL_OFFSETS } from './caseFixtures';
 
@@ -731,3 +732,169 @@ export const arbSpeechState: fc.Arbitrary<SpeechState> = fc
         line: lines[index] ?? null,
       })),
   );
+
+/** The Speech_Check rule (a) to (f) a generated text is built to break, or `pass`. */
+export type SpeechTextRule = 'pass' | 'a' | 'b' | 'c' | 'd' | 'e' | 'f';
+
+/** A generated speech text and the one rule it is built to break. */
+export interface GeneratedSpeechText {
+  text: string;
+  rule: SpeechTextRule;
+  /**
+   * The breaking piece as the failure message names it: the case's
+   * Diagnosis_Term (c) or Forbidden_Speech_Term (e), or the lower-cased
+   * Side_Word (d) or Third_Person_Word (f). `null` for `pass`, (a) and (b).
+   */
+  term: string | null;
+}
+
+/**
+ * Fragments that break no rule for the shipped case: no Diagnosis_Term,
+ * Side_Word, Forbidden_Speech_Term or Third_Person_Word. Test inputs, not
+ * clinical content.
+ */
+const PASSING_SPEECH_FRAGMENTS = [
+  'Please...',
+  'stay with me.',
+  'I am so scared.',
+  'It hurts.',
+  'What is happening?',
+  'I feel cold.',
+  'Help me.',
+  'Thank you.',
+  'Oh...',
+  'Is it over?',
+  'Ça va?',
+  '😨',
+] as const;
+
+const arbPassingFragment = fc.constantFrom(...PASSING_SPEECH_FRAGMENTS);
+
+/** 1 to 4 passing fragments, or a text of exactly 200 code points (ASCII or astral). */
+const arbPassingSpeechText: fc.Arbitrary<string> = fc.oneof(
+  { weight: 5, arbitrary: fc.array(arbPassingFragment, { minLength: 1, maxLength: 4 }).map((parts) => parts.join(' ')) },
+  { weight: 1, arbitrary: fc.constantFrom('a'.repeat(200), '😨'.repeat(200)) },
+);
+
+/** `core` with an optional passing fragment before and after it. */
+function withPassingAffixes(core: fc.Arbitrary<string>): fc.Arbitrary<string> {
+  return fc
+    .tuple(fc.option(arbPassingFragment, { nil: undefined }), core, fc.option(arbPassingFragment, { nil: undefined }))
+    .map((parts) => parts.filter((p): p is string => p !== undefined).join(' '));
+}
+
+/** `word` as written, upper-cased or capitalised. */
+function arbCasing(word: string): fc.Arbitrary<string> {
+  return fc.constantFrom(word, word.toUpperCase(), word.charAt(0).toUpperCase() + word.slice(1));
+}
+
+/** A text breaking one word rule: `word` (in some casing) between optional passing fragments. */
+function arbWordRuleText(rule: 'c' | 'd' | 'e' | 'f', words: readonly string[], lowerTerm: boolean): fc.Arbitrary<GeneratedSpeechText> {
+  return fc.constantFrom(...words).chain((word) =>
+    withPassingAffixes(arbCasing(word)).map(
+      (text): GeneratedSpeechText => ({ text, rule, term: lowerTerm ? word.toLowerCase() : word }),
+    ),
+  );
+}
+
+/** One generator per rule (a) to (f); a word rule is left out when the case lists no word for it. */
+const FAILING_SPEECH_TEXT_ARBS: fc.Arbitrary<GeneratedSpeechText>[] = (() => {
+  const arbs: fc.Arbitrary<GeneratedSpeechText>[] = [
+    // (a) Empty or whitespace only (Unicode spaces included, as `trim` removes them).
+    fc
+      .constantFrom('', ' ', '   ', '\t', '\n', ' \t\n ', '\u00a0', '\u2003')
+      .map((text): GeneratedSpeechText => ({ text, rule: 'a', term: null })),
+    // (b) 201 to 230 code points of one passing character (astral characters count once).
+    fc
+      .tuple(fc.constantFrom('a', '.', 'é', '😨'), fc.integer({ min: 201, max: 230 }))
+      .map(([ch, n]): GeneratedSpeechText => ({ text: ch.repeat(n), rule: 'b', term: null })),
+  ];
+  const diagnosisTerms = (CASE.play?.diagnosisTerms ?? []).filter((t) => t.trim() !== '');
+  const forbiddenTerms = (CASE.play?.speech?.forbiddenTerms ?? []).filter((t) => t.trim() !== '');
+  if (diagnosisTerms.length > 0) arbs.push(arbWordRuleText('c', diagnosisTerms, false));
+  arbs.push(arbWordRuleText('d', ['left', 'right'], true));
+  if (forbiddenTerms.length > 0) arbs.push(arbWordRuleText('e', forbiddenTerms, false));
+  arbs.push(arbWordRuleText('f', ['he', 'his', 'him', 'himself'], true));
+  return arbs;
+})();
+
+/**
+ * Speech text for the shipped case: about half pass every rule, the rest each
+ * break exactly one rule (a) to (f), named in `rule` (and `term`). Tests check
+ * the label against `speechCheck` before they rely on it.
+ */
+export const arbSpeechText: fc.Arbitrary<GeneratedSpeechText> = fc.oneof(
+  {
+    weight: FAILING_SPEECH_TEXT_ARBS.length,
+    arbitrary: arbPassingSpeechText.map((text): GeneratedSpeechText => ({ text, rule: 'pass', term: null })),
+  },
+  ...FAILING_SPEECH_TEXT_ARBS.map((arbitrary) => ({ weight: 1, arbitrary })),
+);
+
+/**
+ * When a test provider settles: `'immediate'` (an already settled promise) or
+ * after a number of FakeClock milliseconds from its `speak` call.
+ */
+export type ProviderDelay = 'immediate' | number;
+
+/** Delays below, at and above the Provider_Timeout. */
+export const PROVIDER_DELAYS_MS = [
+  0,
+  1,
+  PROVIDER_TIMEOUT_MS / 2,
+  PROVIDER_TIMEOUT_MS - 1,
+  PROVIDER_TIMEOUT_MS,
+  PROVIDER_TIMEOUT_MS + 1,
+  2 * PROVIDER_TIMEOUT_MS,
+] as const;
+
+/** Values that are neither a string nor `null`/`undefined`, including falsy ones and a String object. */
+const NON_STRING_PROVIDER_VALUES: readonly unknown[] = [
+  42,
+  0,
+  Number.NaN,
+  false,
+  true,
+  {},
+  ['Please... stay with me.'],
+  Object('Please... stay with me.'),
+];
+
+/** What a test Speech_Provider does for one Speech_Request (patient-speech Property 7). */
+export type ProviderOutcome =
+  | { kind: 'text'; text: GeneratedSpeechText; delay: ProviderDelay }
+  | { kind: 'null'; delay: ProviderDelay }
+  | { kind: 'undefined'; delay: ProviderDelay }
+  | { kind: 'nonString'; value: unknown; delay: ProviderDelay }
+  | { kind: 'reject'; delay: ProviderDelay }
+  | { kind: 'throw' };
+
+const arbProviderDelay: fc.Arbitrary<ProviderDelay> = fc.oneof(
+  { weight: 1, arbitrary: fc.constant<ProviderDelay>('immediate') },
+  { weight: PROVIDER_DELAYS_MS.length, arbitrary: fc.constantFrom<ProviderDelay>(...PROVIDER_DELAYS_MS) },
+);
+
+/**
+ * Provider outcome: resolve with a passing text or a text breaking one rule
+ * (a) to (f) (`arbSpeechText`), with `null`, `undefined` or a non-string value,
+ * or reject, each at once or after a delay from `PROVIDER_DELAYS_MS`; or throw
+ * synchronously from `speak`.
+ */
+export const arbProviderOutcome: fc.Arbitrary<ProviderOutcome> = fc.oneof(
+  {
+    weight: 8,
+    arbitrary: fc
+      .record({ text: arbSpeechText, delay: arbProviderDelay })
+      .map((r): ProviderOutcome => ({ kind: 'text', ...r })),
+  },
+  { weight: 2, arbitrary: arbProviderDelay.map((delay): ProviderOutcome => ({ kind: 'null', delay })) },
+  { weight: 2, arbitrary: arbProviderDelay.map((delay): ProviderOutcome => ({ kind: 'undefined', delay })) },
+  {
+    weight: 1,
+    arbitrary: fc
+      .record({ value: fc.constantFrom(...NON_STRING_PROVIDER_VALUES), delay: arbProviderDelay })
+      .map((r): ProviderOutcome => ({ kind: 'nonString', ...r })),
+  },
+  { weight: 1, arbitrary: arbProviderDelay.map((delay): ProviderOutcome => ({ kind: 'reject', delay })) },
+  { weight: 1, arbitrary: fc.constant<ProviderOutcome>({ kind: 'throw' }) },
+);

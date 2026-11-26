@@ -122,20 +122,20 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 4.1, 4.6, 5.7, 5.8, 5.9**
 
-- [ ] 5. Speech_Provider seam
-  - [ ] 5.1 Implement `speechProvider.ts` and `speechGate.ts`
+- [x] 5. Speech_Provider seam
+  - [x] 5.1 Implement `speechProvider.ts` and `speechGate.ts`
     - Files: `apps/web/src/lib/speechProvider.ts` (new), `apps/web/src/lib/speechGate.ts` (new). No other file changes
     - `speechProvider.ts`: `SpeechContext`, `SpeechProvider`, `scriptedSpeechProvider` and `buildSpeechContext(state)` (newest 5 or fewer Active_Interventions and Active_Exam_Entries; `null` before the case and the current Branch are known), as the design states
     - `speechGate.ts`: `PROVIDER_TIMEOUT_MS = 5000`, `SpeechClock` and `createSpeechGate` with the six steps of `request` (abort the previous request, show the checked Scripted_Line synchronously, time out after 5 s, treat a synchronous throw as a rejection, discard Stale_Results, then `null`/`undefined` silences, passing text shows, anything else keeps the fallback) and `dispose`. No error message, no logging
     - No setting, environment variable, API key, network call or new dependency
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 11.3_
-  - [ ] 5.2 Write the gate unit tests
+  - [x] 5.2 Write the gate unit tests
     - Files: `apps/web/src/lib/speechGate.test.ts` (new). No other file changes
     - With `FakeClock` from `src/test/fakeClock.ts`, provider test doubles defined in the test file and `vi.spyOn(globalThis, 'fetch')`: valid text; `null` and `undefined`; text failing each rule (a) to (f); reject; synchronous throw; resolution after 5 s; resolution after a Branch change, after an Ending change and after a newer request; the previous signal is aborted on a new request; `dispose` aborts and clears the timer; the Scripted_Speech_Provider shows the checked Scripted_Line, and `null` for a failing line; `fetch` is never called
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.11, 12.5_
-  - [ ] 5.3 Write the property test for the gate
+  - [x] 5.3 Write the property test for the gate
     - **Property 7: The Displayed_Speech is never stale, late or unchecked**
     - Files: `apps/web/src/test/generators.ts`, `apps/web/src/lib/speechGate.test.ts`. No other file changes
     - Add `arbProviderOutcome` to `generators.ts`. Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 7: The Displayed_Speech is never stale, late or unchecked`
