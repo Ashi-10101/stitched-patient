@@ -90,6 +90,7 @@ function render(state: SessionUiState, notices: Partial<SimulationSessionNotices
         state,
         activeInterventions: [],
         statusSentence: null,
+        speech: null,
         actions: stubActions(),
         notices: { pauseFailed: false, streamError: null, ...notices },
       }}

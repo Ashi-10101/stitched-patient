@@ -9,6 +9,7 @@ import { PBT_PARAMS } from '@/test/pbt';
 import { playButtonText } from '@/lib/playCase';
 import type { Ending } from '@/lib/endingEvaluator';
 import { initialSessionState, sessionReducer, type SessionAction, type SessionUiState } from '@/lib/sessionState';
+import { checkedScriptedLine } from '@/lib/speechSelector';
 import type { SimulationSessionActions, SimulationSessionNotices } from '@/hooks/useSimulationSession';
 import { CASE } from '@/test/caseFixtures';
 import type { CaseData, SessionMetadata, VitalSigns } from '@/types';
@@ -105,12 +106,15 @@ function render(
   state: SessionUiState,
   notices: Partial<SimulationSessionNotices> = {},
   statusSentence: string | null = null,
+  /** The Displayed_Speech; by default the checked Scripted_Line, as the hook shows it. */
+  speech: string | null = checkedScriptedLine(state.speech, state.caseData),
 ): string {
   return renderToStaticMarkup(
     <PlayView
       sim={{
         state,
         statusSentence,
+        speech,
         actions: stubActions(),
         notices: { pauseFailed: false, streamError: null, ...notices },
       }}
@@ -426,7 +430,13 @@ describe('PlayView toolbarStart', () => {
   function renderWith(state: SessionUiState, props: Partial<Pick<Parameters<typeof PlayView>[0], 'toolbarStart'>>): string {
     return renderToStaticMarkup(
       <PlayView
-        sim={{ state, statusSentence: null, actions: stubActions(), notices: { pauseFailed: false, streamError: null } }}
+        sim={{
+          state,
+          statusSentence: null,
+          speech: checkedScriptedLine(state.speech, state.caseData),
+          actions: stubActions(),
+          notices: { pauseFailed: false, streamError: null },
+        }}
         {...props}
       />,
     );
@@ -788,5 +798,134 @@ describe('PlayView Intervention buttons after a Decompression and during a fork 
     expect(interventionsDisabled(inputOf(afterFailedFork, true))).toBe(true);
     expect(interventionsDisabled(inputOf(afterFailedFork, false))).toBe(false);
     expectAllEnabled(render(afterFailedFork));
+  });
+});
+
+describe('PlayView speech (patient-speech 4.8, 7.1, 7.2, 7.5 to 7.7, 7.9)', () => {
+  const SPEECH = CASE.play!.speech!;
+  const EARLY = SPEECH.early!;
+  const RESCUED_LINE = SPEECH.rescued![0];
+  const PLACEHOLDER = 'Placeholder speech line.';
+  const LIVE = 'data-part="speech-live"';
+
+  /** The escaping renderToStaticMarkup applies to text content. */
+  const esc = (text: string): string =>
+    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+
+  const count = (html: string, needle: string): number => html.split(needle).length - 1;
+
+  /** Text of every speech bubble in `html`, in order. */
+  const bubbles = (html: string): string[] =>
+    [...html.matchAll(/<div data-part="speech-bubble"[^>]*><p class="whitespace-pre-wrap">([^<]*)<\/p>/g)].map((m) => m[1]);
+
+  /** Content of every speech live region in `html`, in order. */
+  const liveRegions = (html: string): string[] =>
+    [...html.matchAll(/<div data-part="speech-live" class="sr-only" aria-live="polite" aria-atomic="true">(.*?)<\/div>/g)].map(
+      (m) => m[1],
+    );
+
+  const patientColumn = (html: string): string =>
+    html.slice(html.indexOf('data-part="patient-column"'), html.indexOf('data-part="action-column"'));
+
+  const at = (...times: number[]): SessionAction[] =>
+    times.map((t) => ({ type: 'sampleReceived', sample: sample(t) }) as SessionAction);
+
+  /** Before the 30 s insult: silent. From 30 s: the first `early` line. */
+  const BEFORE_INSULT = build(...LOADED, ...at(10));
+  const EARLY_0 = build(...LOADED, ...at(10, 30));
+
+  it('shows the Displayed_Speech in the patient-column bubble and in exactly one live region', () => {
+    // Not vacuous: the reducer fold gives the first `early` line, which passes the Speech_Check.
+    expect(EARLY_0.speech?.key).toBe('early');
+    expect(checkedScriptedLine(EARLY_0.speech, EARLY_0.caseData)).toBe(EARLY[0]);
+
+    const html = render(EARLY_0);
+    expect(bubbles(patientColumn(html))).toEqual([esc(EARLY[0])]);
+    expect(bubbles(html)).toHaveLength(1);
+    expect(count(html, LIVE)).toBe(1);
+    expect(liveRegions(html)).toEqual([`<p>${esc(EARLY[0])}</p>`]);
+    // The region follows the exam region and is not part of the StatusLine.
+    expect(html.indexOf(LIVE)).toBeGreaterThan(html.indexOf('data-part="exam-live"'));
+    expect(patientColumn(html)).not.toContain(LIVE);
+
+    // The bubble shows sim.speech (the Displayed_Speech), not the reducer's line.
+    const other = render(EARLY_0, {}, null, PLACEHOLDER);
+    expect(bubbles(other)).toEqual([PLACEHOLDER]);
+    expect(liveRegions(other)).toEqual([`<p>${PLACEHOLDER}</p>`]);
+  });
+
+  it('leaves the slot empty and the one live region empty without a Displayed_Speech', () => {
+    expect(BEFORE_INSULT.speech?.line).toBeNull();
+    for (const html of [render(BEFORE_INSULT), render(EARLY_0, {}, null, null)]) {
+      expect(html).not.toContain('data-part="speech-bubble"');
+      expect(count(html, LIVE)).toBe(1);
+      expect(liveRegions(html)).toEqual(['']);
+    }
+  });
+
+  it('renders the same markup for a repeated sample and new region content for a changed line', () => {
+    // The same sample again is not folded: the whole markup is equal.
+    const repeated = sessionReducer(EARLY_0, { type: 'sampleReceived', sample: sample(30) });
+    expect(render(repeated)).toBe(render(EARLY_0));
+
+    // A later sample with the same line keeps the same Speech_State and the same region.
+    const later = build(...LOADED, ...at(10, 30, 45));
+    expect(later.speech).toEqual(EARLY_0.speech);
+    expect(liveRegions(render(later))).toEqual(liveRegions(render(EARLY_0)));
+
+    // 30 s later the `early` list rotates to its second line: new content.
+    expect(EARLY.length).toBeGreaterThan(1);
+    const rotated = build(...LOADED, ...at(10, 30, 45, 60));
+    expect(rotated.speech?.index).toBe(1);
+    const html = render(rotated);
+    expect(liveRegions(html)).toEqual([`<p>${esc(EARLY[1])}</p>`]);
+    expect(liveRegions(html)).not.toEqual(liveRegions(render(EARLY_0)));
+    expect(bubbles(html)).toEqual([esc(EARLY[1])]);
+  });
+
+  it('keeps the Avatar aria-label equal to the Status_Sentence while speech shows', () => {
+    const sentence = 'He looks pale and is struggling to breathe.';
+    const html = render(EARLY_0, {}, sentence);
+    expect(bubbles(html)).toEqual([esc(EARLY[0])]);
+    expect(patientAvatarName(html)).toBe(sentence);
+    expect(patientAvatarName(render(EARLY_0, {}, null))).toBe(CASE.play?.status.defaultSentence);
+  });
+
+  it('with an Ending, the one live region is inside the Ending_Screen dialog and empty in static markup', () => {
+    for (const actions of [LOST, RESCUED]) {
+      const html = render(build(...actions));
+      const { view, ending } = splitAtEnding(html);
+      expect(ending).toMatch(/^<div role="dialog"/);
+      expect(count(html, LIVE)).toBe(1);
+      expect(view).not.toContain(LIVE);
+      expect(liveRegions(ending!)).toEqual(['']);
+    }
+  });
+
+  it('passes the rescued line to the Ending_Screen, and the lost screen shows no bubble', () => {
+    const rescued = build(...RESCUED);
+    expect(checkedScriptedLine(rescued.speech, rescued.caseData)).toBe(RESCUED_LINE);
+    const rescuedEnding = splitAtEnding(render(rescued)).ending!;
+    expect(bubbles(rescuedEnding)).toEqual([esc(RESCUED_LINE)]);
+    expect(rescuedEnding.match(/<div data-part="ending-avatar"[^>]*>/)![0]).not.toContain('margin-top');
+
+    const lost = build(...LOST);
+    expect(lost.speech?.line).toBeNull();
+    // Even with a Displayed_Speech, the lost screen shows no bubble.
+    for (const speech of [null, PLACEHOLDER]) {
+      const lostEnding = splitAtEnding(render(lost, {}, null, speech)).ending!;
+      expect(lostEnding).not.toContain('data-part="speech-bubble"');
+    }
+  });
+
+  it('renders no bubble and an empty live region for a case without play.speech (4.8)', () => {
+    const play = { ...CASE.play! };
+    delete play.speech;
+    const noSpeech: CaseData = { ...CASE, play };
+    const state = build(...loaded(noSpeech), ...at(10, 30, 60, 120));
+    expect(state.speech?.line ?? null).toBeNull();
+    const html = render(state);
+    expect(html).not.toContain('data-part="speech-bubble"');
+    expect(liveRegions(html)).toEqual(['']);
   });
 });

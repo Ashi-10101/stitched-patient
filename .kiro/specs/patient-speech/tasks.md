@@ -146,26 +146,26 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
   - Ensure all tests pass, ask the user if questions arise.
   - From `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
 
-- [ ] 7. Showing speech
-  - [ ] 7.1 Add `SpeechLiveRegion` and wire the gate into the session hook
+- [x] 7. Showing speech
+  - [x] 7.1 Add `SpeechLiveRegion` and wire the gate into the session hook
     - Files: `apps/web/src/components/SpeechLiveRegion.tsx` (new), `apps/web/src/hooks/useSimulationSession.ts`, `apps/web/src/hooks/useSimulationSession.test.ts` (only if existing assertions on the returned object need the new field). No other file changes
     - `SpeechLiveRegion` exactly as the design states (`data-part="speech-live"`, `sr-only`, `aria-live="polite"`, `aria-atomic="true"`, `fillAfterMount`)
     - In the hook: one `SpeechGate` created on mount with `scriptedSpeechProvider` and disposed on unmount, `displayedSpeech` state, `onDisplay` guarded by the mounted flag, and one effect keyed on `speechRequestKey(state.currentBranchId, state.speech)` that calls `gate.request(buildSpeechContext(stateRef.current))`. `SimulationSession` gains `speech: string | null`. The hook signature does not change and no option selects a provider
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 5.6, 5.9, 6.3, 6.4, 6.5, 6.10, 7.5_
-  - [ ] 7.2 Show speech in the Play_View and on the rescued Ending_Screen
+  - [x] 7.2 Show speech in the Play_View and on the rescued Ending_Screen
     - Files: `apps/web/src/components/PlayView.tsx`, `apps/web/src/components/EndingScreen.tsx`, `apps/web/src/components/PlayView.test.tsx`, `apps/web/src/components/EndingScreen.test.tsx`, and every other file that builds a PlayView `sim` (find them with a search for `<PlayView`; at least `SessionScreen.tsx` and `sideSymmetry.test.tsx`, where tests pass `speech: checkedScriptedLine(state.speech, state.caseData)`). No other file changes
     - `PlayView.tsx`: `sim` gains `speech`; the Avatar gets `speech={sim.speech ?? undefined}` with its `statusSentence` unchanged; a `SpeechLiveRegion` after the `exam-live` region while the Ending is `none`; `EndingScreen` gets `speech={sim.speech}`
     - `EndingScreen.tsx`: the optional `speech` prop, `showSpeech` only for `rescued` with non-blank text, the rescued layout of design D10 and "Layout" (no negative margin, overhead plus `SPEECH_BAND_HEIGHT`, widened bubble selector), `SpeechLiveRegion text={showSpeech ? speech : null} fillAfterMount` as the last child of the dialog container, and the file comment "never shows speech" replaced. The `lost` screen markup and style stay exactly as today
     - Tests (static markup): the bubble shows the Displayed_Speech; no bubble for `null`; exactly one `data-part="speech-live"` region holding the text or empty; the same markup for a repeated sample and new content for a changed line; the Ending_Screen region is inside the `role="dialog"` element and empty in static markup; no bubble and an unchanged Avatar wrapper style on the `lost` screen; the rescued screen with speech contains the bubble and no negative margin; the Avatar `aria-label` equals the Status_Sentence; a session without `play.speech` renders no bubble
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 4.8, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.9, 11.7, 12.6_
-  - [ ] 7.3 Test that the Clinician_View does not change
+  - [x] 7.3 Test that the Clinician_View does not change
     - Files: `apps/web/src/components/ClinicianView.test.tsx`. No other file changes; `ClinicianView.tsx` does not change
     - The Clinician_View renders equal markup for a case with and without `play.speech`, and contains no `speech-bubble` and no `speech-live` part
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 7.8, 12.6_
-  - [ ] 7.4 Extend the screen symmetry property test with speech
+  - [x] 7.4 Extend the screen symmetry property test with speech
     - **Property 9: Screen symmetry holds with speech (extends bedside-exam Property 17)**
     - Files: `apps/web/src/components/sideSymmetry.test.tsx`. No other file changes
     - Sample times of the generator cross the insult time and the hold; the PlayView `speech` comes from `checkedScriptedLine(state.speech, state.caseData)`; the markup compared includes the bubble and the speech live region. Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 9: Screen symmetry holds with speech`

@@ -325,3 +325,115 @@ describe('EndingScreen Side_Reveal_Text', () => {
     }
   });
 });
+
+/** Renders with an explicit `speech` and optional `sideRevealText`. */
+function renderWithSpeech(ending: EndingKind, speech: string | null | undefined, sideRevealText?: string): string {
+  return renderToStaticMarkup(
+    <EndingScreen
+      ending={ending}
+      params={BASE}
+      statusSentence={STATUS}
+      onRewind={noop}
+      onShowMonitor={noop}
+      sideRevealText={sideRevealText}
+      speech={speech}
+    />,
+  );
+}
+
+describe('EndingScreen speech (patient-speech 7.3, 7.4, 7.7, 7.9)', () => {
+  const RESCUED_LINE = CASE.play!.speech!.rescued![0];
+  const PLACEHOLDER = 'Placeholder speech line.';
+  const SIDE = 'Placeholder side text.';
+  const LIVE_EMPTY = '<div data-part="speech-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>';
+
+  const bubbles = (html: string): string[] =>
+    [...html.matchAll(/<div data-part="speech-bubble"[^>]*><p class="whitespace-pre-wrap">([^<]*)<\/p>/g)].map((m) => m[1]);
+
+  const wrapperTag = (html: string): string => html.match(/<div data-part="ending-avatar"[^>]*>/)![0];
+
+  it('shows the Displayed_Speech in the rescued bubble with no negative margin and the band budgeted', () => {
+    for (const text of [RESCUED_LINE, PLACEHOLDER]) {
+      const html = renderWithSpeech('rescued', text);
+      const { avatar } = split(html);
+      expect(bubbles(avatar)).toEqual([escapeHtml(text)]);
+      expect(bubbles(html)).toHaveLength(1);
+
+      const style = avatarWrapperStyle(html);
+      expect(style).not.toContain('margin');
+      expect(style).toContain(`- 11rem - ${SPEECH_BAND_HEIGHT}) * 200 / 280)`);
+      expect(style).toMatch(/width:min\(22rem,/);
+
+      const cls = wrapperTag(html).match(/class="([^"]*)"/)![1].replace(/&amp;/g, '&').split(/\s+/);
+      expect(cls).toEqual(
+        expect.arrayContaining([
+          'max-w-full',
+          '[&_[data-part=speech-bubble]]:left-1/2',
+          '[&_[data-part=speech-bubble]]:right-auto',
+          '[&_[data-part=speech-bubble]]:w-[min(28rem,calc(100vw-2rem))]',
+          '[&_[data-part=speech-bubble]]:max-w-none',
+          '[&_[data-part=speech-bubble]]:-translate-x-1/2',
+        ]),
+      );
+      expect(cls).not.toContain('[&_[data-part=speech-band]]:pointer-events-none');
+
+      // With a Side_Reveal_Text the with-side overhead is used, still without a margin.
+      const withSide = avatarWrapperStyle(renderWithSpeech('rescued', text, SIDE));
+      expect(withSide).not.toContain('margin');
+      expect(withSide).toContain(`- ${ENDING_OVERHEAD_WITH_SIDE} - ${SPEECH_BAND_HEIGHT}) * 200 / 280)`);
+    }
+  });
+
+  it('renders the markup of today for a rescued screen with null, blank or absent speech, plus the empty region', () => {
+    for (const side of [undefined, SIDE]) {
+      const today = renderWithSide('rescued', side);
+      for (const blank of [undefined, null, '', '  \n ']) {
+        const html = renderWithSpeech('rescued', blank, side);
+        expect(html).toBe(today);
+        expect(html).not.toContain('data-part="speech-bubble"');
+        expect(avatarWrapperStyle(html)).toContain(`margin-top:calc(-1 * ${SPEECH_BAND_HEIGHT})`);
+      }
+    }
+  });
+
+  it('keeps the lost screen markup and Avatar wrapper unchanged by any speech prop and shows no bubble', () => {
+    for (const side of [undefined, SIDE]) {
+      const without = renderWithSide('lost', side);
+      for (const speech of [RESCUED_LINE, PLACEHOLDER, null, '', undefined]) {
+        const html = renderWithSpeech('lost', speech, side);
+        expect(html).toBe(without);
+        expect(html).not.toContain('data-part="speech-bubble"');
+        expect(wrapperTag(html)).toBe(wrapperTag(without));
+      }
+      // The wrapper of today: class, negative margin and the height-derived width.
+      const tag = wrapperTag(without);
+      expect(tag).toContain('class="max-w-full [&amp;_[data-part=speech-band]]:pointer-events-none"');
+      const overhead = side === undefined ? '11rem' : ENDING_OVERHEAD_WITH_SIDE;
+      expect(avatarWrapperStyle(without)).toBe(
+        `margin-top:calc(-1 * ${SPEECH_BAND_HEIGHT});width:min(22rem, calc((100vh - var(--notice-h) - ${overhead}) * 200 / 280))`,
+      );
+      // The only speech element on the lost screen is the empty region at the end of the dialog.
+      expect(without.endsWith(`${LIVE_EMPTY}</div>`)).toBe(true);
+    }
+  });
+
+  it('has exactly one speech live region, the last child of the dialog, empty in static markup', () => {
+    for (const ending of ENDINGS) {
+      for (const speech of [RESCUED_LINE, null]) {
+        const html = renderWithSpeech(ending, speech);
+        expect(html.split('data-part="speech-live"')).toHaveLength(2);
+        expect(html).toMatch(/^<div[^>]*role="dialog"/);
+        // The region closes right before the dialog's own closing tag.
+        expect(html.endsWith(`${LIVE_EMPTY}</div>`)).toBe(true);
+        // Outside the centred flex column (it follows the column's closing tag).
+        expect(html.indexOf(LIVE_EMPTY)).toBeGreaterThan(html.lastIndexOf('</button>'));
+      }
+    }
+  });
+
+  it('keeps the Avatar aria-label equal to the statusSentence with speech', () => {
+    const html = renderWithSpeech('rescued', RESCUED_LINE);
+    expect(bubbles(html)).toEqual([escapeHtml(RESCUED_LINE)]);
+    expect(html).toContain(`<svg role="img" aria-label="${STATUS}"`);
+  });
+});

@@ -23,6 +23,9 @@ import { activeInterventions as selectActiveInterventions } from '@/lib/branchLi
 import { loadExamRecord, saveExamRecord } from '@/lib/examRecord';
 import { buildInterventionEntry, loadRecord, saveRecord } from '@/lib/interventionRecord';
 import { initialSessionState, sessionReducer, type SessionUiState, type View } from '@/lib/sessionState';
+import { createSpeechGate, type SpeechGate } from '@/lib/speechGate';
+import { buildSpeechContext, scriptedSpeechProvider } from '@/lib/speechProvider';
+import { speechRequestKey } from '@/lib/speechSelector';
 import { selectStatus } from '@/lib/statusSelector';
 import type {
   BranchMetadata,
@@ -205,6 +208,11 @@ export interface SimulationSession {
   activeInterventions: InterventionRecordEntry[];
   /** `null` when the case has no Play_Section. */
   statusSentence: string | null;
+  /**
+   * The Displayed_Speech (patient-speech D5), or `null` for silence. Set only by
+   * the SpeechGate; nothing else in the session reads it (6.10).
+   */
+  speech: string | null;
   actions: SimulationSessionActions;
   notices: SimulationSessionNotices;
 }
@@ -233,6 +241,49 @@ export function useSimulationSession(sessionId: string): SimulationSession {
       mountedRef.current = false;
     };
   }, []);
+
+  // Patient speech (patient-speech D5, 6.3 to 6.5). The Displayed_Speech lives
+  // here, outside the reducer, so no provider result reaches the Ending, the
+  // Status_Sentence or the Avatar (6.10). One gate per hook instance, created
+  // on first render with the Scripted_Speech_Provider (the only provider, no
+  // option selects another). Creating it has no side effect; `dispose` only
+  // aborts the pending request, so after a Strict Mode unmount and remount the
+  // same gate serves the remount and its request numbers keep increasing.
+  const [displayedSpeech, setDisplayedSpeech] = useState<string | null>(null);
+  const gateRef = useRef<SpeechGate | null>(null);
+  if (gateRef.current === null) {
+    gateRef.current = createSpeechGate({
+      provider: scriptedSpeechProvider,
+      current: () => ({
+        branchId: stateRef.current.currentBranchId,
+        ending: stateRef.current.ending.ending,
+      }),
+      onDisplay: (text) => {
+        if (mountedRef.current) setDisplayedSpeech(text);
+      },
+    });
+  }
+  useEffect(() => {
+    const gate = gateRef.current;
+    return () => {
+      gate?.dispose();
+    };
+  }, []);
+
+  // One Speech_Request per change of the Speech_State's key, index, `since` or
+  // Branch, or of the current Branch (6.4, D7). A sample that leaves the
+  // Speech_State unchanged, and a view switch, keep the key and issue nothing
+  // (5.9). A failed fork dispatches nothing, so the key and the Displayed_Speech
+  // stay (5.6). Declared after the mounted-flag effect, so `mountedRef` is true
+  // when the gate shows the Scripted_Line synchronously, also on a Strict Mode
+  // remount. Before the case and the current Branch are known the context is
+  // null and no request is issued; the Displayed_Speech is then still its
+  // initial null, because the reducer folds no Speech_State before both exist.
+  const requestKey = speechRequestKey(state.currentBranchId, state.speech);
+  useEffect(() => {
+    const context = buildSpeechContext(stateRef.current);
+    if (context !== null) gateRef.current?.request(context);
+  }, [requestKey]);
 
   /** A result for `sid` may still be dispatched: mounted and the session unchanged. */
   const isCurrent = useCallback((sid: string) => mountedRef.current && sessionIdRef.current === sid, []);
@@ -584,5 +635,5 @@ export function useSimulationSession(sessionId: string): SimulationSession {
     [pauseFailed, streamError],
   );
 
-  return { state, activeInterventions, statusSentence, actions, notices };
+  return { state, activeInterventions, statusSentence, speech: displayedSpeech, actions, notices };
 }

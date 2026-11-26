@@ -300,6 +300,61 @@
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795691246400
       }
+    ],
+    "7.1 Add `SpeechLiveRegion` and wire the gate into the session hook": [
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795691290134
+      },
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795691550951
+      }
+    ],
+    "7.2 Show speech in the Play_View and on the rescued Ending_Screen": [
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795691561714
+      },
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795692139016
+      }
+    ],
+    "7.3 Test that the Clinician_View does not change": [
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795692139194
+      },
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795692349545
+      }
+    ],
+    "7.4 Extend the screen symmetry property test with speech": [
+      {
+        "executionId": "38418408-9072-4a90-87f0-d1aab8321636",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795692349895
+      },
+      {
+        "executionId": "e6165dbe-fb14-4b7f-b8ba-cd4f5ecbe067",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795694623018
+      }
+    ],
+    "7. Showing speech": [
+      {
+        "executionId": "e6165dbe-fb14-4b7f-b8ba-cd4f5ecbe067",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795694623060
+      }
     ]
   }
 }

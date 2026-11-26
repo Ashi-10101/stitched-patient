@@ -12,12 +12,19 @@
  *
  * A non-blank `sideRevealText` (bedside-exam 12.2, 12.3) is shown in full
  * between the heading block and the Avatar, and the Avatar shrinks to make room.
+ *
+ * Speech (patient-speech Requirements 7.3, 7.4, 7.7; design D8 to D10,
+ * "EndingScreen.tsx", "Layout"): only the `rescued` screen with a non-blank
+ * `speech` shows the bubble. The speech live region is the last child of the
+ * dialog on both screens, empty until mount, and on the `lost` screen always
+ * empty.
  */
 
 'use client';
 
 import { useRef, type Ref } from 'react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { SpeechLiveRegion } from '@/components/SpeechLiveRegion';
 import { SPEECH_BAND_HEIGHT, StitchedPatient } from '@/components/StitchedPatient';
 import type { AvatarParameters } from '@/types';
 
@@ -60,6 +67,11 @@ export interface EndingScreenProps {
    * non-whitespace character (bedside-exam 12.2, 12.3).
    */
   sideRevealText?: string;
+  /**
+   * The Displayed_Speech (patient-speech 7.3, 7.7). Shown only on the `rescued`
+   * screen and only when it contains a non-whitespace character.
+   */
+  speech?: string | null;
 }
 
 /** Static corner cobweb: spokes from the top-right corner joined by sagging threads. */
@@ -103,9 +115,10 @@ const ENDING_OVERHEAD = '11rem';
 export const ENDING_OVERHEAD_WITH_SIDE = '14.75rem';
 
 /**
- * The Ending_Screen never shows speech, so the Avatar's empty speech band is
- * pulled up behind the heading, and the width comes from the height left below
- * the notice (drawing aspect 200 × 280), capped at 22rem.
+ * Without a shown speech (every `lost` screen, and a `rescued` screen without
+ * speech), the Avatar's empty speech band is pulled up behind the heading, and
+ * the width comes from the height left below the notice (drawing aspect
+ * 200 × 280), capped at 22rem.
  */
 function avatarWrapperStyle(overhead: string) {
   return {
@@ -116,6 +129,30 @@ function avatarWrapperStyle(overhead: string) {
 
 const AVATAR_WRAPPER_STYLE = avatarWrapperStyle(ENDING_OVERHEAD);
 const AVATAR_WRAPPER_STYLE_WITH_SIDE = avatarWrapperStyle(ENDING_OVERHEAD_WITH_SIDE);
+
+/**
+ * The `rescued` screen with speech (patient-speech D10, "Layout"): no negative
+ * margin, so the speech band sits between the text above and the drawing, and
+ * the band's height is budgeted on top of the overhead. At 1280 × 720 with a
+ * Side_Reveal_Text the drawing is (664 - 236 - 136) × 200 / 280 = 208.6 px wide.
+ */
+function speechAvatarWrapperStyle(overhead: string) {
+  return {
+    width: `min(22rem, calc((100vh - var(--notice-h) - ${overhead} - ${SPEECH_BAND_HEIGHT}) * 200 / 280))`,
+  } as const;
+}
+
+const SPEECH_AVATAR_WRAPPER_STYLE = speechAvatarWrapperStyle(ENDING_OVERHEAD);
+const SPEECH_AVATAR_WRAPPER_STYLE_WITH_SIDE = speechAvatarWrapperStyle(ENDING_OVERHEAD_WITH_SIDE);
+
+const AVATAR_WRAPPER_CLASS = 'max-w-full [&_[data-part=speech-band]]:pointer-events-none';
+
+/**
+ * With speech: the bubble is widened past the narrow Avatar to
+ * min(28rem, 100vw - 2rem) and centred on it; the band keeps pointer events.
+ */
+const SPEECH_AVATAR_WRAPPER_CLASS =
+  'max-w-full [&_[data-part=speech-bubble]]:left-1/2 [&_[data-part=speech-bubble]]:right-auto [&_[data-part=speech-bubble]]:w-[min(28rem,calc(100vw-2rem))] [&_[data-part=speech-bubble]]:max-w-none [&_[data-part=speech-bubble]]:-translate-x-1/2';
 
 const BUTTON_CLASS =
   'rounded-lg border-2 border-[var(--sp-accent)] px-4 py-2 text-base font-semibold text-[var(--sp-text)] hover:bg-[var(--sp-accent)] hover:text-[var(--sp-bg)]';
@@ -128,10 +165,21 @@ export function EndingScreen({
   onShowMonitor,
   rewindButtonRef,
   sideRevealText,
+  speech,
 }: EndingScreenProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   useFocusTrap(containerRef, { active: true });
   const showSide = sideRevealText !== undefined && sideRevealText.trim() !== '';
+  // The speech shown on this screen: only `rescued`, only non-blank (7.3, 7.4).
+  const shownSpeech = ending === 'rescued' && typeof speech === 'string' && /\S/.test(speech) ? speech : null;
+  const showSpeech = shownSpeech !== null;
+  const avatarStyle = showSpeech
+    ? showSide
+      ? SPEECH_AVATAR_WRAPPER_STYLE_WITH_SIDE
+      : SPEECH_AVATAR_WRAPPER_STYLE
+    : showSide
+      ? AVATAR_WRAPPER_STYLE_WITH_SIDE
+      : AVATAR_WRAPPER_STYLE;
 
   return (
     <div
@@ -155,10 +203,15 @@ export function EndingScreen({
         )}
         <div
           data-part="ending-avatar"
-          className="max-w-full [&_[data-part=speech-band]]:pointer-events-none"
-          style={showSide ? AVATAR_WRAPPER_STYLE_WITH_SIDE : AVATAR_WRAPPER_STYLE}
+          className={showSpeech ? SPEECH_AVATAR_WRAPPER_CLASS : AVATAR_WRAPPER_CLASS}
+          style={avatarStyle}
         >
-          <StitchedPatient params={params} statusSentence={statusSentence} variant={ending} />
+          <StitchedPatient
+            params={params}
+            statusSentence={statusSentence}
+            speech={shownSpeech ?? undefined}
+            variant={ending}
+          />
         </div>
         <div className="flex flex-wrap justify-center gap-3">
           {endingControls(ending).map((control) =>
@@ -187,6 +240,9 @@ export function EndingScreen({
           )}
         </div>
       </div>
+      {/* The one speech live region while the dialog is open, outside the flex
+          column so it adds no gap; filled after mount (patient-speech 7.7, D8, D9). */}
+      <SpeechLiveRegion text={shownSpeech} fillAfterMount />
     </div>
   );
 }

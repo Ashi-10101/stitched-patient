@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { getAlarmBgColor, getAlarmColor, getAlarmState } from '@/lib/alarms';
 import { initialSessionState, sessionReducer, type SessionAction, type SessionUiState } from '@/lib/sessionState';
-import type { SimulationSessionActions, SimulationSessionNotices } from '@/hooks/useSimulationSession';
+import type {
+  SimulationSession,
+  SimulationSessionActions,
+  SimulationSessionNotices,
+} from '@/hooks/useSimulationSession';
 import { buildInterventionEntry } from '@/lib/interventionRecord';
+import { checkedScriptedLine, type SpeechKey } from '@/lib/speechSelector';
 import { CASE, CASE_LEFT, CASE_RIGHT } from '@/test/caseFixtures';
 import type { CaseData, SessionMetadata, VitalSigns } from '@/types';
 import {
@@ -402,5 +407,107 @@ describe('ClinicianView action error and pause notice', () => {
     const html = render(build(...LOADED, { type: 'sampleReceived', sample: sample(10) }), { pauseFailed: true });
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('That didn&#x27;t work. Please try again.');
+  });
+});
+
+describe('ClinicianView without patient speech (patient-speech 7.8, 12.6)', () => {
+  const SPEECH = CASE.play!.speech!;
+  const CRITICAL_SPO2_SENTENCE = 'His lips are turning blue and he is fighting for breath.';
+  /** Every Speech_Line of the case: Status_Speech_Entries, Early_Lines and Rescued_Lines. */
+  const ALL_LINES = [...(SPEECH.status ?? []).flatMap((e) => e.lines), ...(SPEECH.early ?? []), ...(SPEECH.rescued ?? [])];
+
+  /** The case with `play.speech` deleted and nothing else changed. */
+  const NO_SPEECH_CASE: CaseData = structuredClone(CASE);
+  delete NO_SPEECH_CASE.play!.speech;
+
+  /** The escaping renderToStaticMarkup applies to text content. */
+  const esc = (text: string): string =>
+    text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+
+  const loadedWith = (caseData: CaseData): SessionAction[] => [
+    { type: 'caseLoaded', caseData, storedView: 'clinician' },
+    ...LOADED.slice(1),
+  ];
+
+  const at = (...times: number[]): SessionAction[] =>
+    times.map((t) => ({ type: 'sampleReceived', sample: sample(t) }) as SessionAction);
+
+  /** The session actions after the case loads, for one named moment. */
+  const MOMENTS: Array<{ name: string; key: SpeechKey; steps: (caseData: CaseData) => SessionAction[] }> = [
+    { name: 'before the insult', key: 'silent', steps: () => at(10) },
+    { name: 'the first early line', key: 'early', steps: () => at(10, 30) },
+    {
+      name: 'a Status_Rule line (critical SpO2)',
+      key: `status:${CRITICAL_SPO2_SENTENCE}`,
+      steps: () => [...at(10, 30), { type: 'sampleReceived', sample: sample(45, { spo2: 0.8 }) }],
+    },
+    {
+      name: 'the rescued Ending',
+      key: 'rescued',
+      steps: (caseData) => [
+        {
+          type: 'interventionSucceeded',
+          entry: buildInterventionEntry(caseData.interventions.find((i) => i.id === 'needle-decompression-left')!, 40, 'b1'),
+        },
+        ...at(40, 70),
+      ],
+    },
+  ];
+
+  /**
+   * Renders the Clinician_View with a whole session object, as SessionScreen
+   * passes the hook result: `speech` is the Displayed_Speech that the hook
+   * would show, the checked Scripted_Line. ClinicianViewProps picks only
+   * `state`, `actions` and `notices`, so `speech` is present but not read.
+   */
+  function renderSession(state: SessionUiState): { html: string; speech: string | null } {
+    const speech = checkedScriptedLine(state.speech, state.caseData);
+    const sim: SimulationSession = {
+      state,
+      activeInterventions: [],
+      statusSentence: null,
+      speech,
+      actions: stubActions(),
+      notices: { pauseFailed: false, streamError: null },
+    };
+    return { html: renderToStaticMarkup(<ClinicianView sim={sim} />), speech };
+  }
+
+  it('the case has a Speech_Section and the copy has none', () => {
+    expect(ALL_LINES.length).toBeGreaterThan(0);
+    expect(CASE.play?.speech).toBeDefined();
+    expect(NO_SPEECH_CASE.play).toBeDefined();
+    expect(NO_SPEECH_CASE.play?.speech).toBeUndefined();
+  });
+
+  it.each(MOMENTS)('renders equal markup with and without play.speech at $name', ({ key, steps }) => {
+    const withSpeech = build(...loadedWith(CASE), ...steps(CASE));
+    const withoutSpeech = build(...loadedWith(NO_SPEECH_CASE), ...steps(NO_SPEECH_CASE));
+
+    // Not vacuous: with the Speech_Section the state holds the expected Speech_Key
+    // and, except before the insult, a line that passes the Speech_Check.
+    expect(withSpeech.speech?.key).toBe(key);
+    expect(withoutSpeech.speech?.line ?? null).toBeNull();
+    expect(withoutSpeech.ending.ending).toBe(withSpeech.ending.ending);
+
+    const a = renderSession(withSpeech);
+    const b = renderSession(withoutSpeech);
+    expect(b.speech).toBeNull();
+    if (key === 'silent') {
+      expect(a.speech).toBeNull();
+    } else {
+      expect(a.speech).not.toBeNull();
+      expect(a.speech).toBe(withSpeech.speech?.line);
+    }
+
+    expect(a.html).toBe(b.html);
+    for (const html of [a.html, b.html]) {
+      expect(html).not.toContain('data-part="speech-bubble"');
+      expect(html).not.toContain('data-part="speech-live"');
+      for (const line of ALL_LINES) {
+        expect(html).not.toContain(esc(line));
+        expect(html).not.toContain(line);
+      }
+    }
   });
 });

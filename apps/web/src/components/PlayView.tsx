@@ -36,6 +36,12 @@
  * the findings column with the Findings_List and the Hint and Rewind row. The
  * height is fixed only at 1280 x 720 and larger; otherwise the page scrolls.
  * Without `play.exam` the markup is exactly the two-column one above (4.6).
+ *
+ * Speech (patient-speech Requirements 7.1, 7.2, 7.5, 7.6, 7.9; design
+ * "PlayView.tsx"): `sim.speech` (the Displayed_Speech) fills the Avatar's
+ * Speech_Bubble_Slot, which the arithmetic above already reserves, and a
+ * visually hidden polite region after the exam region while there is no
+ * Ending. The Avatar's accessible name stays the Status_Sentence.
  */
 
 'use client';
@@ -55,6 +61,7 @@ import { HintPanel } from './HintPanel';
 import { InterventionPanel, NOT_AVAILABLE_TEXT } from './InterventionPanel';
 import { PlaybackControls } from './PlaybackControls';
 import { RewindPanel } from './RewindPanel';
+import { SpeechLiveRegion } from './SpeechLiveRegion';
 import { StatusLine } from './StatusLine';
 import { SPEECH_BAND_HEIGHT, StitchedPatient } from './StitchedPatient';
 import { Toast } from './Toast';
@@ -131,7 +138,7 @@ const NOTICE_CLASS =
   'rounded-lg border-2 border-[var(--sp-accent)] bg-[var(--sp-bg)] px-4 py-3 text-base font-semibold text-[var(--sp-text)] shadow-lg';
 
 export interface PlayViewProps {
-  sim: Pick<SimulationSession, 'state' | 'statusSentence' | 'actions' | 'notices'>;
+  sim: Pick<SimulationSession, 'state' | 'statusSentence' | 'speech' | 'actions' | 'notices'>;
   /**
    * Optional content at the start of the playback-controls row (e.g. the
    * View_Switcher). When given, it and the playback controls share one flex
@@ -332,7 +339,12 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
             }
             style={AVATAR_WRAPPER_STYLE}
           >
-            <StitchedPatient params={state.avatar} statusSentence={statusSentence} variant="live" />
+            <StitchedPatient
+              params={state.avatar}
+              statusSentence={statusSentence}
+              speech={sim.speech ?? undefined}
+              variant="live"
+            />
           </div>
           <StatusLine overallStatus={state.avatar.overallStatus} statusSentence={statusSentence} />
         </div>
@@ -378,6 +390,11 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
         </div>
       )}
 
+      {/* The speech live region, separate from the StatusLine's and the exam
+          region; while an Ending is shown the Ending_Screen holds it instead
+          (patient-speech 7.5 to 7.7, D8). */}
+      {ending === 'none' && <SpeechLiveRegion text={sim.speech} />}
+
       {/* One fixed stack, centred at the bottom, so the toast and the lasting notices
           never overlap. The Toast positions itself as fixed; inside the stack it is
           made static and its centring shift is cancelled. The toast sits above the
@@ -410,6 +427,7 @@ export function PlayView({ sim, toolbarStart }: PlayViewProps) {
           onShowMonitor={showMonitor}
           rewindButtonRef={endingRewindButtonRef}
           sideRevealText={play.sideRevealText}
+          speech={sim.speech}
         />
       )}
 

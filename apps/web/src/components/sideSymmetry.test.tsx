@@ -10,13 +10,18 @@
  * "remaining" wording (Goal bar `M:SS left` and `Time left`, Hint button texts).
  *
  * Requirements 9.6, 10.4, 10.6, 10.7, 10.8, 10.9, 11.5, 12.6, 14.2.
+ *
+ * patient-speech task 7.4 adds Property 9 at the end of this file: the same
+ * symmetry with speech, over runs that cross the insult time, the hold,
+ * rotation, the mirrored needle and both Endings (Requirement 8.4).
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import fc from 'fast-check';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { examButtons, isSidedAction } from '@/lib/examFinding';
-import { playButtonText } from '@/lib/playCase';
+import { buildInterventionEntry } from '@/lib/interventionRecord';
+import { interventionSide, playButtonText } from '@/lib/playCase';
 import {
   initialSessionState,
   sessionReducer,
@@ -25,15 +30,16 @@ import {
   type View,
 } from '@/lib/sessionState';
 import { computeSides } from '@/lib/sides';
+import { checkedScriptedLine, targetSpeechKey } from '@/lib/speechSelector';
 import { selectStatus } from '@/lib/statusSelector';
 import { formatMSS, remainingSeconds } from '@/lib/timeFormat';
 import type { SimulationSessionActions, SimulationSessionNotices } from '@/hooks/useSimulationSession';
 import { CASE_LEFT, CASE_RIGHT } from '@/test/caseFixtures';
 import { PBT_PARAMS } from '@/test/pbt';
-import type { CaseData, PlaybackSpeed, SessionMetadata, VitalSigns } from '@/types';
+import type { CaseData, PlaybackSpeed, SessionMetadata, Side, VitalSigns } from '@/types';
 import { ClinicianView } from './ClinicianView';
 import { hintButtonText, NO_HINTS_LEFT_TEXT } from './HintPanel';
-import { PlayView } from './PlayView';
+import { NOT_AVAILABLE_TEXT, PlayView } from './PlayView';
 
 // ---------------------------------------------------------------------------
 // Fixtures and helpers (copied in small form from PlayView.test.tsx and sessionState.test.ts)
@@ -84,7 +90,17 @@ function renderBoth(state: SessionUiState): { play: string; clinician: string } 
       ? selectStatus(state.latestSample, caseData.alarms, caseData.play)
       : null;
   return {
-    play: renderToStaticMarkup(<PlayView sim={{ state, statusSentence, actions: stubActions(), notices: NOTICES }} />),
+    play: renderToStaticMarkup(
+      <PlayView
+        sim={{
+          state,
+          statusSentence,
+          speech: checkedScriptedLine(state.speech, state.caseData),
+          actions: stubActions(),
+          notices: NOTICES,
+        }}
+      />,
+    ),
     clinician: renderToStaticMarkup(<ClinicianView sim={{ state, actions: stubActions(), notices: NOTICES }} />),
   };
 }
@@ -501,4 +517,374 @@ describe('screen symmetry across Variants (bedside-exam 16.1)', () => {
       );
     });
   });
+});
+
+// ---------------------------------------------------------------------------
+// patient-speech task 7.4: Property 9, screen symmetry with speech
+//
+// The generator of Property 17 above, extended so that runs cross the
+// Earliest_Insult_Time and the hold, stay on one Speech_Key long enough to
+// rotate and wrap, apply the needle and reach both Endings:
+// - `burst`: `count` samples `step` s apart with the same vitals;
+// - `needle`: the needle on the Variant's affected side, or on the other side.
+//   The same op is the left needle in the `left` run and the right needle in
+//   the `right` run (or the reverse for `other`), so the two runs stay mirror
+//   images of each other;
+// - a sample of SpO2 0.8, below the Lost_Condition, so `lost` is reachable.
+// The vitals are test inputs, not clinical values.
+//
+// Before a needle and without an Ending both views must render the same
+// markup string, as in Property 17. A needle or an Ending puts side-specific
+// marks on the chest drawing and shows the Variant's own Side_Reveal_Text, so
+// from then on the markup is compared after `mirrorNormalised`, which changes
+// only those marks and that one element. The speech bubble and the speech live
+// region are never normalised, and their texts are also compared directly.
+// ---------------------------------------------------------------------------
+
+type SampleOp = Extract<Op, { kind: 'sample' }>;
+type SampleVitals = Omit<SampleOp, 'kind' | 'offset'>;
+type NeedleOp = { kind: 'needle'; which: 'affected' | 'other' };
+
+type Op9 =
+  | Op
+  /** `count` samples `step` s apart with the same vitals: a steady stretch. */
+  | { kind: 'burst'; step: number; count: number; vitals: SampleVitals }
+  | NeedleOp;
+
+/** Every vital in its normal band: the `defaultSentence`, and the rescue conditions hold. */
+const CALM: SampleVitals = { heartRate: 80, spo2: 0.97, map: 90, tidalVolume: 500 };
+/** SpO2 below the case's Lost_Condition (SpO2 < 0.85). */
+const LOW_SPO2: SampleVitals = { heartRate: 125, spo2: 0.8, map: 90, tidalVolume: 480 };
+
+const arbVitals9: fc.Arbitrary<SampleVitals> = fc.oneof(
+  { weight: 3, arbitrary: fc.constant(CALM) },
+  {
+    weight: 3,
+    arbitrary: fc.record({
+      heartRate: fc.constantFrom(80, 125, 170),
+      spo2: fc.constantFrom(0.97, 0.9, 0.86),
+      map: fc.constantFrom(90, 65),
+      tidalVolume: fc.constantFrom(0, 480, 500),
+    }),
+  },
+  { weight: 1, arbitrary: fc.constant(LOW_SPO2) },
+);
+
+function arbSample9(offset: fc.Arbitrary<number>): fc.Arbitrary<Op9> {
+  return fc.tuple(offset, arbVitals9).map(([o, v]): Op9 => ({ kind: 'sample', offset: o, ...v }));
+}
+
+/** Steps of 2 to 6 s: up to 5 s a burst also starts a new Branch (STALE_TOLERANCE_S). */
+const arbBurstOp: fc.Arbitrary<Op9> = fc.record({
+  kind: fc.constant('burst' as const),
+  step: fc.integer({ min: 2, max: 6 }),
+  count: fc.integer({ min: 2, max: 12 }),
+  vitals: arbVitals9,
+});
+const arbNeedleOp: fc.Arbitrary<Op9> = fc.oneof(
+  { weight: 3, arbitrary: fc.constant<Op9>({ kind: 'needle', which: 'affected' }) },
+  { weight: 1, arbitrary: fc.constant<Op9>({ kind: 'needle', which: 'other' }) },
+);
+
+/** Up to three samples 1 to 9 s apart from t = 0, so all of them lie before INSULT_TIME (30 s). */
+const arbPreInsult: fc.Arbitrary<Op9[]> = fc.array(arbSample9(fc.integer({ min: 1, max: 9 })), { maxLength: 3 });
+
+const arbMixed9: fc.Arbitrary<Op9[]> = fc
+  .array(
+    fc.oneof(
+      { weight: 3, arbitrary: arbSample9(fc.integer({ min: 1, max: 24 }).map((n) => n / 2)) },
+      { weight: 2, arbitrary: arbSample9(fc.integer({ min: 60, max: 80 }).map((n) => n / 2)) },
+      { weight: 4, arbitrary: arbBurstOp },
+      { weight: 2, arbitrary: arbNeedleOp },
+      { weight: 2, arbitrary: arbExamOp },
+      { weight: 1, arbitrary: arbViewOp },
+      { weight: 1, arbitrary: arbPlaybackOp },
+      { weight: 2, arbitrary: arbForkOp },
+      { weight: 1, arbitrary: arbHintOp },
+    ),
+    { maxLength: 8, size: 'max' },
+  )
+  .map((ops) => {
+    let hints = 0;
+    return ops.filter((op) => op.kind !== 'hint' || ++hints <= MAX_HINT_REVEALS);
+  });
+
+/**
+ * Tail toward `rescued`: 35 to 70 s of calm vitals (past INSULT_TIME, so the
+ * needle is a Gate_Entry; long enough for the `early` lines to rotate and often
+ * to wrap), the affected-side needle, then calm vitals for longer than the
+ * rescue Hold_Duration (30 s). Steps of at most 5 s, so the tail also runs on a
+ * Branch that a fork has just started.
+ */
+const arbRescueTail: fc.Arbitrary<Op9[]> = fc
+  .tuple(fc.integer({ min: 7, max: 14 }), fc.integer({ min: 3, max: 5 }))
+  .map(([calmCount, step]): Op9[] => [
+    { kind: 'burst', step: 5, count: calmCount, vitals: CALM },
+    { kind: 'needle', which: 'affected' },
+    { kind: 'burst', step, count: Math.ceil(30 / step) + 2, vitals: CALM },
+  ]);
+/** Tail toward `lost`: SpO2 below the Lost_Condition for longer than its Hold_Duration (30 s). */
+const arbLostTail: fc.Arbitrary<Op9[]> = fc.constant<Op9[]>([{ kind: 'burst', step: 5, count: 8, vitals: LOW_SPO2 }]);
+
+const arbOps9: fc.Arbitrary<Op9[]> = fc
+  .tuple(
+    arbPreInsult,
+    arbMixed9,
+    fc.oneof(
+      { weight: 3, arbitrary: arbRescueTail },
+      { weight: 1, arbitrary: arbLostTail },
+      { weight: 1, arbitrary: fc.constant<Op9[]>([]) },
+    ),
+  )
+  .map(([pre, mixed, tail]) => [...pre, ...mixed, ...tail]);
+
+/** A burst becomes its samples; every other op stays one step. */
+function microOps(op: Op9): (Op | NeedleOp)[] {
+  if (op.kind !== 'burst') return [op];
+  return Array.from({ length: op.count }, (): Op => ({ kind: 'sample', offset: op.step, ...op.vitals }));
+}
+
+/** `parameters.side` of the Variant's Tension Pneumothorax insult. */
+function affectedSide(caseData: CaseData): Side {
+  const side = caseData.timeline!.scheduledInsults.find((i) => i.action === 'SETensionPneumothorax')!.parameters.side;
+  if (side !== 'Left' && side !== 'Right') throw new Error(`unexpected insult side ${String(side)}`);
+  return side;
+}
+
+/**
+ * The needle Intervention as the hook records it (`buildInterventionEntry` at
+ * the current Simulation_Time on the current Branch). `null` after an Ending,
+ * because the Play_View disables the Intervention buttons then (play-mode 7.7).
+ */
+function needleAction(run: Run, op: NeedleOp): SessionAction | null {
+  const { state } = run;
+  if (state.ending.ending !== 'none') return null;
+  const caseData = state.caseData!;
+  const affected = affectedSide(caseData);
+  const side: Side = op.which === 'affected' ? affected : affected === 'Left' ? 'Right' : 'Left';
+  const intervention = caseData.interventions.find((i) => interventionSide(i) === side)!;
+  const now = state.latestSample?.simulation_time ?? run.branchStart;
+  return { type: 'interventionSucceeded', entry: buildInterventionEntry(intervention, now, state.currentBranchId!) };
+}
+
+function step9(run: Run, op: Op | NeedleOp, i: number): void {
+  if (op.kind !== 'needle') {
+    step(run, op, i);
+    return;
+  }
+  const action = needleAction(run, op);
+  if (action !== null) run.state = sessionReducer(run.state, action);
+}
+
+const SIDE_MARK = /<(?:rect|line)\s[^>]*?data-side="(Left|Right)"[^>]*>(?:<\/(?:rect|line)>)?/g;
+const SIDE_MARK_TOKEN = /<side-mark [^>]*><\/side-mark>/g;
+const SIDE_MARK_RUN = /(?:<side-mark [^>]*><\/side-mark>)+/g;
+const SIDE_REVEAL_OPEN = '<p data-part="side-reveal" class="text-base">';
+
+/**
+ * Mirror normalisation for one Variant's markup. Changes only:
+ * - each chest element with `data-side` (chest half, needle, bandage): it
+ *   becomes a token with its `data-part` and whether its side is the Variant's
+ *   affected side or the other side; the tokens of one block are sorted,
+ *   because the Avatar draws the sides in a fixed Left, Right order;
+ * - the Variant's own Side_Reveal_Text inside the `side-reveal` element.
+ * Text anywhere else, the speech bubble and the speech live region included,
+ * stays as rendered.
+ */
+function mirrorNormalised(html: string, caseData: CaseData): string {
+  const affected = affectedSide(caseData);
+  const tokens = html.replace(SIDE_MARK, (mark: string, side: string) => {
+    const part = /data-part="([^"]*)"/.exec(mark)?.[1] ?? '';
+    return `<side-mark data-part="${part}" data-relative="${side === affected ? 'affected' : 'other'}"></side-mark>`;
+  });
+  const sorted = tokens.replace(SIDE_MARK_RUN, (block) => (block.match(SIDE_MARK_TOKEN) ?? []).sort().join(''));
+  const reveal = `${SIDE_REVEAL_OPEN}${escapeHtml(caseData.play!.sideRevealText!)}</p>`;
+  return sorted.split(reveal).join(`${SIDE_REVEAL_OPEN}[Side_Reveal_Text]</p>`);
+}
+
+/** Text of every speech bubble, in markup order (the Avatar's `speech-bubble` part). */
+function bubbleTexts(html: string): string[] {
+  return [...html.matchAll(/data-part="speech-bubble"[^>]*><p class="whitespace-pre-wrap">([^<]*)<\/p>/g)].map((m) =>
+    decodeHtml(m[1]),
+  );
+}
+
+/** Text of every speech live region (`speech-live`), in markup order; '' for an empty region. */
+function liveRegionTexts(html: string): string[] {
+  return [...html.matchAll(/<div data-part="speech-live"[^>]*>(.*?)<\/div>/g)].map((m) =>
+    decodeHtml(m[1].replace(/<[^>]*>/g, '')),
+  );
+}
+
+/** The markup from the Ending_Screen's dialog element on, or '' without an Ending_Screen. */
+function endingScreenMarkup(html: string): string {
+  const at = html.indexOf('data-part="ending-screen"');
+  return at < 0 ? '' : html.slice(at);
+}
+
+const GUARDS = [
+  'speechShown',
+  'silenceBeforeInsult',
+  'firstEarly',
+  'keyChange',
+  'held',
+  'rotation',
+  'rotationFromZero',
+  'wrap',
+  'statusLine',
+  'rescuedOnEndingScreen',
+  'lostEnding',
+  'silenceAfterGateOpens',
+] as const;
+type Guard = (typeof GUARDS)[number];
+type Coverage = Record<Guard, number>;
+
+function emptyCoverage(): Coverage {
+  return Object.fromEntries(GUARDS.map((g) => [g, 0])) as Coverage;
+}
+
+/**
+ * Counts what one accepted step of one run reached. `prev` and `next` are the
+ * run's states around the step; `play` is `next`'s Play_View markup.
+ */
+function observe(cov: Coverage, prev: SessionUiState, next: SessionUiState, op: Op | NeedleOp, play: string): void {
+  const caseData = next.caseData!;
+  const speech = checkedScriptedLine(next.speech, caseData);
+  const bubbles = bubbleTexts(play);
+  const ending = next.ending.ending;
+  if (speech !== null && bubbles.includes(speech)) cov.speechShown += 1;
+  if (ending === 'lost' && bubbles.length === 0) cov.lostEnding += 1;
+  if (
+    ending === 'rescued' &&
+    next.speech?.key === 'rescued' &&
+    speech !== null &&
+    bubbleTexts(endingScreenMarkup(play)).includes(speech)
+  ) {
+    cov.rescuedOnEndingScreen += 1;
+  }
+
+  // The rest needs a sample that was folded into the Speech_State.
+  const folded = op.kind === 'sample' && next.speechLastTime !== prev.speechLastTime && next.latestSample !== null;
+  if (!folded || next.speech === null) return;
+  const t = next.latestSample!.simulation_time;
+  const before = prev.speech;
+  const after = next.speech;
+  const gate = prev.endingCtx.rescueGateTime;
+  const sameBranch = before !== null && before.branchId === after.branchId;
+
+  if (t < INSULT_TIME && after.key === 'silent' && bubbles.length === 0) cov.silenceBeforeInsult += 1;
+  if (after.key === 'early' && after.index === 0 && (!sameBranch || before!.key !== 'early')) cov.firstEarly += 1;
+  if (sameBranch && before!.key !== after.key) cov.keyChange += 1;
+  if (
+    sameBranch &&
+    after === before &&
+    targetSpeechKey({ sample: next.latestSample, caseData, ending, simulationTime: t, rescueGateTime: gate }) !==
+      before!.key
+  ) {
+    cov.held += 1;
+  }
+  if (sameBranch && before!.key === after.key && before!.index !== after.index) {
+    cov.rotation += 1;
+    if (before!.index === 0) cov.rotationFromZero += 1;
+    if (after.index === 0) cov.wrap += 1;
+  }
+  if (after.key.startsWith('status:') && speech !== null && bubbles.includes(speech)) cov.statusLine += 1;
+  if (
+    ending === 'none' &&
+    gate !== null &&
+    Number.isFinite(gate) &&
+    gate <= t &&
+    after.key === 'silent' &&
+    bubbles.length === 0
+  ) {
+    cov.silenceAfterGateOpens += 1;
+  }
+}
+
+/** Before any needle and without an Ending, the conditions of Property 17 hold. */
+function unmirrored(state: SessionUiState): boolean {
+  return state.ending.ending === 'none' && state.interventionRecord.length === 0;
+}
+
+describe('screen symmetry with speech (patient-speech 7.4)', () => {
+  // Feature: patient-speech, Property 9: Screen symmetry holds with speech
+  it('Property 9: Screen symmetry holds with speech', () => {
+    /** Validates: Requirements 8.4 */
+    const coverage: Record<string, Coverage> = { left: emptyCoverage(), right: emptyCoverage() };
+    expect(CASE_RIGHT.play!.speech).toEqual(CASE_LEFT.play!.speech);
+    expect(affectedSide(CASE_LEFT)).toBe('Left');
+    expect(affectedSide(CASE_RIGHT)).toBe('Right');
+
+    fc.assert(
+      fc.property(arbOps9, (ops) => {
+        const runs = VARIANTS.map(({ id, caseData }) => ({ id, caseData, run: startRun(caseData, id) }));
+        let i = 0;
+        for (const op of ops.flatMap(microOps)) {
+          const prevStates = runs.map((r) => r.run.state);
+          for (const r of runs) step9(r.run, op, i);
+          i += 1;
+          expect(runs.every((r) => r.run.state.hintsRevealed < HINT_COUNT)).toBe(true);
+
+          const [left, right] = runs;
+          const a = renderBoth(left.run.state);
+          const b = renderBoth(right.run.state);
+
+          // The speech itself: the same Displayed_Speech, bubbles and live region.
+          expect(checkedScriptedLine(right.run.state.speech, right.caseData)).toBe(
+            checkedScriptedLine(left.run.state.speech, left.caseData),
+          );
+          expect(bubbleTexts(b.play)).toEqual(bubbleTexts(a.play));
+          expect(liveRegionTexts(b.play)).toEqual(liveRegionTexts(a.play));
+          // Exactly one speech live region at a time (patient-speech 7.5, 7.7, D8).
+          expect(liveRegionTexts(a.play)).toHaveLength(1);
+
+          // The whole markup: exactly equal under the conditions of Property 17,
+          // and equal after the mirror normalisation always.
+          if (unmirrored(left.run.state) && unmirrored(right.run.state)) {
+            expectSameMarkup('PlayView', a.play, b.play);
+            expectSameMarkup('ClinicianView', a.clinician, b.clinician);
+          }
+          expectSameMarkup('PlayView (mirrored)', mirrorNormalised(a.play, left.caseData), mirrorNormalised(b.play, right.caseData));
+          expectSameMarkup(
+            'ClinicianView (mirrored)',
+            mirrorNormalised(a.clinician, left.caseData),
+            mirrorNormalised(b.clinician, right.caseData),
+          );
+
+          runs.forEach((r, k) => {
+            const markup = k === 0 ? a : b;
+            const other = VARIANTS[1 - k].caseData.play!.sideRevealText!;
+            // The own Side_Reveal_Text only on an Ending_Screen; the other Variant's never.
+            const ownReveal = `${SIDE_REVEAL_OPEN}${escapeHtml(r.caseData.play!.sideRevealText!)}</p>`;
+            expect(markup.play.split(ownReveal).length - 1).toBe(r.run.state.ending.ending === 'none' ? 0 : 1);
+            for (const html of [markup.play, markup.clinician]) expect(html).not.toContain(escapeHtml(other));
+            // Side_Words only in the allowed texts of Property 17, speech included,
+            // plus the disabled Intervention button text "Not available right now"
+            // (after an Ending), whose "right" names no side; it is equal in both Variants.
+            const allowed = [...allowedTexts(r.caseData, r.run.state), NOT_AVAILABLE_TEXT].sort(
+              (x, y) => y.length - x.length,
+            );
+            for (const [view, html] of [
+              ['PlayView', markup.play],
+              ['ClinicianView', markup.clinician],
+            ] as const) {
+              const stray = straySideWords(mirrorNormalised(html, r.caseData), allowed);
+              if (stray.length > 0) {
+                throw new Error(`variant '${r.id}', ${view}: Side_Words outside the allowed texts:\n${stray.join('\n')}`);
+              }
+            }
+            observe(coverage[r.id], prevStates[k], r.run.state, op, markup.play);
+          });
+        }
+      }),
+      PBT_PARAMS,
+    );
+
+    // Non-vacuity: every guard was reached on both sides.
+    for (const id of ['left', 'right']) {
+      for (const g of GUARDS) {
+        if (coverage[id][g] <= 0) throw new Error(`guard '${g}' never reached in variant '${id}'`);
+      }
+    }
+  }, 300_000);
 });
