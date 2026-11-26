@@ -426,6 +426,18 @@
         "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
         "timestamp": 1795696574784
       }
+    ],
+    "11. Record the calibration with speech": [
+      {
+        "executionId": "8c520330-3e39-4876-b2b5-d2dd66bfdc9c",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795696631722
+      },
+      {
+        "executionId": "8c520330-3e39-4876-b2b5-d2dd66bfdc9c",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795697538134
+      }
     ]
   }
 }

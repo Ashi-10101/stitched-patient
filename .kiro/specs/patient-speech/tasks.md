@@ -209,7 +209,7 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
   - Ask the user to commit all changes of this spec before task 11, because task 11 compares the Engine_MCP_Server start time with the last code commit, and the Calibration_Record states whether `cases/` and `apps/web/src/lib/` differ from the commit. Do not commit
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
 
-- [ ] 11. Record the calibration with speech
+- [x] 11. Record the calibration with speech
   - Files: one new Calibration_Record under `docs/calibration/` and its index line in `docs/calibration/README.md`, both written by the calibration writer. No other file changes. Edit no case value because of the result and remove no `TODO(author)` marker
   - Before starting, confirm with `git status --short` that the user has committed the code of this spec. If not, ask the user to commit first. Do not commit
   - Decide the run path as the design section "Calibration run path" states, and report both times:
