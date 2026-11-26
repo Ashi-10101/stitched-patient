@@ -1,0 +1,53 @@
+{
+  "pbtResults": {
+    "1.3 Write the property test for the Speech_Check": {
+      "status": "passed",
+      "lastRunTimestamp": 1795670657162
+    }
+  },
+  "executionHistory": {
+    "1.1 Add the speech types and implement `speechCheck.ts`": [
+      {
+        "executionId": "b2ad074e-17a2-4b57-b093-2a6f803e3c0f",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795669467164
+      },
+      {
+        "executionId": "b2ad074e-17a2-4b57-b093-2a6f803e3c0f",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795669639055
+      }
+    ],
+    "1.2 Write the Speech_Check unit tests": [
+      {
+        "executionId": "b2ad074e-17a2-4b57-b093-2a6f803e3c0f",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795669639566
+      },
+      {
+        "executionId": "b2ad074e-17a2-4b57-b093-2a6f803e3c0f",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795669856556
+      }
+    ],
+    "1.3 Write the property test for the Speech_Check": [
+      {
+        "executionId": "b2ad074e-17a2-4b57-b093-2a6f803e3c0f",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795669856974
+      },
+      {
+        "executionId": "688bd3d7-b7d3-46aa-9fea-79bfd3b88032",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795670706405
+      }
+    ],
+    "1. Speech types and the Speech_Check": [
+      {
+        "executionId": "688bd3d7-b7d3-46aa-9fea-79bfd3b88032",
+        "chatSessionId": "sess_8d74c7e6-e597-4532-b034-eaabdadb712d",
+        "timestamp": 1795670706432
+      }
+    ]
+  }
+}

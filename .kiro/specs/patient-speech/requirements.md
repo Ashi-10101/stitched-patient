@@ -78,7 +78,7 @@ These strings go into `play.speech` of `cases/adult-tension-pneumothorax.yaml`, 
 | `rescued` | "Oh... I can breathe again. Thank you." |
 | `forbiddenTerms` | "needle", "decompress", "drain", "chest tube", "trapped air", "let the air out", "oxygen", "listen", "stethoscope", "windpipe", "trachea", "neck vein" |
 
-Checked against Requirement 2.1 while drafting: no line contains "pneumothorax", "tension", "left", "right", a listed Forbidden_Speech_Term, "he", "his", "him" or "himself", and the longest line has 46 characters. Note that the Diagnosis_Term check is a substring match, so a line with "attention" would fail on "tension", and a line with "all right" fails the Side_Word check.
+Checked against Requirement 2.1 while drafting: no line contains "pneumothorax", "tension", "left", "right", a listed Forbidden_Speech_Term, "he", "his", "him" or "himself", and the longest line has 46 characters. Note that the Diagnosis_Term check is a substring match, so a line with "extension" would fail on "tension", and a line with "all right" fails the Side_Word check.
 
 ### Known limitations
 

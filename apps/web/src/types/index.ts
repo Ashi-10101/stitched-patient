@@ -163,6 +163,27 @@ export interface PlaySection {
   exam?: ExamSection;
   /** Shown on the rescued Ending_Screen (bedside-exam Requirement 12). */
   sideRevealText?: string;
+  /** Patient speech (patient-speech Requirement 1). Absent means silence. */
+  speech?: SpeechSection;
+}
+
+// ---------------------------------------------------------------------------
+// Patient speech
+// ---------------------------------------------------------------------------
+
+export interface SpeechStatusEntry {
+  /** Equals one Status_Rule sentence. */
+  sentence: string;
+  /** 1 to 3 Speech_Lines. */
+  lines: string[];
+}
+
+export interface SpeechSection {
+  status?: SpeechStatusEntry[];
+  early?: string[];
+  rescued?: string[];
+  forbiddenTerms?: string[];
+  references?: string[];
 }
 
 // ---------------------------------------------------------------------------

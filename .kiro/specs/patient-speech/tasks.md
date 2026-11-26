@@ -17,21 +17,21 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
 
 ## Tasks
 
-- [ ] 1. Speech types and the Speech_Check
-  - [ ] 1.1 Add the speech types and implement `speechCheck.ts`
+- [x] 1. Speech types and the Speech_Check
+  - [x] 1.1 Add the speech types and implement `speechCheck.ts`
     - Files: `apps/web/src/types/index.ts`, `apps/web/src/lib/speechCheck.ts` (new). No other file changes
     - In `types/index.ts`: `SpeechStatusEntry`, `SpeechSection` and the optional `PlaySection.speech`, as the design section "TypeScript types" states. No existing field changes
     - In `speechCheck.ts`: `SPEECH_MAX_CODE_POINTS`, `SIDE_WORD_PATTERN`, `THIRD_PERSON_PATTERN` (no look-behind, D11), `SPEECH_RULE_TEXT`, `forbiddenSpeechTerms(caseData)` and `speechCheck(text, caseData)` with rules (a) to (f) in the design's order: a blank text reports only rule (a); length counted in code points; Diagnosis_Terms and Forbidden_Speech_Terms by case-insensitive substring; Side_Words and Third_Person_Words as whole words, each distinct lower-cased match once
     - `forbiddenSpeechTerms` reads only `play.speech.forbiddenTerms`, every Intervention `label` and `playLabel`, and the Exam_Button texts in the order `examButtons` from `examFinding.ts` gives; non-blank, without repeats. Without a Play_Section, rules (c) and (e) use empty lists
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 2.1, 4.7_
-  - [ ] 1.2 Write the Speech_Check unit tests
+  - [x] 1.2 Write the Speech_Check unit tests
     - Files: `apps/web/src/lib/speechCheck.test.ts` (new). No other file changes
     - Build the test case from a fixture of `src/test/caseFixtures.ts` with a `play.speech.forbiddenTerms` list added in the test
     - One failing text per rule (a) to (f) with the exact `SPEECH_RULE_TEXT` message; a 200 and a 201 code-point text that contain an astral character (code points, not UTF-16 units); "alright" passes and "all right" fails; "the", "here" and "them" pass and "he's" fails; a Forbidden_Speech_Term taken from an Intervention `label`, a Play_Label and an Exam_Button text; a passing text gives `[]`; a case without a Play_Section
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 2.1, 12.1_
-  - [ ] 1.3 Write the property test for the Speech_Check
+  - [x] 1.3 Write the property test for the Speech_Check
     - **Property 1: The Speech_Check reports exactly the broken rules**
     - Files: `apps/web/src/lib/speechCheck.test.ts`. No other file changes
     - Use `PBT_PARAMS` from `src/test/pbt.ts`. Tag: `// Feature: patient-speech, Property 1: The Speech_Check reports exactly the broken rules`
