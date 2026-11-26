@@ -25,6 +25,8 @@ import type {
   VitalName,
   VitalSigns,
 } from '@/types';
+import type { Ending } from '@/lib/endingEvaluator';
+import type { SpeechKey, SpeechState } from '@/lib/speechSelector';
 import { VITAL_FIELD, VITAL_NAMES } from '@/lib/vitals';
 import { CASE, VITAL_OFFSETS } from './caseFixtures';
 
@@ -656,3 +658,76 @@ export const arbExamRecordEntry: fc.Arbitrary<ExamRecordEntry> = fc
     wallClockTime: arbWallClockTime,
   })
   .map(({ side, ...rest }) => ({ ...rest, ...(side === undefined ? {} : { side }) }));
+
+// ---------------------------------------------------------------------------
+// Patient speech (patient-speech design "Testing Strategy")
+// ---------------------------------------------------------------------------
+
+/** Ending: `none`, `rescued` or `lost`. */
+export const arbEnding: fc.Arbitrary<Ending> = fc.constantFrom<Ending>('none', 'rescued', 'lost');
+
+/**
+ * Simulation_Times in seconds around the shipped case's Earliest_Insult_Time
+ * (30 s), the Rescue_Gate_Time of the engine facts (150 s) and the time the
+ * `defaultSentence` returns (220 s). Test inputs, not clinical values.
+ */
+const SPEECH_TIME_GRID = [29, 30, 31, 149, 150, 151, 219, 220, 221] as const;
+
+/** A Simulation_Time from `SPEECH_TIME_GRID`, or any half-second step from 0 to 300 s. */
+export const arbSpeechTime: fc.Arbitrary<number> = fc.oneof(
+  { weight: 1, arbitrary: fc.constantFrom(...SPEECH_TIME_GRID) },
+  { weight: 1, arbitrary: fc.integer({ min: 0, max: 600 }).map((n) => n / 2) },
+);
+
+/** Rescue_Gate_Time: `null` (closed), `-Infinity` (no Required_Interventions) or a time from `SPEECH_TIME_GRID`. */
+export const arbGate: fc.Arbitrary<number | null> = fc.oneof(
+  { weight: 1, arbitrary: fc.constant(null) },
+  { weight: 1, arbitrary: fc.constant(Number.NEGATIVE_INFINITY) },
+  { weight: 2, arbitrary: fc.constantFrom(...SPEECH_TIME_GRID) },
+);
+
+/** branch_id from a small pool, so a previous Speech_State often names the current Branch. */
+export const arbSpeechBranchId: fc.Arbitrary<string> = fc.constantFrom('main', 'branch-1', 'branch-2');
+
+/**
+ * Every Speech_Key of the shipped case with its Speech_Lines, read from the
+ * case's `play.speech` (not from the Speech_Selector): `silent` with no lines,
+ * `early`, `rescued` and one `status:<sentence>` per Status_Speech_Entry.
+ */
+const SPEECH_KEY_LINES: readonly (readonly [SpeechKey, readonly string[]])[] = (() => {
+  const speech = CASE.play?.speech;
+  const entries: [SpeechKey, readonly string[]][] = [['silent', []]];
+  if (speech?.early?.length) entries.push(['early', speech.early]);
+  if (speech?.rescued?.length) entries.push(['rescued', speech.rescued]);
+  for (const entry of speech?.status ?? []) entries.push([`status:${entry.sentence}`, entry.lines]);
+  return entries;
+})();
+
+/**
+ * Speech_State as the Speech_Selector produces it for the shipped case: any
+ * Speech_Key of the case or `silent`, a line index from 0 to 3, a branch_id
+ * from `arbSpeechBranchId` and any `since` from `arbSpeechTime`.
+ *
+ * The line index of a key with lines stays inside its list (at most 3 lines by
+ * the schema), and `line` is the Speech_Line at that index, because a
+ * Speech_State holds the entry at its line index (Requirement 4.4) and the
+ * Case_Definition is fixed within a Session (design "speechSelector.ts").
+ * `silent` takes any index from 0 to 3 and `line` null.
+ */
+export const arbSpeechState: fc.Arbitrary<SpeechState> = fc
+  .constantFrom(...SPEECH_KEY_LINES)
+  .chain(([key, lines]) =>
+    fc
+      .record({
+        branchId: arbSpeechBranchId,
+        index: fc.integer({ min: 0, max: lines.length === 0 ? 3 : Math.min(3, lines.length - 1) }),
+        since: arbSpeechTime,
+      })
+      .map(({ branchId, index, since }): SpeechState => ({
+        branchId,
+        key,
+        index,
+        since,
+        line: lines[index] ?? null,
+      })),
+  );

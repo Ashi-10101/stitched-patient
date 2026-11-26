@@ -66,14 +66,14 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 1.5, 2.2, 2.4, 2.5, 2.6, 3.1, 3.4, 8.1, 12.7_
 
-- [ ] 3. Speech_Selector
-  - [ ] 3.1 Implement `speechSelector.ts`
+- [x] 3. Speech_Selector
+  - [x] 3.1 Implement `speechSelector.ts`
     - Files: `apps/web/src/lib/speechSelector.ts` (new). No other file changes
     - Export `SPEECH_HOLD_SECONDS = 10`, `SPEECH_ROTATE_SECONDS = 30`, `SpeechKey`, `SpeechState`, `SpeechInput`, `SpeechStep`, `speechLines`, `targetSpeechKey` (the seven steps of the design, calling `selectStatus` and `earliestInsultTime`), `selectSpeech` (the hold and rotation pseudocode of the design, returning `previous` itself when nothing changes), `foldSpeech`, `checkedScriptedLine` and `speechRequestKey`
     - The module reads no Wall_Clock_Time, random value, network, Variant_Id, Affected_Side, Scheduled_Insult side, Intervention_Record or Exam_Record
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 5.1, 5.2, 5.3, 5.4, 5.10, 8.2_
-  - [ ] 3.2 Write the Speech_Selector unit tests
+  - [x] 3.2 Write the Speech_Selector unit tests
     - Files: `apps/web/src/lib/speechSelector.test.ts` (new). No other file changes
     - Each rule of 4.2 with fixed inputs: silence at 29 s and `early` at exactly 30 s; a Status_Rule sentence without an entry; the `defaultSentence` with the gate `null`, greater than, equal to and less than the time, and `-Infinity`; `rescued` with and without Rescued_Lines; `lost`; no sample; no Speech_Section
     - Requirement 5: a key change at 9 s is held and at 10 s is not; an Ending overrides the hold; rotation at 30 s and the wrap to the first line; a one-line list never rotates; another Branch and a later `since` are ignored
@@ -81,26 +81,26 @@ No task commits. The user commits. No task runs `docker compose up`, `down`, `st
     - `checkedScriptedLine` returns `null` for a line that fails the Speech_Check; `speechRequestKey` changes on key, index, `since` and Branch changes and not otherwise
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - _Requirements: 4.2, 4.7, 5.1, 5.2, 5.3, 5.4, 6.4, 12.2, 12.3_
-  - [ ] 3.3 Add the speech generators and write the property test for line membership
+  - [x] 3.3 Add the speech generators and write the property test for line membership
     - **Property 2: Every returned line is a case line at its index**
     - Files: `apps/web/src/test/generators.ts`, `apps/web/src/lib/speechSelector.test.ts`. No other file changes
     - Add `arbEnding`, `arbGate` (`null`, `-Infinity`, or a time from a grid around 30, 150 and 220 s) and `arbSpeechState` (any key of the shipped case or `silent`, index 0 to 3, a branch_id from a small set, any `since`) to `generators.ts`
     - Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 2: Every returned line is a case line at its index`
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 4.4, 4.5**
-  - [ ] 3.4 Write the property test for the hold
+  - [x] 3.4 Write the property test for the hold
     - **Property 4: Key changes on one Branch are at least the hold apart**
     - Files: `apps/web/src/lib/speechSelector.test.ts`. No other file changes
     - Use `PBT_PARAMS` and `arbSampleSequence`. Tag: `// Feature: patient-speech, Property 4: Key changes on one Branch are at least the hold apart`
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 5.1**
-  - [ ] 3.5 Write the property test for Branch isolation
+  - [x] 3.5 Write the property test for Branch isolation
     - **Property 5: A previous Speech_State from another Branch or the future is ignored**
     - Files: `apps/web/src/lib/speechSelector.test.ts`. No other file changes
     - Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 5: A previous Speech_State from another Branch or the future is ignored`
     - Verify: from `apps/web/`, `npx tsc --noEmit` and `npx vitest --run` pass; `git status --short services/physiology/` prints nothing
     - **Validates: Requirements 5.4**
-  - [ ] 3.6 Write the property test for side symmetry
+  - [x] 3.6 Write the property test for side symmetry
     - **Property 6: Speech is the same on both sides**
     - Files: `apps/web/src/lib/speechSelector.test.ts`. No other file changes
     - Compare `selectSpeech` and `foldSpeech` on `CASE_LEFT` and `CASE_RIGHT` resolved from the shipped case. Use `PBT_PARAMS`. Tag: `// Feature: patient-speech, Property 6: Speech is the same on both sides`
